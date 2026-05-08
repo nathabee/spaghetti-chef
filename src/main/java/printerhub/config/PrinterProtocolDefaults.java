@@ -18,7 +18,7 @@ public final class PrinterProtocolDefaults {
     public static final String COMMAND_START_SD_PRINT = "M24";
     public static final String COMMAND_READ_SD_PRINT_STATUS = "M27";
     public static final String COMMAND_PAUSE_SD_PRINT = "M25";
-    public static final String COMMAND_ABORT_SD_PRINT = "M26";
+    public static final String COMMAND_ABORT_SD_PRINT = "M524";
     public static final String COMMAND_DELETE_SD_FILE = "M30";
     public static final int SD_UPLOAD_MAX_RETRIES_PER_LINE = 3;
     public static final String DEFAULT_STATUS_COMMAND = "M105";
