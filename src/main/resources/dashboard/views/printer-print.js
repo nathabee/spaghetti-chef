@@ -1,7 +1,7 @@
 import { renderJobCard } from "../components/job-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../dashboard.js";
 import { isJobCardSectionOpen, state } from "../state.js";
 
 export function renderPrinterPrint(printer, jobsForPrinter) {
@@ -114,7 +114,7 @@ function renderJobEvents(jobId) {
     <div class="event-item">
       <div class="event-header">
         <strong>${escapeHtml(event.eventType || "UNKNOWN")}</strong>
-        <span class="event-time">${escapeHtml(event.createdAt || "n/a")}</span>
+        <span class="event-time">${escapeHtml(formatDateTime(event.createdAt))}</span>
       </div>
       <div class="event-message">${escapeHtml(event.message || "none")}</div>
     </div>

@@ -176,29 +176,31 @@ This structure is designed to stay aligned with the practical logic of operating
 
 ### Dashboard screenshots
 
-<table>
-  <tr>
-    <td align="center">
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-01.png" alt="PrinterHub dashboard farm home" width="100%">
-      <br>
-      <sub>Farm Home</sub>
-    </td>
-    <td align="center">
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-02.png" alt="SD card management" width="100%">
-      <br>
-      <sub>SD card management</sub>
-    </td>
+<table>  
+
+  <tr align="center">
+    <sub>Farm Home</sub>
+    <img src="docs/assets/media-src/screenshot-printerhub-dashboard-01.png" alt="PrinterHub dashboard farm home" width="100%">
+  
+</tr>
+
+
+  <tr align="center">
+    <sub>SD card management</sub>
+    <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="SD card management" width="100%"> 
   </tr>
+
+
   <tr>
     <td align="center">
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="PrinterHub dashboard settings view" width="100%">
       <br>
       <sub>Settings</sub>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="PrinterHub settings view" width="100%">
     </td>
     <td align="center">
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-04.png" alt="PrinterHub dashboard selected printer prepare view" width="100%">
       <br>
-      <sub>Selected Printer → Prepare</sub>
+      <sub>Selected Printer → Print</sub>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-02.png" alt="PrinterHub print view" width="100%">
     </td>
   </tr>
 </table>

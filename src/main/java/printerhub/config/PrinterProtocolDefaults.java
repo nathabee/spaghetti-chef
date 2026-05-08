@@ -22,6 +22,8 @@ public final class PrinterProtocolDefaults {
     public static final String COMMAND_DELETE_SD_FILE = "M30";
     public static final int SD_PRINT_CONTROL_MAX_BUSY_RETRIES = 5;
     public static final long SD_PRINT_CONTROL_BUSY_RETRY_DELAY_MS = 500L;
+    public static final int SD_PRINT_CANCEL_VERIFY_ATTEMPTS = 3;
+    public static final long SD_PRINT_CANCEL_VERIFY_DELAY_MS = 500L;
     public static final int SD_UPLOAD_MAX_RETRIES_PER_LINE = 3;
     public static final String DEFAULT_STATUS_COMMAND = "M105";
     public static final double DEFAULT_HEATING_TEMPERATURE_THRESHOLD = 45.0;

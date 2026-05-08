@@ -1,4 +1,4 @@
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../dashboard.js";
 
 export function renderEventList(events, emptyMessage) {
   if (!events || events.length === 0) {
@@ -13,7 +13,7 @@ export function renderEventItem(event) {
     <div class="event-item">
       <div class="event-header">
         <strong>${escapeHtml(event.eventType || "UNKNOWN")}</strong>
-        <span class="event-time">${escapeHtml(event.createdAt || "n/a")}</span>
+        <span class="event-time">${escapeHtml(formatDateTime(event.createdAt))}</span>
       </div>
       <div class="event-message">${escapeHtml(event.message || "none")}</div>
     </div>
@@ -37,7 +37,7 @@ export function renderExecutionStepItem(step) {
     <div class="event-item">
       <div class="event-header">
         <strong>${escapeHtml(step.stepName || "unknown-step")}</strong>
-        <span class="event-time">${escapeHtml(step.createdAt || "n/a")}</span>
+        <span class="event-time">${escapeHtml(formatDateTime(step.createdAt))}</span>
       </div>
       <div class="event-message"><strong>Command:</strong> ${escapeHtml(step.wireCommand || "n/a")}</div>
       <div class="event-message"><strong>Response:</strong> ${escapeHtml(step.response || "none")}</div>

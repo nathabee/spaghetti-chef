@@ -1,5 +1,6 @@
 import { renderEventList, renderExecutionStepList } from "../components/event-list.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
+import { escapeHtml, formatDateTime } from "../dashboard.js";
 import { state } from "../state.js";
 
 export function renderPrinterHistory(printer, jobsForPrinter) {
@@ -77,13 +78,13 @@ function renderJobHistorySummary(jobsForPrinter) {
   return jobsForPrinter.map((job) => `
     <div class="event-item">
       <div class="event-header">
-        <strong>${job.name || job.id}</strong>
-        <span class="event-time">${job.state || "UNKNOWN"}</span>
+        <strong>${escapeHtml(job.name || job.id)}</strong>
+        <span class="event-time">${escapeHtml(job.state || "UNKNOWN")}</span>
       </div>
-      <div class="event-message">${job.type || "n/a"} · created ${job.createdAt || "n/a"}</div>
+      <div class="event-message">${escapeHtml(job.type || "n/a")} · created ${escapeHtml(formatDateTime(job.createdAt))}</div>
       <div class="inline-actions">
-        <button type="button" class="secondary-button small-button" data-job-action="load-events" data-job-id="${job.id}">Load job events</button>
-        <button type="button" class="secondary-button small-button" data-job-action="load-execution-steps" data-job-id="${job.id}">Load diagnostics</button>
+        <button type="button" class="secondary-button small-button" data-job-action="load-events" data-job-id="${escapeHtml(job.id)}">Load job events</button>
+        <button type="button" class="secondary-button small-button" data-job-action="load-execution-steps" data-job-id="${escapeHtml(job.id)}">Load diagnostics</button>
       </div>
     </div>
   `).join("");
@@ -100,8 +101,8 @@ function renderPrinterJobExecutionDiagnostics(jobsForPrinter) {
     return `
       <div class="event-item">
         <div class="event-header">
-          <strong>${job.name || job.id}</strong>
-          <span class="event-time">${job.state || "UNKNOWN"}</span>
+          <strong>${escapeHtml(job.name || job.id)}</strong>
+          <span class="event-time">${escapeHtml(job.state || "UNKNOWN")}</span>
         </div>
         <div class="event-message">${job.type || "n/a"}</div>
         <div class="events-list">

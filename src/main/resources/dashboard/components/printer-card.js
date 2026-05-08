@@ -1,4 +1,4 @@
-import { escapeHtml, formatTemperature, isSimulatedMode, renderStatusLabel, resolveStateClass } from "../dashboard.js";
+import { escapeHtml, formatDateTime, formatTemperature, isSimulatedMode, renderStatusLabel, resolveStateClass } from "../dashboard.js";
 
 export function renderPrinterCard(printer, options = {}) {
   const actions = options.actions ?? [];
@@ -44,7 +44,7 @@ export function renderPrinterCard(printer, options = {}) {
       </div>
       <div class="row">
         <span>Updated</span>
-        <strong data-live-printer-field="updatedAt">${escapeHtml(printer.updatedAt || "n/a")}</strong>
+        <strong data-live-printer-field="updatedAt">${escapeHtml(formatDateTime(printer.updatedAt))}</strong>
       </div>
 
       <div class="message-block">

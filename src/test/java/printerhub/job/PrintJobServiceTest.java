@@ -3,6 +3,7 @@ package printerhub.job;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import printerhub.OperationMessages;
 import printerhub.config.RuntimeDefaults;
 import printerhub.persistence.DatabaseInitializer;
 import printerhub.persistence.PrintJobStore;
@@ -230,6 +231,33 @@ class PrintJobServiceTest {
 
         assertEquals(JobState.CANCELLED, cancelled.state());
         assertEquals(Instant.parse("2026-05-04T08:04:00Z"), cancelled.finishedAt());
+    }
+
+    @Test
+    void cancelRejectsCompletedJob() {
+        initializeDatabase("job-service-cancel-completed.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-04T08:04:00Z"), ZoneOffset.UTC);
+        PrintJobService service = new PrintJobService(store, eventStore, clock);
+
+        PrintJob job = service.create(
+                "Read temperature",
+                JobType.READ_TEMPERATURE,
+                "printer-1",
+                null,
+                null
+        );
+        service.markCompleted(job.id());
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> service.cancel(job.id())
+        );
+
+        assertEquals(OperationMessages.INVALID_JOB_STATE, exception.getMessage());
+        assertEquals(JobState.COMPLETED, store.findById(job.id()).orElseThrow().state());
     }
 
     @Test

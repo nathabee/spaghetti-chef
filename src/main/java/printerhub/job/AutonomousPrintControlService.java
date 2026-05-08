@@ -136,6 +136,61 @@ public final class AutonomousPrintControlService {
                             + OperationMessages.safeDetail(classification.response(), "no response")
             );
 
+            if (action == ControlAction.CANCEL) {
+                int verifyStepIndex = stepIndex + 1;
+                String verifyStepName = "verify-printer-sd-print-stopped";
+                String verifyCommand = PrinterProtocolDefaults.COMMAND_READ_SD_PRINT_STATUS;
+
+                printJobService.recordJobAuditEvent(
+                        job.id(),
+                        OperationMessages.EVENT_JOB_EXECUTION_STARTED,
+                        "Workflow step started: " + verifyStepName + " -> " + verifyCommand
+                );
+
+                PrinterResponseClassifier.ResponseClassification verifyClassification =
+                        verifyCancelStopped(job.id(), node);
+
+                if (!verifyClassification.success()) {
+                    restoreStateAfterFailedControl(job);
+                    persistStepFailure(job.id(), verifyStepIndex, verifyStepName, verifyCommand,
+                            verifyClassification.response(),
+                            verifyClassification.failureReason(),
+                            verifyClassification.detail());
+                    printJobService.recordJobAuditEvent(
+                            job.id(),
+                            OperationMessages.EVENT_JOB_EXECUTION_FAILED,
+                            "Workflow step failed: "
+                                    + verifyStepName
+                                    + " -> "
+                                    + verifyCommand
+                                    + " | outcome="
+                                    + verifyClassification.failureReason().name()
+                                    + " | response="
+                                    + OperationMessages.safeDetail(verifyClassification.response(), "no response")
+                    );
+
+                    return ControlResult.failure(
+                            printJobService.findById(job.id()).orElseThrow(() -> new IllegalStateException(OperationMessages.JOB_NOT_FOUND)),
+                            verifyCommand,
+                            verifyClassification.response(),
+                            verifyClassification.failureReason(),
+                            verifyClassification.detail()
+                    );
+                }
+
+                persistStepSuccess(job.id(), verifyStepIndex, verifyStepName, verifyCommand, verifyClassification.response());
+                printJobService.recordJobAuditEvent(
+                        job.id(),
+                        OperationMessages.EVENT_JOB_EXECUTION_SUCCEEDED,
+                        "Workflow step succeeded: "
+                                + verifyStepName
+                                + " -> "
+                                + verifyCommand
+                                + " | response="
+                                + OperationMessages.safeDetail(verifyClassification.response(), "no response")
+                );
+            }
+
             PrintJob updated = transitionSuccessfulControl(job.id(), action);
             return ControlResult.success(updated, command, classification.response());
         } catch (Exception exception) {
@@ -229,6 +284,76 @@ public final class AutonomousPrintControlService {
         }
 
         return printerResponseClassifier.classifyResponse(command, response);
+    }
+
+    private PrinterResponseClassifier.ResponseClassification verifyCancelStopped(
+            String jobId,
+            PrinterRuntimeNode node
+    ) throws InterruptedException {
+        String response = null;
+        String command = PrinterProtocolDefaults.COMMAND_READ_SD_PRINT_STATUS;
+
+        for (int attempt = 1; attempt <= PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_ATTEMPTS; attempt++) {
+            response = node.printerPort().sendCommand(command);
+            String normalized = response == null ? "" : response.toLowerCase(java.util.Locale.ROOT);
+
+            if (isSdPrintStoppedResponse(normalized)) {
+                return PrinterResponseClassifier.ResponseClassification.success(response);
+            }
+
+            if (isSdPrintActiveResponse(normalized)) {
+                printJobService.recordJobAuditEvent(
+                        jobId,
+                        OperationMessages.EVENT_JOB_EXECUTION_IN_PROGRESS,
+                        "Printer still reports SD printing after abort request: "
+                                + command
+                                + " | attempt="
+                                + attempt
+                                + " | response="
+                                + OperationMessages.safeDetail(response, "no response")
+                );
+
+                if (attempt < PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_ATTEMPTS) {
+                    Thread.sleep(PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_DELAY_MS);
+                    continue;
+                }
+
+                return PrinterResponseClassifier.ResponseClassification.failure(
+                        JobFailureReason.PRINTER_BUSY,
+                        "Printer still reports SD printing after abort request.",
+                        response
+                );
+            }
+
+            PrinterResponseClassifier.ResponseClassification classification =
+                    printerResponseClassifier.classifyResponse(command, response);
+
+            if (!classification.success()) {
+                return classification;
+            }
+
+            if (attempt < PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_ATTEMPTS) {
+                Thread.sleep(PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_DELAY_MS);
+            }
+        }
+
+        return PrinterResponseClassifier.ResponseClassification.failure(
+                JobFailureReason.UNEXPECTED_RESPONSE,
+                "Printer did not confirm that SD printing stopped after abort request.",
+                response
+        );
+    }
+
+    private boolean isSdPrintStoppedResponse(String normalizedResponse) {
+        return normalizedResponse.contains("not sd printing")
+                || normalizedResponse.contains("done printing file")
+                || normalizedResponse.contains("print done")
+                || normalizedResponse.contains("sd print complete");
+    }
+
+    private boolean isSdPrintActiveResponse(String normalizedResponse) {
+        return normalizedResponse.contains("sd printing")
+                && !normalizedResponse.contains("not sd printing");
     }
 
     private String sendControlCommandWithBusyRetry(

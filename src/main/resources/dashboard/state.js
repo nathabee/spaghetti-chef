@@ -32,6 +32,7 @@ export const state = {
   jobCardSections: new Map(),
   printerSdCardFiles: new Map(),
   printerSdUploadStatus: new Map(),
+  printerSdTargetFilters: new Map(),
   printerCommandResults: new Map(),
   message: "",
   lastRefreshLabel: "never"
@@ -146,6 +147,39 @@ export function getPrinterSdUploadStatus(printerId) {
   }
 
   return state.printerSdUploadStatus.get(printerId) ?? null;
+}
+
+export function setPrinterSdTargetFilter(printerId, fieldName, value) {
+  if (!printerId || !fieldName) {
+    return;
+  }
+
+  const current = state.printerSdTargetFilters.get(printerId) ?? {
+    availability: "all",
+    enabled: "all",
+    link: "all"
+  };
+
+  state.printerSdTargetFilters.set(printerId, {
+    ...current,
+    [fieldName]: value || "all"
+  });
+}
+
+export function getPrinterSdTargetFilter(printerId) {
+  if (!printerId) {
+    return {
+      availability: "all",
+      enabled: "all",
+      link: "all"
+    };
+  }
+
+  return state.printerSdTargetFilters.get(printerId) ?? {
+    availability: "all",
+    enabled: "all",
+    link: "all"
+  };
 }
 
 export function setPrinterEvents(printerId, events) {

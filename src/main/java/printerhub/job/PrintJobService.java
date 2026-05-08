@@ -227,6 +227,9 @@ public final class PrintJobService {
 
     public PrintJob cancel(String jobId) {
         PrintJob job = loadRequired(jobId);
+        if (isTerminal(job.state())) {
+            throw new IllegalStateException(OperationMessages.INVALID_JOB_STATE);
+        }
         Instant now = Instant.now(clock);
 
         PrintJob updated = job.cancelled(now, now);
@@ -239,6 +242,12 @@ public final class PrintJobService {
                 "Job cancelled: " + updated.id());
 
         return updated;
+    }
+
+    private boolean isTerminal(JobState state) {
+        return state == JobState.COMPLETED
+                || state == JobState.FAILED
+                || state == JobState.CANCELLED;
     }
 
     public void delete(String jobId) {

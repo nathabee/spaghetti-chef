@@ -1,4 +1,4 @@
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../dashboard.js";
 
 export function renderJobCard(job, options = {}) {
   const eventsHtml = options.eventsHtml ?? `<p class="muted">Job history not loaded yet.</p>`;
@@ -7,7 +7,13 @@ export function renderJobCard(job, options = {}) {
   const historyOpen = options.historyOpen === true;
   const diagnosticsOpen = options.diagnosticsOpen === true;
   const canStart = job.state === "ASSIGNED";
-  const canCancel = !["COMPLETED", "FAILED", "CANCELLED"].includes(job.state);
+  const isPrintFileJob = job.type === "PRINT_FILE";
+  const isTerminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.state);
+  const canPause = isPrintFileJob && job.state === "RUNNING";
+  const canResume = isPrintFileJob && job.state === "PAUSED";
+  const canCancel = !isTerminal && !["CANCELLING"].includes(job.state);
+  const canRestart = isPrintFileJob && isTerminal && job.printerSdFileId;
+  const cancelLabel = job.state === "CANCELLING" ? "Cancelling" : "Cancel";
 
   return `
     <article class="job-card">
@@ -24,15 +30,15 @@ export function renderJobCard(job, options = {}) {
 
       <div class="info-row">
         <span>Created</span>
-        <strong>${escapeHtml(job.createdAt || "n/a")}</strong>
+        <strong>${escapeHtml(formatDateTime(job.createdAt))}</strong>
       </div>
       <div class="info-row">
         <span>Started</span>
-        <strong>${escapeHtml(job.startedAt || "n/a")}</strong>
+        <strong>${escapeHtml(formatDateTime(job.startedAt))}</strong>
       </div>
       <div class="info-row">
         <span>Finished</span>
-        <strong>${escapeHtml(job.finishedAt || "n/a")}</strong>
+        <strong>${escapeHtml(formatDateTime(job.finishedAt))}</strong>
       </div>
       <div class="info-row">
         <span>Print file</span>
@@ -54,7 +60,10 @@ export function renderJobCard(job, options = {}) {
       ${showActions ? `
         <div class="action-row">
           <button type="button" class="secondary-button" data-job-action="start" data-job-id="${escapeHtml(job.id)}" ${canStart ? "" : "disabled"}>Start</button>
-          <button type="button" class="secondary-button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${canCancel ? "" : "disabled"}>Cancel</button>
+          <button type="button" class="secondary-button" data-job-action="pause" data-job-id="${escapeHtml(job.id)}" ${canPause ? "" : "disabled"}>Pause</button>
+          <button type="button" class="secondary-button" data-job-action="resume" data-job-id="${escapeHtml(job.id)}" ${canResume ? "" : "disabled"}>Resume</button>
+          <button type="button" class="secondary-button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${canCancel ? "" : "disabled"}>${cancelLabel}</button>
+          <button type="button" class="secondary-button" data-job-action="restart" data-job-id="${escapeHtml(job.id)}" ${canRestart ? "" : "disabled"}>Restart</button>
           <button type="button" class="secondary-button" data-job-action="load-events" data-job-id="${escapeHtml(job.id)}">Load history</button>
           <button type="button" class="secondary-button" data-job-action="load-execution-steps" data-job-id="${escapeHtml(job.id)}">Load diagnostics</button>
           <button type="button" class="danger-button" data-job-action="delete" data-job-id="${escapeHtml(job.id)}">Delete</button>

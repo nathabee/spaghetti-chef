@@ -1,10 +1,12 @@
 import { escapeHtml } from "../dashboard.js";
-import { getPrinterSdUploadStatus, state } from "../state.js";
+import { getPrinterSdTargetFilter, getPrinterSdUploadStatus, state } from "../state.js";
 
 export function renderPrinterSdCard(printer) {
   const data = state.printerSdCardFiles.get(printer.id);
   const files = data?.files ?? [];
   const registeredFiles = state.printerSdFiles.filter((file) => file.printerId === printer.id);
+  const registeredFilter = getPrinterSdTargetFilter(printer.id);
+  const filteredRegisteredFiles = filterRegisteredFiles(registeredFiles, registeredFilter);
   const uploadStatus = getPrinterSdUploadStatus(printer.id);
 
   return `
@@ -51,14 +53,28 @@ export function renderPrinterSdCard(printer) {
           <h3>Printable files known for this printer</h3>
           <p class="lead">Print jobs select one of these registered printer-side paths.</p>
         </div>
+        <button
+          type="button"
+          class="secondary-button"
+          data-close-sd-upload-session
+          data-printer-id="${escapeHtml(printer.id)}"
+          data-line-number="2"
+        >Close upload session</button>
       </div>
+
+      ${renderRegisteredTargetFilters(printer.id, registeredFilter)}
 
       ${registeredFiles.length === 0 ? `
         <div class="empty-state">
           <h3>No registered SD target</h3>
           <p class="muted">Refresh the SD card and register an existing firmware file, or register a known printer-side path below.</p>
         </div>
-      ` : renderRegisteredFileTable(registeredFiles)}
+      ` : filteredRegisteredFiles.length === 0 ? `
+        <div class="empty-state">
+          <h3>No matching SD target</h3>
+          <p class="muted">Adjust the filters to show more registered printer-side files.</p>
+        </div>
+      ` : renderRegisteredFileTable(filteredRegisteredFiles)}
 
       <form id="printerSdFileForm" class="form-grid">
         <input id="printerSdFilePrinterIdInput" name="printerId" type="hidden" value="${escapeHtml(printer.id)}">
@@ -119,6 +135,65 @@ export function renderPrinterSdCard(printer) {
         ` : renderHostFileTable(printer.id)}
     </section>
   `;
+}
+
+function renderRegisteredTargetFilters(printerId, filter) {
+  return `
+    <div class="form-grid compact-form">
+      <label>
+        Availability
+        <select data-sd-target-filter="availability" data-printer-id="${escapeHtml(printerId)}">
+          ${renderFilterOption("all", "All", filter.availability)}
+          ${renderFilterOption("available", "Available", filter.availability)}
+          ${renderFilterOption("deleted", "Deleted", filter.availability)}
+        </select>
+      </label>
+      <label>
+        Enabled
+        <select data-sd-target-filter="enabled" data-printer-id="${escapeHtml(printerId)}">
+          ${renderFilterOption("all", "All", filter.enabled)}
+          ${renderFilterOption("enabled", "Enabled", filter.enabled)}
+          ${renderFilterOption("disabled", "Disabled", filter.enabled)}
+        </select>
+      </label>
+      <label>
+        Host link
+        <select data-sd-target-filter="link" data-printer-id="${escapeHtml(printerId)}">
+          ${renderFilterOption("all", "All", filter.link)}
+          ${renderFilterOption("linked", "Linked", filter.link)}
+          ${renderFilterOption("unlinked", "Unlinked", filter.link)}
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function renderFilterOption(value, label, selectedValue) {
+  return `<option value="${escapeHtml(value)}" ${selectedValue === value ? "selected" : ""}>${escapeHtml(label)}</option>`;
+}
+
+function filterRegisteredFiles(files, filter) {
+  return files.filter((file) => {
+    if (filter.availability === "available" && file.deleted === true) {
+      return false;
+    }
+    if (filter.availability === "deleted" && file.deleted !== true) {
+      return false;
+    }
+    if (filter.enabled === "enabled" && file.enabled !== true) {
+      return false;
+    }
+    if (filter.enabled === "disabled" && file.enabled === true) {
+      return false;
+    }
+    if (filter.link === "linked" && !file.printFileId) {
+      return false;
+    }
+    if (filter.link === "unlinked" && file.printFileId) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function renderEmptyState(data) {

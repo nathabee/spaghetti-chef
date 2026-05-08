@@ -175,6 +175,7 @@ public final class OperationMessages {
     public static final String EVENT_JOB_PAUSED = "JOB_PAUSED";
     public static final String EVENT_JOB_RESUMED = "JOB_RESUMED";
     public static final String EVENT_JOB_CANCELLING = "JOB_CANCELLING";
+    public static final String EVENT_JOB_RESTARTED = "JOB_RESTARTED";
 
     public static String simulatedPrinterDisconnected(String portName) {
         return "Simulated printer is disconnected: " + portName;

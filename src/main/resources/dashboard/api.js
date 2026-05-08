@@ -199,8 +199,26 @@ export async function startJob(jobId) {
   });
 }
 
+export async function pauseJob(jobId) {
+  return requestJson(`/jobs/${encodeURIComponent(jobId)}/pause`, {
+    method: "POST"
+  });
+}
+
+export async function resumeJob(jobId) {
+  return requestJson(`/jobs/${encodeURIComponent(jobId)}/resume`, {
+    method: "POST"
+  });
+}
+
 export async function cancelJob(jobId) {
   return requestJson(`/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST"
+  });
+}
+
+export async function restartJob(jobId) {
+  return requestJson(`/jobs/${encodeURIComponent(jobId)}/restart`, {
     method: "POST"
   });
 }
@@ -208,6 +226,16 @@ export async function cancelJob(jobId) {
 export async function deleteJob(jobId) {
   return requestJson(`/jobs/${encodeURIComponent(jobId)}`, {
     method: "DELETE"
+  });
+}
+
+export async function closePrinterSdUploadSession(printerId, lineNumber = 2) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/sd-card/recovery/close-upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ lineNumber })
   });
 }
 
