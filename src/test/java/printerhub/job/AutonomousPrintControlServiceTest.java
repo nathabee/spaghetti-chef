@@ -1,0 +1,209 @@
+package printerhub.job;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import printerhub.PrinterPort;
+import printerhub.config.RuntimeDefaults;
+import printerhub.monitoring.PrinterMonitoringScheduler;
+import printerhub.persistence.DatabaseInitializer;
+import printerhub.persistence.PrintFileStore;
+import printerhub.persistence.PrintJobExecutionStepStore;
+import printerhub.persistence.PrintJobStore;
+import printerhub.persistence.PrinterEventStore;
+import printerhub.persistence.PrinterSdFileStore;
+import printerhub.runtime.PrinterRegistry;
+import printerhub.runtime.PrinterRuntimeNode;
+import printerhub.runtime.PrinterRuntimeStateCache;
+
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class AutonomousPrintControlServiceTest {
+
+    @TempDir
+    Path tempDir;
+
+    @AfterEach
+    void tearDown() {
+        System.clearProperty(RuntimeDefaults.DATABASE_FILE_PROPERTY);
+    }
+
+    @Test
+    void pauseRunningPrintFileJobSendsM25AndMarksJobPaused() {
+        initializeDatabase("autonomous-pause.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobExecutionStepStore stepStore = new PrintJobExecutionStepStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
+
+        PrintJobService jobService = new PrintJobService(store, eventStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+
+        PrinterRegistry registry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler scheduler = new PrinterMonitoringScheduler(registry, stateCache);
+        RecordingPrinterPort port = new RecordingPrinterPort("ok");
+
+        try {
+            registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
+            PrinterSdFile printerSdFile = printerSdFileService.register(
+                    "printer-1",
+                    "TEST4.GCO",
+                    "TEST4.GCO",
+                    9L,
+                    "TEST4.GCO 9",
+                    null
+            );
+
+            PrintJob job = jobService.create("Pause me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            jobService.markRunning(job.id());
+
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService.ControlResult result = service.pause(job.id());
+
+            assertTrue(result.success());
+            assertEquals("M25", result.wireCommand());
+            assertEquals("M25", port.commands().get(0));
+            assertEquals(JobState.PAUSED, store.findById(job.id()).orElseThrow().state());
+        } finally {
+            scheduler.stop();
+        }
+    }
+
+    @Test
+    void resumePausedPrintFileJobSendsM24AndMarksJobRunning() {
+        initializeDatabase("autonomous-resume.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobExecutionStepStore stepStore = new PrintJobExecutionStepStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
+
+        PrintJobService jobService = new PrintJobService(store, eventStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+
+        PrinterRegistry registry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler scheduler = new PrinterMonitoringScheduler(registry, stateCache);
+        RecordingPrinterPort port = new RecordingPrinterPort("ok");
+
+        try {
+            registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
+            PrinterSdFile printerSdFile = printerSdFileService.register(
+                    "printer-1",
+                    "TEST4.GCO",
+                    "TEST4.GCO",
+                    9L,
+                    "TEST4.GCO 9",
+                    null
+            );
+
+            PrintJob job = jobService.create("Resume me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            jobService.markRunning(job.id());
+            jobService.markPaused(job.id());
+
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService.ControlResult result = service.resume(job.id());
+
+            assertTrue(result.success());
+            assertEquals("M24", result.wireCommand());
+            assertEquals("M24", port.commands().get(0));
+            assertEquals(JobState.RUNNING, store.findById(job.id()).orElseThrow().state());
+        } finally {
+            scheduler.stop();
+        }
+    }
+
+    @Test
+    void cancelRunningPrintFileJobSendsM524AndMarksJobCancelled() {
+        initializeDatabase("autonomous-cancel.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobExecutionStepStore stepStore = new PrintJobExecutionStepStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
+
+        PrintJobService jobService = new PrintJobService(store, eventStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+
+        PrinterRegistry registry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler scheduler = new PrinterMonitoringScheduler(registry, stateCache);
+        RecordingPrinterPort port = new RecordingPrinterPort("ok");
+
+        try {
+            registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
+            PrinterSdFile printerSdFile = printerSdFileService.register(
+                    "printer-1",
+                    "TEST4.GCO",
+                    "TEST4.GCO",
+                    9L,
+                    "TEST4.GCO 9",
+                    null
+            );
+
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            jobService.markRunning(job.id());
+
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
+
+            assertTrue(result.success());
+            assertEquals("M524", result.wireCommand());
+            assertEquals("M524", port.commands().get(0));
+            PrintJob loaded = store.findById(job.id()).orElseThrow();
+            assertEquals(JobState.CANCELLED, loaded.state());
+            assertNotNull(loaded.finishedAt());
+        } finally {
+            scheduler.stop();
+        }
+    }
+
+    private void initializeDatabase(String fileName) {
+        String databaseFile = tempDir.resolve(fileName).toString();
+        System.setProperty(RuntimeDefaults.DATABASE_FILE_PROPERTY, databaseFile);
+        new DatabaseInitializer().initialize();
+    }
+
+    private static final class RecordingPrinterPort implements PrinterPort {
+        private final java.util.List<String> commands = new java.util.ArrayList<>();
+        private final String response;
+
+        private RecordingPrinterPort(String response) {
+            this.response = response;
+        }
+
+        @Override
+        public void connect() {
+        }
+
+        @Override
+        public String sendRawLine(String line) {
+            return "ok";
+        }
+
+        @Override
+        public String sendCommand(String command) {
+            commands.add(command);
+            return response;
+        }
+
+        @Override
+        public void disconnect() {
+        }
+
+        private java.util.List<String> commands() {
+            return commands;
+        }
+    }
+}
