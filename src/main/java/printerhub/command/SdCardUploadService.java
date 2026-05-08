@@ -138,6 +138,8 @@ public final class SdCardUploadService {
         node.beginJobExecution(executionToken);
         monitoringScheduler.stopMonitoring(node.id());
 
+        boolean writeOpened = false;
+
         try {
             printerEventStore.record(
                     node.id(),
@@ -162,6 +164,8 @@ public final class SdCardUploadService {
                         "Unexpected SD upload start response: "
                                 + OperationMessages.safeDetail(startResponse, "no response"));
             }
+
+            writeOpened = true;
 
             printerEventStore.record(
                     node.id(),
@@ -219,6 +223,10 @@ public final class SdCardUploadService {
                     true,
                     null);
         } catch (Exception exception) {
+            if (writeOpened) {
+                closeUploadSessionAfterFailure(node, exception);
+            }
+
             String detail = OperationMessages.safeDetail(
                     exception.getMessage(),
                     JobFailureReason.UNKNOWN.name());
@@ -279,8 +287,8 @@ public final class SdCardUploadService {
             String rawLine;
 
             while ((rawLine = reader.readLine()) != null) {
-                String payload = rawLine.replace("\r", "");
-                if (payload.isBlank()) {
+                String payload = normalizeUploadPayload(rawLine);
+                if (payload == null) {
                     continue;
                 }
 
@@ -343,18 +351,53 @@ public final class SdCardUploadService {
                 return lastResponse;
             }
 
-            throw new IllegalStateException(
+            throw new SdUploadLineException(
+                    lineNumber,
                     "Unexpected SD upload response for line "
                             + lineNumber
                             + ": "
                             + OperationMessages.safeDetail(lastResponse, "no response"));
         }
 
-        throw new IllegalStateException(
+        throw new SdUploadLineException(
+                lineNumber,
                 "SD upload exceeded retry limit for line "
                         + lineNumber
                         + ": "
                         + OperationMessages.safeDetail(lastResponse, "no response"));
+    }
+
+    private String normalizeUploadPayload(String rawLine) {
+        if (rawLine == null) {
+            return null;
+        }
+
+        String payload = rawLine.replace("\r", "");
+        int commentIndex = payload.indexOf(';');
+
+        if (commentIndex >= 0) {
+            payload = payload.substring(0, commentIndex).stripTrailing();
+        }
+
+        if (payload.isBlank()) {
+            return null;
+        }
+
+        return payload;
+    }
+
+    private void closeUploadSessionAfterFailure(PrinterRuntimeNode node, Exception exception) {
+        int closeLineNumber = exception instanceof SdUploadLineException uploadException
+                ? uploadException.lineNumber()
+                : 2;
+
+        try {
+            sendChecksummedLineWithRetry(node, closeLineNumber, "M29");
+        } catch (Exception closeException) {
+            System.err.println(OperationMessages.apiOperationFailed(
+                    "Failed to close SD upload session after upload failure: "
+                            + OperationMessages.safeDetail(closeException.getMessage(), OperationMessages.UNKNOWN_API_ERROR)));
+        }
     }
 
     private String buildChecksummedLine(int lineNumber, String payload) {
@@ -548,5 +591,18 @@ public final class SdCardUploadService {
             long uploadedLineCount,
             boolean success,
             String detail) {
+    }
+
+    private static final class SdUploadLineException extends IllegalStateException {
+        private final int lineNumber;
+
+        private SdUploadLineException(int lineNumber, String message) {
+            super(message);
+            this.lineNumber = lineNumber;
+        }
+
+        private int lineNumber() {
+            return lineNumber;
+        }
     }
 }

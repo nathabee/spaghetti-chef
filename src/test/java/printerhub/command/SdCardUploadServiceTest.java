@@ -201,11 +201,11 @@ class SdCardUploadServiceTest {
     }
 
     @Test
-    void uploadPreservesCommentLinesAndSkipsBlankLines() throws Exception {
+    void uploadStripsSemicolonCommentsAndSkipsBlankLines() throws Exception {
         initializeDatabase("sd-upload-comments.db");
 
         Path hostFile = tempDir.resolve("upload-comments.gcode");
-        Files.writeString(hostFile, "M105\n\n; upload test\nM104 S0\n");
+        Files.writeString(hostFile, "M105 ; status check\n\n; upload test\nM104 S0\n");
 
         PrinterRegistry printerRegistry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -240,16 +240,15 @@ class SdCardUploadServiceTest {
                     "TEST7.GCO");
 
             assertTrue(result.success());
-            assertEquals(3L, result.uploadedLineCount());
+            assertEquals(2L, result.uploadedLineCount());
             assertEquals(
                     List.of(
                             "raw:N0 M110 N0*125",
                             "raw:N1 M28 TEST7.GCO*124",
                             "raw:N2 M105*37",
-                            "raw:N3 ; upload test*115",
-                            "raw:N4 M104 S0*97",
-                            "raw:N5 M29*29",
-                            "raw:N6 M20*23"),
+                            "raw:N3 M104 S0*102",
+                            "raw:N4 M29*28",
+                            "raw:N5 M20*20"),
                     printerPort.operations());
         } finally {
             monitoringScheduler.stop();
@@ -506,15 +505,15 @@ class SdCardUploadServiceTest {
             operations.add("raw:" + line);
 
             return switch (line) {
-                case "N0 M110 N0*125", "N2 M105*37", "N3 ; upload test*115", "N4 M104 S0*97", "N5 M29*29" -> "ok";
+                case "N0 M110 N0*125", "N2 M105*37", "N3 M104 S0*102", "N4 M29*28" -> "ok";
                 case "N1 M28 TEST7.GCO*124" -> """
                         echo:Now fresh file: TEST7.GCO
                         Writing to file: TEST7.GCO
                         ok
                         """;
-                case "N6 M20*23" -> """
+                case "N5 M20*20" -> """
                         Begin file list
-                        TEST7.GCO 28
+                        TEST7.GCO 14
                         End file list
                         ok
                         """;

@@ -361,4 +361,52 @@ public final class PrintJob {
                 finishedAt
         );
     }
+
+    public PrintJob paused(Instant updatedAt) {
+        if (updatedAt == null) {
+            throw new IllegalArgumentException(OperationMessages.UPDATED_AT_MUST_NOT_BE_NULL);
+        }
+
+        return new PrintJob(
+                id,
+                name,
+                type,
+                JobState.PAUSED,
+                printerId,
+                printFileId,
+                printerSdFileId,
+                targetTemperature,
+                fanSpeed,
+                failureReason,
+                failureDetail,
+                createdAt,
+                updatedAt,
+                startedAt,
+                finishedAt
+        );
+    }
+
+    public PrintJob cancelling(Instant updatedAt) {
+        if (updatedAt == null) {
+            throw new IllegalArgumentException(OperationMessages.UPDATED_AT_MUST_NOT_BE_NULL);
+        }
+
+        return new PrintJob(
+                id,
+                name,
+                type,
+                JobState.CANCELLING,
+                printerId,
+                printFileId,
+                printerSdFileId,
+                targetTemperature,
+                fanSpeed,
+                failureReason,
+                failureDetail,
+                createdAt,
+                updatedAt,
+                startedAt,
+                finishedAt
+        );
+    }
 }

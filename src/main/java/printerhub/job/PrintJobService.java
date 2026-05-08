@@ -137,6 +137,54 @@ public final class PrintJobService {
         return updated;
     }
 
+    public PrintJob markPaused(String jobId) {
+        PrintJob job = loadRequired(jobId);
+        Instant now = Instant.now(clock);
+
+        PrintJob updated = job.paused(now);
+        printJobStore.update(updated);
+
+        recordEvent(
+                updated.printerId(),
+                updated.id(),
+                OperationMessages.EVENT_JOB_PAUSED,
+                "Job paused: " + updated.id());
+
+        return updated;
+    }
+
+    public PrintJob markResumed(String jobId) {
+        PrintJob job = loadRequired(jobId);
+        Instant now = Instant.now(clock);
+
+        PrintJob updated = job.withState(JobState.RUNNING, now);
+        printJobStore.update(updated);
+
+        recordEvent(
+                updated.printerId(),
+                updated.id(),
+                OperationMessages.EVENT_JOB_RESUMED,
+                "Job resumed: " + updated.id());
+
+        return updated;
+    }
+
+    public PrintJob markCancelling(String jobId) {
+        PrintJob job = loadRequired(jobId);
+        Instant now = Instant.now(clock);
+
+        PrintJob updated = job.cancelling(now);
+        printJobStore.update(updated);
+
+        recordEvent(
+                updated.printerId(),
+                updated.id(),
+                OperationMessages.EVENT_JOB_CANCELLING,
+                "Job cancelling: " + updated.id());
+
+        return updated;
+    }
+
     public PrintJob markCompleted(String jobId) {
         PrintJob job = loadRequired(jobId);
         Instant now = Instant.now(clock);
