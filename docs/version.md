@@ -6,10 +6,15 @@
 planned :
 see ROADMAP.md 
 
+next:
+
+- 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
+
 ## Version (done)
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
+- 0.2.4 — Real-Printer Correction, SD Upload Hardening, and Local Packaging
 - 0.2.3 — step I — Dashboard print-job controls and recovery actions
 - 0.2.3 — step H — Autonomous running print supervision and operator controls
 - 0.2.3 — step G — Autonomous real-printer print-start workflow and SD-card operation hardening

@@ -820,7 +820,7 @@ EOF
             }
         }
 
-        stage('Package Release Archive') {
+        stage('Package Expert Distributions') {
             when {
                 expression {
                     return params.RELEASE_VERSION?.trim()
@@ -830,12 +830,65 @@ EOF
                 script {
                     def versionName = params.RELEASE_VERSION.trim()
                     env.RELEASE_ARCHIVE = "printer-hub-${versionName}-release.tar.gz"
+                    env.LINUX_PACKAGE = "printer-hub-${versionName}-linux.tar.gz"
+                    env.WINDOWS_PACKAGE = "printer-hub-${versionName}-windows.zip"
                 }
 
                 sh '''
                     set -eu
 
+                    rm -rf dist package
+                    mkdir -p dist package/linux package/windows
+
+                    JAR_FILE=$(find target -maxdepth 1 -name 'printer-hub-*-all.jar' | sort | tail -n 1)
+                    test -n "${JAR_FILE}"
+
+                    cp "${JAR_FILE}" package/linux/printer-hub.jar
+                    cp "${JAR_FILE}" package/windows/printer-hub.jar
+
+                    cp README.md package/linux/README.md
+                    cp README.md package/windows/README.md
+                    cp docs/install.md package/linux/INSTALL.md
+                    cp docs/install.md package/windows/INSTALL.md
+                    cp docs/quickstart.md package/linux/QUICKSTART.md
+                    cp docs/quickstart.md package/windows/QUICKSTART.md
+
+                    cat > package/linux/printerhub.sh <<'EOF'
+#!/usr/bin/env sh
+set -eu
+
+PORT_NAME="${1:-/dev/ttyUSB0}"
+MODE="${2:-real}"
+API_PORT="${3:-18080}"
+DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
+
+exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -jar printer-hub.jar api "${PORT_NAME}" "${MODE}" "${API_PORT}"
+EOF
+                    chmod +x package/linux/printerhub.sh
+
+                    cat > package/windows/printerhub.bat <<'EOF'
+@echo off
+setlocal
+
+set PORT_NAME=%1
+if "%PORT_NAME%"=="" set PORT_NAME=COM3
+
+set MODE=%2
+if "%MODE%"=="" set MODE=real
+
+set API_PORT=%3
+if "%API_PORT%"=="" set API_PORT=18080
+
+if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
+
+java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -jar printer-hub.jar api "%PORT_NAME%" "%MODE%" "%API_PORT%"
+EOF
+
+                    tar -C package -czf "dist/${LINUX_PACKAGE}" linux
+                    (cd package/windows && jar --create --file "../../dist/${WINDOWS_PACKAGE}" .)
                     tar -czf "${RELEASE_ARCHIVE}" release
+
+                    ls -lh dist
                     ls -lh "${RELEASE_ARCHIVE}"
                 '''
             }
@@ -885,12 +938,21 @@ PY
 
                         test -n "${UPLOAD_URL}"
 
-                        curl -sS -X POST \
-                          -H "Accept: application/vnd.github+json" \
-                          -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                          -H "Content-Type: application/gzip" \
-                          "${UPLOAD_URL}?name=${RELEASE_ARCHIVE}" \
-                          --data-binary @"${RELEASE_ARCHIVE}"
+                        for ARTIFACT in "${RELEASE_ARCHIVE}" dist/*; do
+                          CONTENT_TYPE="application/octet-stream"
+                          case "${ARTIFACT}" in
+                            *.tar.gz) CONTENT_TYPE="application/gzip" ;;
+                            *.zip) CONTENT_TYPE="application/zip" ;;
+                          esac
+
+                          ARTIFACT_NAME=$(basename "${ARTIFACT}")
+                          curl -sS -X POST \
+                            -H "Accept: application/vnd.github+json" \
+                            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                            -H "Content-Type: ${CONTENT_TYPE}" \
+                            "${UPLOAD_URL}?name=${ARTIFACT_NAME}" \
+                            --data-binary @"${ARTIFACT}"
+                        done
                     '''
                 }
             }
@@ -986,6 +1048,7 @@ PY
             archiveArtifacts artifacts: 'target/robust-printer-snapshots.txt', allowEmptyArchive: true
             archiveArtifacts artifacts: 'target/robust-printer-events.txt', allowEmptyArchive: true
             archiveArtifacts artifacts: 'target/robust-printer-event-counts.txt', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'dist/**', allowEmptyArchive: true
         }
 
         success {

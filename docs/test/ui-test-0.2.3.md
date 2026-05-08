@@ -136,6 +136,15 @@ M117 PrinterHub done
      - dashboard sends a numbered/checksummed `M29`
      - upload recovery result is visible in the SD Card upload status area
 
-7. **Dashboard Polish**
+7. **Long Upload Progress / Locking CR**
+   - Start a larger `.gcode` SD upload.
+   - Expected:
+     - dashboard shows upload progress based on counted lines and/or bytes
+     - same-printer upload actions are disabled while upload is active
+     - same-printer print-job start/control actions are disabled while upload is active
+     - actions for other printers remain usable
+     - success, failure, resend/retry exhaustion, and recovery-close evidence are visible in events or diagnostics
+
+8. **Dashboard Polish**
    - Confirm dashboard date/time values are readable instead of raw ISO timestamps.
    - Confirm the browser tab shows the PrinterHub favicon.

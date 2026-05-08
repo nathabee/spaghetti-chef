@@ -517,6 +517,59 @@ class PrinterMonitoringTaskTest {
         assertNotNull(completed.finishedAt());
     }
 
+    @Test
+    void notSdPrintingCompletesRunningAutonomousPrintJobWhenPrintingStateWasMissed() throws Exception {
+        useDatabase("autonomous-print-missed-printing-state-complete.db");
+
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-29T10:20:00Z"));
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache(clock);
+
+        PrintJobStore jobStore = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobService jobService = new PrintJobService(jobStore, eventStore, clock);
+        PrintJob job = jobService.create(
+                "Fast autonomous print",
+                JobType.PRINT_FILE,
+                "printer-1",
+                null,
+                "printer-sd-file-1",
+                null,
+                null
+        );
+        jobService.markRunning(job.id());
+        clock.setInstant(clock.instant().plusSeconds(6));
+
+        StubPrinterPort port = new StubPrinterPort();
+        port.response = "ok T:21.80 /0.00 B:21.52 /0.00 @:0 B@:0";
+        port.sdPrintStatusResponse = "Not SD printing";
+
+        PrinterRuntimeNode node = new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "SIM_PORT",
+                "sim",
+                port,
+                true);
+
+        PrinterMonitoringTask task = new PrinterMonitoringTask(
+                node,
+                stateCache,
+                new PrinterSnapshotStore(),
+                eventStore,
+                clock,
+                "M105",
+                () -> false,
+                new MonitoringEventPolicy(clock, Duration.ofSeconds(60)),
+                MonitoringRules.defaults());
+
+        task.run();
+
+        PrintJob completed = jobStore.findById(job.id()).orElseThrow();
+        assertEquals(JobState.COMPLETED, completed.state());
+        assertNotNull(completed.finishedAt());
+        assertEquals(PrinterState.IDLE, stateCache.findByPrinterId("printer-1").orElseThrow().state());
+    }
+
     private void useDatabase(String fileName) {
         Path dbFile = tempDir.resolve(fileName);
         System.setProperty("printerhub.databaseFile", dbFile.toString());

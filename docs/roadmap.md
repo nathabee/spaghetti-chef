@@ -1843,7 +1843,7 @@ POST /jobs/{id}/restart
 POST /printers/{id}/sd-card/recovery/close-upload
 ```
 
-Current anomalies and CRs to verify in Step I:
+Real-printer findings from Step I testing moved to `0.2.4`:
 
 * Dashboard date/time values are now formatted for operators instead of raw ISO instants.
 * Print page and global Jobs page job cards expose history and diagnostics consistently.
@@ -1880,12 +1880,38 @@ Expected result for 0.2.3 overall:
 
 ---
 
-## 0.2.4 — Packaging Local Runtime
+## 0.2.4 — Real-Printer Correction, SD Upload Hardening, and Local Packaging
 
 status: planned
 
+Purpose:
+
+Use the real-printer findings from `0.2.3` dashboard testing to close the
+remaining operational gaps, then package that hardened runtime as a repeatable
+local service.
+
+This release combines the correction/CR pass with the earlier local-runtime
+packaging milestone.
+
 Goals:
 
+* verify and harden completion detection for short autonomous SD prints so jobs do not remain stuck in `RUNNING` after the printer has finished
+* prevent stale active-job / printer-busy state from blocking restart or new print attempts when monitoring already shows the printer is idle
+* improve cancel UX for printers that report `busy` or require physical confirmation before they accept stop/abort behavior
+* represent waiting states clearly in the dashboard, such as `CANCEL_REQUESTED`, `WAITING_FOR_PRINTER_STOP`, or recovery-needed states where appropriate
+* keep cancellation evidence command-specific, so stale serial `ok` responses are not mistaken for proof that `M524` stopped the print
+* add long SD upload progress reporting based on total upload lines and/or bytes calculated before transfer starts
+* show SD upload progress in the dashboard with a progress bar and clear in-progress / success / failure state
+* while an SD upload is active for one printer, disable conflicting actions for that same printer, including other uploads and print-job start/control actions
+* keep unrelated printers usable during one printer's upload
+* persist SD upload lifecycle evidence, including upload started, progress checkpoints where useful, successful completion, failed completion, retry exhaustion, and recovery-close attempts
+* keep SD upload retry/resend behavior visible enough for operators to know which line failed after retry exhaustion
+* strengthen SD upload recovery after interrupted `M28` file-write sessions
+* verify `SET_NOZZLE_TEMPERATURE` and `SET_BED_TEMPERATURE` on the real printer with conservative target values
+* clarify whether temperature job success means command accepted, temperature moving, or target physically reached
+* clarify fan-control behavior on the observed Ender-style printer, especially the difference between controllable part-cooling fan and always-on hotend/board/power-supply fans
+* detect or conservatively represent USB-only versus mains-powered printer state where firmware evidence allows
+* gate or warn before dangerous movement/heating/state-changing commands when the printer may not be safely mains-powered
 * package PrinterHub as a local runtime service
 * document production-style jar execution outside the source tree
 * document runtime config location
@@ -1898,12 +1924,25 @@ Goals:
 * keep the current Ubuntu/Linux packaging path as the first documented target
 * add Windows-oriented packaging and verification after the Linux local-service path is stable
 
-Expected result:
+Anomaly / CR inputs:
 
 ```text
-PrinterHub runs as a documented, repeatable local service near the printers,
-not only as a manually started development jar.
+KO-3  cancel is real printer control, not only job state
+KO-4  SD upload recovery after failed file connection
+CR-5  long SD upload progress and same-printer action locking
+KO-5  USB-only power versus mains power
+KO-6  fan control reports success but fan does not change
+KO-7  temperature jobs need real-printer verification
 ```
+
+Expected result:
+
+* real-printer dashboard behavior matches what the firmware actually did
+* long SD transfers are visible, reviewable, and protected from conflicting same-printer actions
+* restart/new print attempts are not blocked by stale `RUNNING` or stale busy state
+* operators can distinguish command acceptance from verified physical effect
+* the remaining 0.2.3 real-printer anomalies are corrected or documented as hardware/firmware limitations
+* PrinterHub runs as a documented, repeatable local service near the printers, not only as a manually started development jar
 
 ---
 

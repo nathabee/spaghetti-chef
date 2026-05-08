@@ -2,7 +2,7 @@ import { renderJobCard } from "../components/job-card.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
 import { escapeHtml, formatDateTime } from "../dashboard.js";
-import { isJobCardSectionOpen, state } from "../state.js";
+import { getPrinterSdUploadStatus, isJobCardSectionOpen, state } from "../state.js";
 
 export function renderJobsPage() {
   const jobs = state.jobs;
@@ -22,7 +22,8 @@ export function renderJobsPage() {
               eventsHtml: renderJobEvents(job.id),
               executionStepsHtml: renderJobExecutionSteps(job.id),
               historyOpen: isJobCardSectionOpen(job.id, "history"),
-              diagnosticsOpen: isJobCardSectionOpen(job.id, "diagnostics")
+              diagnosticsOpen: isJobCardSectionOpen(job.id, "diagnostics"),
+              printerUploadActive: getPrinterSdUploadStatus(job.printerId)?.active === true
             })).join("")}
       </div>
     </section>

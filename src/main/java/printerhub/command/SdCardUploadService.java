@@ -21,6 +21,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BooleanSupplier;
 import printerhub.config.PrinterProtocolDefaults;
 
@@ -35,6 +37,7 @@ public final class SdCardUploadService {
     private final PrinterEventStore printerEventStore;
     private final SdCardFileParser sdCardFileParser;
     private final BooleanSupplier debugWireTracingEnabledSupplier;
+    private final ConcurrentMap<String, UploadProgress> uploadProgressByPrinterId = new ConcurrentHashMap<>();
 
     public SdCardUploadService(
             PrinterRegistry printerRegistry,
@@ -101,6 +104,14 @@ public final class SdCardUploadService {
         this.debugWireTracingEnabledSupplier = debugWireTracingEnabledSupplier;
     }
 
+    public Optional<UploadProgress> uploadProgress(String printerId) {
+        if (printerId == null || printerId.isBlank()) {
+            throw new IllegalArgumentException(OperationMessages.PRINTER_ID_MUST_NOT_BE_BLANK);
+        }
+
+        return Optional.ofNullable(uploadProgressByPrinterId.get(printerId.trim()));
+    }
+
     public UploadResult uploadToPrinterSd(
             String printerId,
             String printFileId,
@@ -128,6 +139,7 @@ public final class SdCardUploadService {
 
         Path hostPath = Path.of(printFile.path()).toAbsolutePath().normalize();
         validateHostFile(hostPath);
+        UploadPlan uploadPlan = analyzeUploadPlan(hostPath);
 
         String targetFilename = normalizeTargetFilename(
                 requestedTargetFilename,
@@ -141,6 +153,14 @@ public final class SdCardUploadService {
         boolean writeOpened = false;
 
         try {
+            updateUploadProgress(UploadProgress.running(
+                    node.id(),
+                    printFile.id(),
+                    printFile.originalFilename(),
+                    targetFilename,
+                    uploadPlan.totalLineCount(),
+                    uploadPlan.totalByteCount()));
+
             printerEventStore.record(
                     node.id(),
                     null,
@@ -148,7 +168,11 @@ public final class SdCardUploadService {
                     "SD upload started: host file "
                             + printFile.originalFilename()
                             + " -> "
-                            + targetFilename);
+                            + targetFilename
+                            + " | totalLines="
+                            + uploadPlan.totalLineCount()
+                            + " | totalBytes="
+                            + uploadPlan.totalByteCount());
 
             node.printerPort().connect();
 
@@ -176,7 +200,13 @@ public final class SdCardUploadService {
                             + " | response="
                             + OperationMessages.safeDetail(startResponse, "no response"));
 
-            long uploadedLineCount = streamFileLinesWithChecksum(node, hostPath, 2);
+            long uploadedLineCount = streamFileLinesWithChecksum(
+                    node,
+                    hostPath,
+                    2,
+                    uploadPlan,
+                    printFile,
+                    targetFilename);
 
             String finishResponse = sendChecksummedLineWithRetry(
                     node,
@@ -212,6 +242,17 @@ public final class SdCardUploadService {
                             + " -> "
                             + linkedFile.firmwarePath());
 
+            updateUploadProgress(UploadProgress.finished(
+                    node.id(),
+                    printFile.id(),
+                    printFile.originalFilename(),
+                    targetFilename,
+                    uploadPlan.totalLineCount(),
+                    uploadPlan.totalByteCount(),
+                    uploadedLineCount,
+                    rejectedLineCountFromProgress(node.id()),
+                    "Uploaded as " + linkedFile.firmwarePath()));
+
             return new UploadResult(
                     node.id(),
                     printFile.id(),
@@ -220,6 +261,9 @@ public final class SdCardUploadService {
                     linkedFile.firmwarePath(),
                     linkedFile.id(),
                     uploadedLineCount,
+                    uploadPlan.totalLineCount(),
+                    uploadPlan.totalByteCount(),
+                    rejectedLineCountFromProgress(node.id()),
                     true,
                     null);
         } catch (Exception exception) {
@@ -230,6 +274,17 @@ public final class SdCardUploadService {
             String detail = OperationMessages.safeDetail(
                     exception.getMessage(),
                     JobFailureReason.UNKNOWN.name());
+
+            updateUploadProgress(UploadProgress.failed(
+                    node.id(),
+                    printFile.id(),
+                    printFile.originalFilename(),
+                    targetFilename,
+                    uploadPlan.totalLineCount(),
+                    uploadPlan.totalByteCount(),
+                    uploadedLineCountFromProgress(node.id()),
+                    rejectedLineCountFromProgress(node.id()),
+                    detail));
 
             try {
                 printerEventStore.record(
@@ -342,8 +397,12 @@ public final class SdCardUploadService {
     private long streamFileLinesWithChecksum(
             PrinterRuntimeNode node,
             Path hostPath,
-            int firstLineNumber) {
+            int firstLineNumber,
+            UploadPlan uploadPlan,
+            PrintFile printFile,
+            String targetFilename) {
         long uploadedLineCount = 0;
+        long nextProgressEventPercent = 10;
 
         try (BufferedReader reader = Files.newBufferedReader(hostPath)) {
             String rawLine;
@@ -359,12 +418,92 @@ public final class SdCardUploadService {
                         node,
                         firstLineNumber + (int) uploadedLineCount - 1,
                         payload);
+
+                UploadProgress currentProgress = uploadProgressByPrinterId.get(node.id());
+                Instant startedAt = currentProgress == null ? Instant.now() : currentProgress.startedAt();
+
+                updateUploadProgress(UploadProgress.progress(
+                        node.id(),
+                        printFile.id(),
+                        printFile.originalFilename(),
+                        targetFilename,
+                        uploadPlan.totalLineCount(),
+                        uploadPlan.totalByteCount(),
+                        uploadedLineCount,
+                        rejectedLineCountFromProgress(node.id()),
+                        startedAt));
+
+                if (uploadPlan.totalLineCount() > 0) {
+                    long percent = uploadedLineCount * 100 / uploadPlan.totalLineCount();
+                    if (percent >= nextProgressEventPercent) {
+                        printerEventStore.record(
+                                node.id(),
+                                null,
+                                "SD_CARD_UPLOAD_PROGRESS",
+                                "SD upload progress: "
+                                        + uploadedLineCount
+                                        + "/"
+                                        + uploadPlan.totalLineCount()
+                                        + " lines ("
+                                        + percent
+                                        + "%)");
+
+                        while (nextProgressEventPercent <= percent) {
+                            nextProgressEventPercent += 10;
+                        }
+                    }
+                }
             }
         } catch (IOException exception) {
             throw new IllegalStateException(OperationMessages.PRINT_FILE_MUST_BE_READABLE, exception);
         }
 
         return uploadedLineCount;
+    }
+
+    private UploadPlan analyzeUploadPlan(Path hostPath) {
+        long totalLineCount = 0;
+
+        try (BufferedReader reader = Files.newBufferedReader(hostPath)) {
+            String rawLine;
+
+            while ((rawLine = reader.readLine()) != null) {
+                if (normalizeUploadPayload(rawLine) != null) {
+                    totalLineCount++;
+                }
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException(OperationMessages.PRINT_FILE_MUST_BE_READABLE, exception);
+        }
+
+        try {
+            return new UploadPlan(totalLineCount, Files.size(hostPath));
+        } catch (IOException exception) {
+            throw new IllegalStateException(OperationMessages.PRINT_FILE_MUST_BE_READABLE, exception);
+        }
+    }
+
+    private void updateUploadProgress(UploadProgress progress) {
+        uploadProgressByPrinterId.put(progress.printerId(), progress);
+    }
+
+    private long uploadedLineCountFromProgress(String printerId) {
+        UploadProgress progress = uploadProgressByPrinterId.get(printerId);
+        return progress == null ? 0L : progress.uploadedLineCount();
+    }
+
+    private long rejectedLineCountFromProgress(String printerId) {
+        UploadProgress progress = uploadProgressByPrinterId.get(printerId);
+        return progress == null ? 0L : progress.rejectedLineCount();
+    }
+
+    private void incrementRejectedLineCount(String printerId) {
+        UploadProgress current = uploadProgressByPrinterId.get(printerId);
+        if (current == null) {
+            return;
+        }
+
+        updateUploadProgress(current.withRejectedLineCount(current.rejectedLineCount() + 1L));
     }
 
     private SdCardFileList listFilesWithChecksum(PrinterRuntimeNode node, int lineNumber) {
@@ -395,7 +534,9 @@ public final class SdCardUploadService {
             lastResponse = node.printerPort().sendRawLine(checksummedLine);
             logUploadWire(node.id(), "<-", lastResponse);
 
-            if (responseRequestsResend(lastResponse, lineNumber)) {
+            Integer requestedResendLine = requestedResendLine(lastResponse);
+            if (requestedResendLine != null && requestedResendLine == lineNumber) {
+                incrementRejectedLineCount(node.id());
                 printerEventStore.record(
                         node.id(),
                         null,
@@ -407,6 +548,27 @@ public final class SdCardUploadService {
                                 + " | response="
                                 + OperationMessages.safeDetail(lastResponse, "no response"));
                 continue;
+            }
+            if (requestedResendLine != null) {
+                incrementRejectedLineCount(node.id());
+                int closeLineNumber = requestedResendLine < 0 ? lineNumber : requestedResendLine;
+                throw new SdUploadLineException(
+                        closeLineNumber,
+                        "Printer requested resend for line "
+                                + (requestedResendLine < 0 ? "unknown" : requestedResendLine)
+                                + " while PrinterHub was uploading line "
+                                + lineNumber
+                                + ": "
+                                + OperationMessages.safeDetail(lastResponse, "no response"));
+            }
+            if (responseContainsUploadError(lastResponse)) {
+                incrementRejectedLineCount(node.id());
+                throw new SdUploadLineException(
+                        lineNumber,
+                        "Printer reported SD upload error for line "
+                                + lineNumber
+                                + ": "
+                                + OperationMessages.safeDetail(lastResponse, "no response"));
             }
 
             if (responseContainsOk(lastResponse)) {
@@ -510,24 +672,33 @@ public final class SdCardUploadService {
         return normalized.contains("open failed");
     }
 
-    private boolean responseRequestsResend(String response, int expectedLineNumber) {
+    private Integer requestedResendLine(String response) {
         if (response == null || response.isBlank()) {
-            return false;
+            return null;
         }
 
         String normalized = response.toLowerCase(Locale.ROOT);
 
         if (!normalized.contains("resend")) {
-            return false;
+            return null;
         }
 
         Integer requestedLine = extractRequestedResendLine(response);
 
         if (requestedLine == null) {
-            return true;
+            return -1;
         }
 
-        return requestedLine == expectedLineNumber;
+        return requestedLine;
+    }
+
+    private boolean responseContainsUploadError(String response) {
+        if (response == null || response.isBlank()) {
+            return false;
+        }
+
+        String normalized = response.toLowerCase(Locale.ROOT);
+        return normalized.contains("error:");
     }
 
     private Integer extractRequestedResendLine(String response) {
@@ -651,8 +822,152 @@ public final class SdCardUploadService {
             String linkedFirmwarePath,
             String printerSdFileId,
             long uploadedLineCount,
+            long totalLineCount,
+            long totalByteCount,
+            long rejectedLineCount,
             boolean success,
             String detail) {
+    }
+
+    private record UploadPlan(long totalLineCount, long totalByteCount) {
+    }
+
+    public record UploadProgress(
+            String printerId,
+            String printFileId,
+            String originalFilename,
+            String requestedTargetFilename,
+            String state,
+            boolean active,
+            long uploadedLineCount,
+            long totalLineCount,
+            long totalByteCount,
+            long rejectedLineCount,
+            Instant startedAt,
+            Instant updatedAt,
+            String detail) {
+
+        public static UploadProgress running(
+                String printerId,
+                String printFileId,
+                String originalFilename,
+                String requestedTargetFilename,
+                long totalLineCount,
+                long totalByteCount) {
+            Instant now = Instant.now();
+            return new UploadProgress(
+                    printerId,
+                    printFileId,
+                    originalFilename,
+                    requestedTargetFilename,
+                    "running",
+                    true,
+                    0L,
+                    totalLineCount,
+                    totalByteCount,
+                    0L,
+                    now,
+                    now,
+                    "Upload started.");
+        }
+
+        public static UploadProgress progress(
+                String printerId,
+                String printFileId,
+                String originalFilename,
+                String requestedTargetFilename,
+                long totalLineCount,
+                long totalByteCount,
+                long uploadedLineCount,
+                long rejectedLineCount,
+                Instant startedAt) {
+            Instant now = Instant.now();
+            return new UploadProgress(
+                    printerId,
+                    printFileId,
+                    originalFilename,
+                    requestedTargetFilename,
+                    "running",
+                    true,
+                    uploadedLineCount,
+                    totalLineCount,
+                    totalByteCount,
+                    rejectedLineCount,
+                    startedAt == null ? now : startedAt,
+                    now,
+                    "Upload in progress.");
+        }
+
+        public static UploadProgress finished(
+                String printerId,
+                String printFileId,
+                String originalFilename,
+                String requestedTargetFilename,
+                long totalLineCount,
+                long totalByteCount,
+                long uploadedLineCount,
+                long rejectedLineCount,
+                String detail) {
+            Instant now = Instant.now();
+            return new UploadProgress(
+                    printerId,
+                    printFileId,
+                    originalFilename,
+                    requestedTargetFilename,
+                    "success",
+                    false,
+                    uploadedLineCount,
+                    totalLineCount,
+                    totalByteCount,
+                    rejectedLineCount,
+                    now,
+                    now,
+                    detail);
+        }
+
+        public static UploadProgress failed(
+                String printerId,
+                String printFileId,
+                String originalFilename,
+                String requestedTargetFilename,
+                long totalLineCount,
+                long totalByteCount,
+                long uploadedLineCount,
+                long rejectedLineCount,
+                String detail) {
+            Instant now = Instant.now();
+            return new UploadProgress(
+                    printerId,
+                    printFileId,
+                    originalFilename,
+                    requestedTargetFilename,
+                    "error",
+                    false,
+                    uploadedLineCount,
+                    totalLineCount,
+                    totalByteCount,
+                    rejectedLineCount,
+                    now,
+                    now,
+                    detail);
+        }
+
+        private UploadProgress withRejectedLineCount(long newRejectedLineCount) {
+            return new UploadProgress(
+                    printerId,
+                    printFileId,
+                    originalFilename,
+                    requestedTargetFilename,
+                    state,
+                    active,
+                    uploadedLineCount,
+                    totalLineCount,
+                    totalByteCount,
+                    newRejectedLineCount,
+                    startedAt,
+                    Instant.now(),
+                    detail);
+        }
     }
 
     private static final class SdUploadLineException extends IllegalStateException {

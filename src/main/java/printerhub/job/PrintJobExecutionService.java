@@ -3,10 +3,13 @@ package printerhub.job;
 import printerhub.OperationMessages;
 import printerhub.config.PrinterProtocolDefaults;
 import printerhub.monitoring.PrinterMonitoringScheduler;
+import printerhub.persistence.MonitoringRulesStore;
 import printerhub.persistence.PrintJobExecutionStepStore;
 import printerhub.persistence.PrinterSdFileStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
+
+import java.util.function.BooleanSupplier;
 
 public final class PrintJobExecutionService {
 
@@ -19,6 +22,7 @@ public final class PrintJobExecutionService {
     private final PrinterResponseClassifier printerResponseClassifier;
     private final PrintJobExecutionStepStore printJobExecutionStepStore;
     private final PrinterSdFileStore printerSdFileStore;
+    private final BooleanSupplier debugWireTracingEnabledSupplier;
 
     public PrintJobExecutionService(
             PrintJobService printJobService,
@@ -27,6 +31,26 @@ public final class PrintJobExecutionService {
             PrinterActionGuard printerActionGuard,
             PrinterActionMapper printerActionMapper,
             PrintJobExecutionStepStore printJobExecutionStepStore
+    ) {
+        this(
+                printJobService,
+                printerRegistry,
+                monitoringScheduler,
+                printerActionGuard,
+                printerActionMapper,
+                printJobExecutionStepStore,
+                () -> new MonitoringRulesStore().load().debugWireTracingEnabled()
+        );
+    }
+
+    public PrintJobExecutionService(
+            PrintJobService printJobService,
+            PrinterRegistry printerRegistry,
+            PrinterMonitoringScheduler monitoringScheduler,
+            PrinterActionGuard printerActionGuard,
+            PrinterActionMapper printerActionMapper,
+            PrintJobExecutionStepStore printJobExecutionStepStore,
+            BooleanSupplier debugWireTracingEnabledSupplier
     ) {
         if (printJobService == null) {
             throw new IllegalArgumentException(OperationMessages.PRINT_JOB_SERVICE_MUST_NOT_BE_NULL);
@@ -46,6 +70,9 @@ public final class PrintJobExecutionService {
         if (printJobExecutionStepStore == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("printJobExecutionStepStore"));
         }
+        if (debugWireTracingEnabledSupplier == null) {
+            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
+        }
 
         this.printJobService = printJobService;
         this.printerRegistry = printerRegistry;
@@ -56,6 +83,7 @@ public final class PrintJobExecutionService {
         this.printerResponseClassifier = new PrinterResponseClassifier();
         this.printJobExecutionStepStore = printJobExecutionStepStore;
         this.printerSdFileStore = new PrinterSdFileStore();
+        this.debugWireTracingEnabledSupplier = debugWireTracingEnabledSupplier;
     }
 
     public PrinterActionExecutionResult execute(String jobId) {
@@ -136,7 +164,7 @@ public final class PrintJobExecutionService {
                         "Workflow step started: " + step.name() + " -> " + currentCommand
                 );
 
-                String response = node.printerPort().sendCommand(currentCommand);
+                String response = sendTracedCommand(node, currentCommand);
                 lastResponse = response;
 
                 PrinterResponseClassifier.ResponseClassification classification =
@@ -447,10 +475,9 @@ public final class PrintJobExecutionService {
                 "Workflow step started: " + stepName + " -> " + wireCommand
         );
 
-        String response = printerRegistry.findById(job.printerId())
-                .orElseThrow(() -> new IllegalStateException(OperationMessages.PRINTER_NOT_FOUND))
-                .printerPort()
-                .sendCommand(wireCommand);
+        PrinterRuntimeNode node = printerRegistry.findById(job.printerId())
+                .orElseThrow(() -> new IllegalStateException(OperationMessages.PRINTER_NOT_FOUND));
+        String response = sendTracedCommand(node, wireCommand);
 
         PrinterResponseClassifier.ResponseClassification classification =
                 printerResponseClassifier.classifyResponse(wireCommand, response);
@@ -555,6 +582,21 @@ public final class PrintJobExecutionService {
 
     private boolean responseContainsBusy(String response) {
         return response != null && response.toLowerCase(java.util.Locale.ROOT).contains("busy");
+    }
+
+    private String sendTracedCommand(PrinterRuntimeNode node, String wireCommand) {
+        traceWire(node.id(), "SEND", wireCommand);
+        String response = node.printerPort().sendCommand(wireCommand);
+        traceWire(node.id(), "RECV", response);
+        return response;
+    }
+
+    private void traceWire(String printerId, String direction, String payload) {
+        if (!debugWireTracingEnabledSupplier.getAsBoolean()) {
+            return;
+        }
+        System.out.println("[PrinterHub] printer wire " + printerId + " " + direction + " "
+                + OperationMessages.safeDetail(payload, "no response"));
     }
 
     private void persistStepFailure(

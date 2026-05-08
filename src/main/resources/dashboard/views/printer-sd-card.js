@@ -8,6 +8,7 @@ export function renderPrinterSdCard(printer) {
   const registeredFilter = getPrinterSdTargetFilter(printer.id);
   const filteredRegisteredFiles = filterRegisteredFiles(registeredFiles, registeredFilter);
   const uploadStatus = getPrinterSdUploadStatus(printer.id);
+  const uploadActive = uploadStatus?.active === true;
 
   return `
     <section class="section-card">
@@ -18,7 +19,7 @@ export function renderPrinterSdCard(printer) {
           <p class="lead">Printer-side files reported by the firmware, plus the registered printable targets used by print jobs.</p>
         </div>
         <div class="action-row">
-          <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}">Refresh files</button>
+          <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}" ${uploadActive ? "disabled" : ""}>Refresh files</button>
         </div>
       </div>
             ${renderSdUploadStatus(uploadStatus)}
@@ -59,6 +60,7 @@ export function renderPrinterSdCard(printer) {
           data-close-sd-upload-session
           data-printer-id="${escapeHtml(printer.id)}"
           data-line-number="2"
+          ${uploadActive ? "disabled" : ""}
         >Close upload session</button>
       </div>
 
@@ -74,7 +76,7 @@ export function renderPrinterSdCard(printer) {
           <h3>No matching SD target</h3>
           <p class="muted">Adjust the filters to show more registered printer-side files.</p>
         </div>
-      ` : renderRegisteredFileTable(filteredRegisteredFiles)}
+      ` : renderRegisteredFileTable(filteredRegisteredFiles, uploadActive)}
 
       <form id="printerSdFileForm" class="form-grid">
         <input id="printerSdFilePrinterIdInput" name="printerId" type="hidden" value="${escapeHtml(printer.id)}">
@@ -132,7 +134,7 @@ export function renderPrinterSdCard(printer) {
           <h3>No host print files registered</h3>
           <p class="muted">Use the form above to add prepared .gcode files to PrinterHub.</p>
         </div>
-        ` : renderHostFileTable(printer.id)}
+        ` : renderHostFileTable(printer.id, uploadActive)}
     </section>
   `;
 }
@@ -222,6 +224,37 @@ function renderSdUploadStatus(uploadStatus) {
     : stateLabel === "success"
       ? "Last upload"
       : "Upload error";
+  const totalLineCount = Number(uploadStatus.totalLineCount || 0);
+  const uploadedLineCount = Number(uploadStatus.uploadedLineCount || 0);
+  const percent = totalLineCount > 0
+    ? Math.min(100, Math.max(0, Number(uploadStatus.percent ?? Math.floor(uploadedLineCount * 100 / totalLineCount))))
+    : 0;
+  const progressHtml = uploadStatus.active
+    ? `
+      <div class="info-row">
+        <span>Progress</span>
+        <strong>${escapeHtml(String(uploadedLineCount))}/${escapeHtml(String(totalLineCount))} confirmed lines</strong>
+      </div>
+      <progress max="100" value="${escapeHtml(String(percent))}"></progress>
+    `
+    : "";
+  const rejectedLineCount = Number(uploadStatus.rejectedLineCount || 0);
+  const qualityPercent = Number(uploadStatus.qualityPercent ?? calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount));
+  const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
+  const qualityHtml = uploadStatus.active || rejectedLineCount > 0
+    ? `
+      <div class="upload-quality ${qualityClass}">
+        <div class="info-row">
+          <span>Transfer quality</span>
+          <strong>${escapeHtml(String(qualityPercent))}%</strong>
+        </div>
+        <div class="quality-bar" aria-label="Transfer quality">
+          <span style="width: ${escapeHtml(String(qualityPercent))}%"></span>
+        </div>
+        <p class="muted">${escapeHtml(String(rejectedLineCount))} rejected/resend request${rejectedLineCount === 1 ? "" : "s"} for ${escapeHtml(String(uploadedLineCount))} confirmed line${uploadedLineCount === 1 ? "" : "s"}.</p>
+      </div>
+    `
+    : "";
 
   return `
     <div class="empty-state">
@@ -232,8 +265,28 @@ function renderSdUploadStatus(uploadStatus) {
         </div>
         <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
       </div>
+      ${progressHtml}
+      ${qualityHtml}
     </div>
   `;
+}
+
+function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
+  if (uploadedLineCount <= 0) {
+    return 100;
+  }
+
+  return Math.max(0, Math.min(100, Math.floor((uploadedLineCount * 100) / (uploadedLineCount + rejectedLineCount))));
+}
+
+function resolveUploadQualityClass(qualityPercent, rejectedLineCount) {
+  if (rejectedLineCount <= 0) {
+    return "upload-quality-good";
+  }
+  if (qualityPercent >= 95) {
+    return "upload-quality-warn";
+  }
+  return "upload-quality-bad";
 }
 
 function renderFirmwareFileTable(printerId, files, registeredFiles) {
@@ -285,7 +338,7 @@ function renderFirmwareFileRow(printerId, file, registered) {
   `;
 }
 
-function renderRegisteredFileTable(files) {
+function renderRegisteredFileTable(files, uploadActive) {
   return `
     <div class="table-wrap">
       <table class="data-table">
@@ -320,11 +373,13 @@ function renderRegisteredFileTable(files) {
                   class="secondary-button small-button"
                   data-printer-sd-file-id="${escapeHtml(file.id)}"
                   data-printer-sd-file-enabled="${file.enabled === true ? "false" : "true"}"
+                  ${uploadActive ? "disabled" : ""}
                 >${file.enabled === true ? "Disable" : "Enable"}</button>
                 <button
                   type="button"
                   class="danger-button small-button"
                   data-delete-printer-sd-file-id="${escapeHtml(file.id)}"
+                  ${uploadActive ? "disabled" : ""}
                 >Delete</button>
                 `}
               </td>
@@ -336,7 +391,7 @@ function renderRegisteredFileTable(files) {
   `;
 }
 
-function renderHostFileTable(printerId) {
+function renderHostFileTable(printerId, uploadActive) {
   return `
     <div class="table-wrap">
       <table class="data-table">
@@ -362,6 +417,7 @@ function renderHostFileTable(printerId) {
                   data-printer-id="${escapeHtml(printerId)}"
                   data-print-file-id="${escapeHtml(file.id)}"
                   data-target-filename="${escapeHtml(defaultSdTargetFilename(file.originalFilename || file.id))}"
+                  ${uploadActive ? "disabled" : ""}
                 >Upload to SD card</button>
               </td>
             </tr>

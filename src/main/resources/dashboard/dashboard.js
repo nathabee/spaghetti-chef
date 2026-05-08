@@ -17,6 +17,7 @@ import {
   getPrinterEvents,
   getPrinterSdCardFiles,
   getPrinterSdFiles,
+  getPrinterSdUploadStatus as fetchPrinterSdUploadStatus,
   uploadPrinterSdFile,
   getPrinters,
   registerPrinterSdFile,
@@ -80,6 +81,7 @@ const lastRefreshElement = document.getElementById("lastRefresh");
 
 let printerRefreshInterval = null;
 let pendingPrinterFormFill = null;
+const uploadStatusPollers = new Map();
 
 async function boot() {
   bindGlobalListeners();
@@ -107,6 +109,7 @@ async function refreshAllData(options = {}) {
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
     setLastRefreshLabel(new Date().toLocaleTimeString());
+    await refreshUploadStatuses(printers);
 
     if (!silent) {
       setMessage("Dashboard refreshed.");
@@ -117,6 +120,29 @@ async function refreshAllData(options = {}) {
     setMessage(`Failed to refresh dashboard: ${error.message}`);
     renderApp();
   }
+}
+
+async function refreshUploadStatuses(printers) {
+  if (!Array.isArray(printers) || printers.length === 0) {
+    return;
+  }
+
+  await Promise.all(printers.map(async (printer) => {
+    try {
+      const status = await fetchPrinterSdUploadStatus(printer.id);
+
+      if (!status || status.state === "idle") {
+        return;
+      }
+
+      setPrinterSdUploadStatus(printer.id, {
+        ...status,
+        message: uploadStatusMessage(status)
+      });
+    } catch (error) {
+      // Upload status must not block normal dashboard refresh.
+    }
+  }));
 }
 
 function renderApp() {
@@ -684,16 +710,28 @@ async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename)
 
   setPrinterSdUploadStatus(printerId, {
     state: "running",
+    active: true,
+    uploadedLineCount: 0,
+    totalLineCount: 0,
+    percent: 0,
     message: `Uploading ${hostLabel} to SD card...`
   });
   setMessage(`Uploading ${hostLabel} to ${printerId}...`);
   renderApp();
+  startUploadStatusPolling(printerId);
 
   try {
     const response = await uploadPrinterSdFile(printerId, printFileId, targetFilename);
 
     setPrinterSdUploadStatus(printerId, {
       state: "success",
+      active: false,
+      uploadedLineCount: response.uploadedLineCount,
+      totalLineCount: response.totalLineCount,
+      totalByteCount: response.totalByteCount,
+      rejectedLineCount: response.rejectedLineCount,
+      qualityPercent: calculateUploadQualityPercent(response.uploadedLineCount, response.rejectedLineCount),
+      percent: 100,
       message: `Uploaded ${response.originalFilename} as ${response.linkedFirmwarePath || response.requestedTargetFilename}.`
     });
 
@@ -706,10 +744,90 @@ async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename)
   } catch (error) {
     setPrinterSdUploadStatus(printerId, {
       state: "error",
+      active: false,
       message: `Upload failed: ${error.message}`
     });
     setMessage(`Failed to upload print file to SD card: ${error.message}`);
+  } finally {
+    stopUploadStatusPolling(printerId);
+    await refreshUploadStatus(printerId);
+    renderApp();
   }
+}
+
+function startUploadStatusPolling(printerId) {
+  stopUploadStatusPolling(printerId);
+
+  const intervalId = window.setInterval(() => {
+    refreshUploadStatus(printerId).catch(() => {
+      // Keep the upload request itself as the source of user-visible failure.
+    });
+  }, 1000);
+
+  uploadStatusPollers.set(printerId, intervalId);
+}
+
+function stopUploadStatusPolling(printerId) {
+  const intervalId = uploadStatusPollers.get(printerId);
+
+  if (!intervalId) {
+    return;
+  }
+
+  window.clearInterval(intervalId);
+  uploadStatusPollers.delete(printerId);
+}
+
+async function refreshUploadStatus(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  const status = await fetchPrinterSdUploadStatus(printerId);
+
+  if (!status || status.state === "idle") {
+    return;
+  }
+
+  setPrinterSdUploadStatus(printerId, {
+    ...status,
+    message: uploadStatusMessage(status)
+  });
+  renderApp();
+}
+
+function uploadStatusMessage(status) {
+  const filename = status.originalFilename || status.requestedTargetFilename || "file";
+  const uploaded = Number(status.uploadedLineCount || 0);
+  const total = Number(status.totalLineCount || 0);
+
+  if (status.active) {
+    if (total > 0) {
+      return `Uploading ${filename}: ${uploaded}/${total} confirmed lines (${Number(status.percent || 0)}%).`;
+    }
+    return `Uploading ${filename}...`;
+  }
+
+  if (status.state === "success") {
+    return status.detail || `Uploaded ${filename}.`;
+  }
+
+  if (status.state === "error") {
+    return status.detail || `Upload failed for ${filename}.`;
+  }
+
+  return status.detail || "";
+}
+
+function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
+  const uploaded = Number(uploadedLineCount || 0);
+  const rejected = Number(rejectedLineCount || 0);
+
+  if (uploaded <= 0) {
+    return 100;
+  }
+
+  return Math.max(0, Math.min(100, Math.floor((uploaded * 100) / (uploaded + rejected))));
 }
 
 async function handleCloseSdUploadSession(printerId, lineNumberValue) {
@@ -1096,15 +1214,57 @@ function startAutoRefresh() {
 
   printerRefreshInterval = setInterval(async () => {
     try {
-      const printers = await getPrinters();
+      const previousJobsSignature = jobsSignature(state.jobs);
+      const [printers, jobs] = await Promise.all([
+        getPrinters(),
+        getJobs()
+      ]);
+      const nextJobsSignature = jobsSignature(jobs);
+
       setPrinters(printers);
+      setJobs(jobs);
       setLastRefreshLabel(new Date().toLocaleTimeString());
+
+      if (nextJobsSignature !== previousJobsSignature) {
+        await refreshOpenJobDetails(jobs);
+        renderApp();
+        return;
+      }
+
       renderLivePrinterRefresh(printers);
       lastRefreshElement.textContent = state.lastRefreshLabel;
     } catch {
       // keep current state visible
     }
   }, 3000);
+}
+
+async function refreshOpenJobDetails(jobs) {
+  const openJobs = jobs.filter((job) =>
+    isJobCardSectionOpen(job.id, "history") || isJobCardSectionOpen(job.id, "diagnostics")
+  );
+
+  await Promise.all(openJobs.map(async (job) => {
+    if (isJobCardSectionOpen(job.id, "history")) {
+      await loadJobEventsIntoState(job.id);
+    }
+
+    if (isJobCardSectionOpen(job.id, "diagnostics")) {
+      await loadJobExecutionStepsIntoState(job.id);
+    }
+  }));
+}
+
+function jobsSignature(jobs) {
+  return (Array.isArray(jobs) ? jobs : []).map((job) => [
+    job.id,
+    job.state,
+    job.updatedAt,
+    job.startedAt,
+    job.finishedAt,
+    job.failureReason,
+    job.failureDetail
+  ].join("|")).join(";");
 }
 
 function renderLivePrinterRefresh(printers) {

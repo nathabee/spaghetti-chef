@@ -485,6 +485,58 @@ textarea:focus {
   border-bottom: 0;
 }
 
+progress {
+  width: 100%;
+  height: 0.75rem;
+  border: 0;
+  border-radius: var(--pill-radius);
+  overflow: hidden;
+  background: var(--bg-surface-muted);
+}
+
+progress::-webkit-progress-bar {
+  background: var(--bg-surface-muted);
+}
+
+progress::-webkit-progress-value {
+  background: var(--primary);
+}
+
+progress::-moz-progress-bar {
+  background: var(--primary);
+}
+
+.upload-quality {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.quality-bar {
+  height: 0.75rem;
+  border-radius: var(--pill-radius);
+  overflow: hidden;
+  background: var(--bg-surface-muted);
+}
+
+.quality-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.upload-quality-good .quality-bar span {
+  background: var(--ok);
+}
+
+.upload-quality-warn .quality-bar span {
+  background: var(--warn);
+}
+
+.upload-quality-bad .quality-bar span {
+  background: var(--danger);
+}
+
 .card-badges,
 .badge-row,
 .action-row,

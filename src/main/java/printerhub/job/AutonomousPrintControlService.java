@@ -3,9 +3,12 @@ package printerhub.job;
 import printerhub.OperationMessages;
 import printerhub.config.PrinterProtocolDefaults;
 import printerhub.monitoring.PrinterMonitoringScheduler;
+import printerhub.persistence.MonitoringRulesStore;
 import printerhub.persistence.PrintJobExecutionStepStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
+
+import java.util.function.BooleanSupplier;
 
 public final class AutonomousPrintControlService {
 
@@ -14,12 +17,29 @@ public final class AutonomousPrintControlService {
     private final PrinterMonitoringScheduler monitoringScheduler;
     private final PrintJobExecutionStepStore stepStore;
     private final PrinterResponseClassifier printerResponseClassifier;
+    private final BooleanSupplier debugWireTracingEnabledSupplier;
 
     public AutonomousPrintControlService(
             PrintJobService printJobService,
             PrinterRegistry printerRegistry,
             PrinterMonitoringScheduler monitoringScheduler,
             PrintJobExecutionStepStore stepStore
+    ) {
+        this(
+                printJobService,
+                printerRegistry,
+                monitoringScheduler,
+                stepStore,
+                () -> new MonitoringRulesStore().load().debugWireTracingEnabled()
+        );
+    }
+
+    public AutonomousPrintControlService(
+            PrintJobService printJobService,
+            PrinterRegistry printerRegistry,
+            PrinterMonitoringScheduler monitoringScheduler,
+            PrintJobExecutionStepStore stepStore,
+            BooleanSupplier debugWireTracingEnabledSupplier
     ) {
         if (printJobService == null) {
             throw new IllegalArgumentException(OperationMessages.PRINT_JOB_SERVICE_MUST_NOT_BE_NULL);
@@ -33,12 +53,16 @@ public final class AutonomousPrintControlService {
         if (stepStore == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("printJobExecutionStepStore"));
         }
+        if (debugWireTracingEnabledSupplier == null) {
+            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
+        }
 
         this.printJobService = printJobService;
         this.printerRegistry = printerRegistry;
         this.monitoringScheduler = monitoringScheduler;
         this.stepStore = stepStore;
         this.printerResponseClassifier = new PrinterResponseClassifier();
+        this.debugWireTracingEnabledSupplier = debugWireTracingEnabledSupplier;
     }
 
     public ControlResult pause(String jobId) {
@@ -99,6 +123,20 @@ public final class AutonomousPrintControlService {
                     classifyControlResponse(command, response, action);
 
             if (!classification.success()) {
+                if (shouldTreatBusyPauseAsPaused(action, classification)) {
+                    persistStepSuccess(job.id(), stepIndex, stepName, command, classification.response(), "PAUSE_REQUESTED");
+                    printJobService.recordJobAuditEvent(
+                            job.id(),
+                            OperationMessages.EVENT_JOB_EXECUTION_IN_PROGRESS,
+                            "Printer returned busy after pause command; marking job PAUSED so resume remains available: "
+                                    + command
+                                    + " | response="
+                                    + OperationMessages.safeDetail(classification.response(), "no response")
+                    );
+                    PrintJob updated = printJobService.markPaused(job.id());
+                    return ControlResult.success(updated, command, classification.response());
+                }
+
                 restoreStateAfterFailedControl(job);
                 persistStepFailure(job.id(), stepIndex, stepName, command,
                         classification.response(), classification.failureReason(), classification.detail());
@@ -294,7 +332,9 @@ public final class AutonomousPrintControlService {
         String command = PrinterProtocolDefaults.COMMAND_READ_SD_PRINT_STATUS;
 
         for (int attempt = 1; attempt <= PrinterProtocolDefaults.SD_PRINT_CANCEL_VERIFY_ATTEMPTS; attempt++) {
+            traceWire(node.id(), "SEND", command);
             response = node.printerPort().sendCommand(command);
+            traceWire(node.id(), "RECV", response);
             String normalized = response == null ? "" : response.toLowerCase(java.util.Locale.ROOT);
 
             if (isSdPrintStoppedResponse(normalized)) {
@@ -368,7 +408,9 @@ public final class AutonomousPrintControlService {
                 : 1;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            traceWire(node.id(), "SEND", command);
             response = node.printerPort().sendCommand(command);
+            traceWire(node.id(), "RECV", response);
 
             PrinterResponseClassifier.ResponseClassification classification =
                     printerResponseClassifier.classifyResponse(command, response);
@@ -396,6 +438,14 @@ public final class AutonomousPrintControlService {
         return response;
     }
 
+    private boolean shouldTreatBusyPauseAsPaused(
+            ControlAction action,
+            PrinterResponseClassifier.ResponseClassification classification
+    ) {
+        return action == ControlAction.PAUSE
+                && classification.failureReason() == JobFailureReason.PRINTER_BUSY;
+    }
+
     private PrintJob requirePrintFileJob(String jobId) {
         PrintJob job = printJobService.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException(OperationMessages.JOB_NOT_FOUND));
@@ -412,6 +462,17 @@ public final class AutonomousPrintControlService {
             String wireCommand,
             String response
     ) {
+        persistStepSuccess(jobId, stepIndex, stepName, wireCommand, response, "SUCCESS");
+    }
+
+    private void persistStepSuccess(
+            String jobId,
+            int stepIndex,
+            String stepName,
+            String wireCommand,
+            String response,
+            String outcome
+    ) {
         stepStore.save(
                 PrintJobExecutionStep.success(
                         jobId,
@@ -419,9 +480,17 @@ public final class AutonomousPrintControlService {
                         stepName,
                         wireCommand,
                         response,
-                        "SUCCESS"
+                        outcome
                 )
         );
+    }
+
+    private void traceWire(String printerId, String direction, String payload) {
+        if (!debugWireTracingEnabledSupplier.getAsBoolean()) {
+            return;
+        }
+        System.out.println("[PrinterHub] printer wire " + printerId + " " + direction + " "
+                + OperationMessages.safeDetail(payload, "no response"));
     }
 
     private void persistStepFailure(

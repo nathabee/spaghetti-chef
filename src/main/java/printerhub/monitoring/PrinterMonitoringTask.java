@@ -285,7 +285,7 @@ public final class PrinterMonitoringTask implements Runnable {
             return;
         }
 
-        if (!shouldCompleteAutonomousPrint(previousSnapshot, currentSnapshot)) {
+        if (!shouldCompleteAutonomousPrint(runningPrintFileJob, previousSnapshot, currentSnapshot)) {
             return;
         }
 
@@ -317,16 +317,24 @@ public final class PrinterMonitoringTask implements Runnable {
     }
 
     private boolean shouldCompleteAutonomousPrint(
+            PrintJob runningPrintFileJob,
             PrinterSnapshot previousSnapshot,
             PrinterSnapshot currentSnapshot
     ) {
         String currentResponse = currentSnapshot.lastResponse();
-        if (currentResponse != null && currentResponse.toLowerCase(Locale.ROOT).contains("done printing file")) {
+        String normalizedResponse = currentResponse == null ? "" : currentResponse.toLowerCase(Locale.ROOT);
+        if (normalizedResponse.contains("done printing file")) {
             return true;
         }
 
-        return previousSnapshot.state() == PrinterState.PRINTING
-                && currentSnapshot.state() == PrinterState.IDLE;
+        if (previousSnapshot.state() == PrinterState.PRINTING
+                && currentSnapshot.state() == PrinterState.IDLE) {
+            return true;
+        }
+
+        return normalizedResponse.contains("not sd printing")
+                && runningPrintFileJob.startedAt() != null
+                && !clock.instant().isBefore(runningPrintFileJob.startedAt().plusSeconds(5));
     }
 
     private String buildAutonomousCompletionMessage(
