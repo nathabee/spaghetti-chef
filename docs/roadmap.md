@@ -1731,7 +1731,7 @@ Expected result:
 
 ### step H — Autonomous running print supervision and operator controls
 
-status: planned
+status: done
 
 Goals:
 
@@ -1759,6 +1759,111 @@ Expected result:
 * autonomous real print jobs are not only startable but operable
 * dashboard and API can follow running print execution more meaningfully
 * completion, cancellation, and failure become properly reviewable in job history
+
+---
+
+
+### step I — Dashboard print-job controls and recovery actions
+
+status: planned
+
+Purpose:
+
+Close the remaining operator-control gap in the dashboard so autonomous
+printer-side jobs can be paused, resumed, cancelled, and restarted from a clear
+browser workflow.
+
+Goals:
+
+* format dashboard timestamps for operators instead of showing raw ISO instants such as `2026-05-08T05:40:35.861517049Z`
+* expose controlled pause and resume actions in the dashboard for active autonomous `PRINT_FILE` jobs
+* add dedicated API routes for autonomous print pause and resume if they are not already exposed
+* keep cancel behavior available for running and paused print jobs
+* add a cancel-request / waiting-for-printer-confirmation state when firmware reports busy or requires a physical printer-side stop confirmation
+* add a restart/retry action for completed, failed, or cancelled `PRINT_FILE` jobs
+* make restart create a new job attempt rather than mutating old completed history
+* show which original job a restarted/retried job came from
+* prevent restart when the original printer-side file target is deleted, disabled, or missing
+* disable impossible controls based on current job state:
+
+  * `RUNNING` can pause or cancel
+  * `PAUSED` can resume or cancel
+  * `COMPLETED`, `FAILED`, and `CANCELLED` can restart when the file target is still valid
+  * `CREATED`, `QUEUED`, and `ASSIGNED` can start or cancel according to existing rules
+* persist operator-control diagnostics for pause, resume, cancel, and restart
+* expose job history and execution diagnostics consistently from the Print page job card and the selected-printer History page
+* make job history clearly show:
+
+  * pause command and response
+  * resume command and response
+  * cancel command and response
+  * cancel-request / printer-busy evidence
+  * restart source job
+  * terminal outcome of each attempt
+* make delete actions work from job cards where deletion is shown
+* add filtering to the SD Card registered targets table by status, such as enabled, disabled, deleted, linked, and unlinked
+* add an SD upload recovery action that can close an interrupted printer-side file-write session with a correctly numbered `M29`
+* on SD upload failure after `M28` has opened the file, attempt the numbered `M29` close before reporting the upload as failed
+* add a dashboard/API recovery command for operators when the printer remains in SD write mode after a failed transfer
+* detect and represent USB-only versus mains-powered printer state when firmware exposes enough evidence
+* gate dangerous or state-changing commands when the printer appears USB-powered only or otherwise not safely powered
+* extend printer state beyond `IDLE` where useful, for example power-limited, waiting for confirmation, cancelling, and recovery-needed states
+* add favicon/browser tab icon support for the dashboard
+* improve dashboard wording so operators understand whether an action controls the printer firmware or only the PrinterHub job record
+
+Dashboard expectations:
+
+```text
+Job card controls
+├── Start    visible/enabled for ASSIGNED jobs
+├── Pause    visible/enabled for RUNNING PRINT_FILE jobs
+├── Resume   visible/enabled for PAUSED PRINT_FILE jobs
+├── Cancel   visible/enabled for RUNNING or PAUSED jobs
+└── Restart  visible/enabled for COMPLETED, FAILED, or CANCELLED PRINT_FILE jobs
+```
+
+```text
+SD Card registered targets
+├── filter by enabled / disabled
+├── filter by deleted / available
+├── filter by linked host file / unlinked printer-side path
+└── keep upload/recovery status visible next to affected targets
+```
+
+API expectations:
+
+```text
+POST /jobs/{id}/pause
+POST /jobs/{id}/resume
+POST /jobs/{id}/cancel
+POST /jobs/{id}/restart
+POST /printers/{id}/sd-card/recovery/close-upload
+```
+
+Current anomalies and CRs to verify in Step I:
+
+* Dashboard date/time values are technically precise but not operator-friendly.
+* Print page job-card `Load history` and `Load diagnostics` behavior should match the selected-printer History page behavior.
+* Job-card delete controls must be verified and fixed where currently ineffective.
+* `TURN_FAN_OFF` reports `M107 -> ok`, but the real printer fan continues running loudly.
+* `SET_FAN_SPEED` with `M106 S0` reports `ok`, but the real printer fan sound does not change.
+* Fan-control behavior needs hardware interpretation: distinguish controllable part-cooling fan from hotend, board, or power-supply fans that may not respond to `M106`/`M107`.
+* Fan jobs currently prove command acceptance only; Step I should decide whether follow-up verification, clearer dashboard wording, or printer-specific capability notes are needed.
+* `SET_NOZZLE_TEMPERATURE` and `SET_BED_TEMPERATURE` still need real-printer dashboard verification.
+* Some commands work while the printer is USB-powered only, such as `M105`, but movement/heating/state-changing commands may be unsafe or firmware-hostile without mains power.
+* If reliable mains-power detection is not possible, Step I should add conservative operator warnings and command gating for risky jobs.
+* Failed or interrupted SD upload can leave the printer in an SD file-write session; recovery should include a correctly numbered `M29` close path.
+* Cancel during autonomous print can receive repeated `busy` responses or mixed stale serial output; dashboard should show the real control state instead of implying immediate cancellation.
+* Dashboard should include a browser favicon/tab icon.
+
+Expected result:
+
+* operators can control an active autonomous print directly from the dashboard
+* failed, cancelled, or completed print jobs can be retried without losing the original audit trail
+* dashboard controls match job state instead of showing generic actions
+* pause, resume, cancel, and restart are reviewable in job history and diagnostics
+* dashboard tables and timestamps become practical for daily operator use
+* real-printer anomalies are either fixed or represented honestly as firmware/hardware limitations
 
 Expected result for 0.2.3 overall:
 

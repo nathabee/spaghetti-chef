@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.OperatorMessageReportWriter;
+import printerhub.PrinterPort;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
 import printerhub.command.PrinterCommandService;
@@ -26,6 +27,7 @@ import printerhub.persistence.PrinterEventStore;
 import printerhub.persistence.PrintJobExecutionStepStore;
 import printerhub.persistence.PrinterSdFileStore;
 import printerhub.runtime.PrinterRegistry;
+import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeNodeFactory;
 import printerhub.runtime.PrinterRuntimeStateCache;
 import printerhub.command.SdCardUploadService;
@@ -39,6 +41,8 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -826,7 +830,8 @@ class RemoteApiServerTest {
                 monitoringScheduler,
                 printerRegistry,
                 stateCache,
-                configurationStore);
+                configurationStore,
+                printJobService);
 
         try {
             HttpResponse<String> response = context.request(
@@ -1244,6 +1249,50 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void postJobCancelSendsAbortForRunningPrintFileJob() throws Exception {
+        TestContext context = createContext("job-cancel-running-print-file.db");
+
+        try {
+            String printerId = "printer-1";
+            RecordingPrinterPort printerPort = new RecordingPrinterPort();
+            context.printerRegistry.register(new PrinterRuntimeNode(
+                    printerId,
+                    "Printer 1",
+                    "/dev/ttyUSB0",
+                    "real",
+                    printerPort,
+                    true));
+
+            String printerSdFileId = registerPrinterSdFile(context, printerId, "TEST.GCO", "test.gcode", null);
+            HttpResponse<String> createResponse = context.request(
+                    "POST",
+                    "/jobs",
+                    "{\"name\":\"Print test\",\"type\":\"PRINT_FILE\",\"printerId\":\""
+                            + printerId
+                            + "\",\"printerSdFileId\":\""
+                            + printerSdFileId
+                            + "\"}");
+
+            assertEquals(201, createResponse.statusCode());
+            String jobId = extractJsonString(createResponse.body(), "id");
+            assertNotNull(jobId);
+            context.printJobService.markRunning(jobId);
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/jobs/" + jobId + "/cancel",
+                    null);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"id\":\"" + jobId + "\""));
+            assertTrue(response.body().contains("\"state\":\"CANCELLED\""));
+            assertTrue(printerPort.commands().contains("M524"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void deleteJobRemovesJob() throws Exception {
         TestContext context = createContext("job-delete.db");
 
@@ -1469,7 +1518,8 @@ class RemoteApiServerTest {
                 monitoringScheduler,
                 printerRegistry,
                 stateCache,
-                configurationStore);
+                configurationStore,
+                printJobService);
     }
 
     private int findFreePort() throws IOException {
@@ -1600,6 +1650,7 @@ class RemoteApiServerTest {
         private final PrinterRegistry printerRegistry;
         private final PrinterRuntimeStateCache stateCache;
         private final PrinterConfigurationStore configurationStore;
+        private final PrintJobService printJobService;
         private final HttpClient httpClient = HttpClient.newHttpClient();
 
         private TestContext(
@@ -1608,13 +1659,15 @@ class RemoteApiServerTest {
                 PrinterMonitoringScheduler monitoringScheduler,
                 PrinterRegistry printerRegistry,
                 PrinterRuntimeStateCache stateCache,
-                PrinterConfigurationStore configurationStore) {
+                PrinterConfigurationStore configurationStore,
+                PrintJobService printJobService) {
             this.port = port;
             this.server = server;
             this.monitoringScheduler = monitoringScheduler;
             this.printerRegistry = printerRegistry;
             this.stateCache = stateCache;
             this.configurationStore = configurationStore;
+            this.printJobService = printJobService;
         }
 
         private HttpResponse<String> get(String path) throws Exception {
@@ -1649,6 +1702,45 @@ class RemoteApiServerTest {
                 monitoringScheduler.stop();
             } finally {
                 server.stop();
+            }
+        }
+    }
+
+    private static final class RecordingPrinterPort implements PrinterPort {
+        private final List<String> commands = new ArrayList<>();
+        private boolean connected;
+
+        @Override
+        public void connect() {
+            connected = true;
+        }
+
+        @Override
+        public String sendCommand(String command) {
+            ensureConnected();
+            commands.add(command);
+            return "ok";
+        }
+
+        @Override
+        public String sendRawLine(String line) {
+            ensureConnected();
+            commands.add(line);
+            return "ok";
+        }
+
+        @Override
+        public void disconnect() {
+            connected = false;
+        }
+
+        private List<String> commands() {
+            return commands;
+        }
+
+        private void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
             }
         }
     }

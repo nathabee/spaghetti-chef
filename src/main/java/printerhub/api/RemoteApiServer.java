@@ -14,12 +14,14 @@ import printerhub.config.RuntimeDefaults;
 import printerhub.job.AsyncPrintJobExecutor;
 // import printerhub.job.JobFailureReason;
 import printerhub.command.SdCardUploadService;
+import printerhub.job.AutonomousPrintControlService;
 import printerhub.job.PrintFile;
 import printerhub.job.PrintFileService;
 import printerhub.job.PrintJobExecutionStep;
 import printerhub.job.PrinterSdFile;
 import printerhub.job.PrinterActionGuard;
 import printerhub.job.PrinterSdFileService;
+import printerhub.job.JobState;
 import printerhub.persistence.PrintJobExecutionStepStore;
 import printerhub.job.JobType;
 import printerhub.job.PrintJob;
@@ -71,6 +73,7 @@ public final class RemoteApiServer {
     private final PrintJobExecutionStepStore printJobExecutionStepStore;
     private final SdCardUploadService sdCardUploadService;
     private final PrinterResponseClassifier printerResponseClassifier;
+    private final AutonomousPrintControlService autonomousPrintControlService;
 
     private HttpServer server;
 
@@ -157,6 +160,11 @@ public final class RemoteApiServer {
         this.asyncPrintJobExecutor = asyncPrintJobExecutor;
         this.printJobExecutionStepStore = printJobExecutionStepStore;
         this.printerResponseClassifier = new PrinterResponseClassifier();
+        this.autonomousPrintControlService = new AutonomousPrintControlService(
+                printJobService,
+                printerRegistry,
+                monitoringScheduler,
+                printJobExecutionStepStore);
     }
 
     public void start() {
@@ -746,7 +754,17 @@ public final class RemoteApiServer {
             return;
         }
 
-        PrintJob job = printJobService.cancel(jobId);
+        PrintJob currentJob = printJobService.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException(OperationMessages.JOB_NOT_FOUND));
+        PrintJob job;
+
+        if (currentJob.type() == JobType.PRINT_FILE
+                && (currentJob.state() == JobState.RUNNING || currentJob.state() == JobState.PAUSED)) {
+            job = autonomousPrintControlService.cancel(jobId).job();
+        } else {
+            job = printJobService.cancel(jobId);
+        }
+
         sendJson(exchange, 200, printJobJson(job));
     }
 

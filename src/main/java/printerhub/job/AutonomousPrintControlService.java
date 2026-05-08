@@ -93,10 +93,10 @@ public final class AutonomousPrintControlService {
             );
 
             node.printerPort().connect();
-            String response = node.printerPort().sendCommand(command);
+            String response = sendControlCommandWithBusyRetry(job.id(), node, command, action);
 
             PrinterResponseClassifier.ResponseClassification classification =
-                    printerResponseClassifier.classifyResponse(command, response);
+                    classifyControlResponse(command, response, action);
 
             if (!classification.success()) {
                 restoreStateAfterFailedControl(job);
@@ -209,6 +209,66 @@ public final class AutonomousPrintControlService {
             case RESUME -> printJobService.markResumed(jobId);
             case CANCEL -> printJobService.cancel(jobId);
         };
+    }
+
+    private PrinterResponseClassifier.ResponseClassification classifyControlResponse(
+            String command,
+            String response,
+            ControlAction action
+    ) {
+        if (action != ControlAction.CANCEL || response == null) {
+            return printerResponseClassifier.classifyResponse(command, response);
+        }
+
+        String normalized = response.toLowerCase(java.util.Locale.ROOT);
+        if (normalized.contains("ok")
+                && !normalized.contains("unknown command")
+                && !normalized.contains("unknown g-code")
+                && !normalized.contains("unsupported")) {
+            return PrinterResponseClassifier.ResponseClassification.success(response);
+        }
+
+        return printerResponseClassifier.classifyResponse(command, response);
+    }
+
+    private String sendControlCommandWithBusyRetry(
+            String jobId,
+            PrinterRuntimeNode node,
+            String command,
+            ControlAction action
+    ) throws InterruptedException {
+        String response = null;
+        int maxAttempts = action == ControlAction.CANCEL
+                ? PrinterProtocolDefaults.SD_PRINT_CONTROL_MAX_BUSY_RETRIES
+                : 1;
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            response = node.printerPort().sendCommand(command);
+
+            PrinterResponseClassifier.ResponseClassification classification =
+                    printerResponseClassifier.classifyResponse(command, response);
+
+            if (classification.success()
+                    || classification.failureReason() != JobFailureReason.PRINTER_BUSY
+                    || attempt == maxAttempts) {
+                return response;
+            }
+
+            printJobService.recordJobAuditEvent(
+                    jobId,
+                    OperationMessages.EVENT_JOB_EXECUTION_IN_PROGRESS,
+                    "Printer busy while attempting SD print control command: "
+                            + command
+                            + " | attempt="
+                            + attempt
+                            + " | response="
+                            + OperationMessages.safeDetail(response, "no response")
+            );
+
+            Thread.sleep(PrinterProtocolDefaults.SD_PRINT_CONTROL_BUSY_RETRY_DELAY_MS);
+        }
+
+        return response;
     }
 
     private PrintJob requirePrintFileJob(String jobId) {

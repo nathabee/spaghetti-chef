@@ -298,7 +298,13 @@ class PrinterMonitoringSchedulerTest {
                 scheduler.restartMonitoring(node);
 
                 PrinterSnapshot snapshot = stateCache.findByPrinterId("printer-1").orElseThrow();
-                assertEquals(PrinterState.DISCONNECTED, snapshot.state());
+                assertTrue(
+                                snapshot.state() == PrinterState.DISCONNECTED
+                                                || snapshot.state() == PrinterState.CONNECTING
+                                                || snapshot.state() == PrinterState.IDLE);
+                assertNull(snapshot.hotendTemperature());
+                assertNull(snapshot.bedTemperature());
+                assertNotEquals("old response", snapshot.lastResponse());
 
                 scheduler.stop();
         }

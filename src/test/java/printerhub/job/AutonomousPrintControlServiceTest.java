@@ -169,6 +169,101 @@ class AutonomousPrintControlServiceTest {
         }
     }
 
+    @Test
+    void cancelRunningPrintFileJobRetriesWhenPrinterReportsBusy() {
+        initializeDatabase("autonomous-cancel-busy-retry.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobExecutionStepStore stepStore = new PrintJobExecutionStepStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
+
+        PrintJobService jobService = new PrintJobService(store, eventStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+
+        PrinterRegistry registry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler scheduler = new PrinterMonitoringScheduler(registry, stateCache);
+        SequencePrinterPort port = new SequencePrinterPort(
+                "echo:busy: processing",
+                "echo:busy: processing",
+                "ok"
+        );
+
+        try {
+            registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
+            PrinterSdFile printerSdFile = printerSdFileService.register(
+                    "printer-1",
+                    "TEST4.GCO",
+                    "TEST4.GCO",
+                    9L,
+                    "TEST4.GCO 9",
+                    null
+            );
+
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            jobService.markRunning(job.id());
+
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
+
+            assertTrue(result.success());
+            assertEquals(List.of("M524", "M524", "M524"), port.commands());
+            assertEquals(JobState.CANCELLED, store.findById(job.id()).orElseThrow().state());
+        } finally {
+            scheduler.stop();
+        }
+    }
+
+    @Test
+    void cancelRunningPrintFileJobAcceptsOkAfterStalePrinterErrors() {
+        initializeDatabase("autonomous-cancel-stale-errors.db");
+
+        PrintJobStore store = new PrintJobStore();
+        PrinterEventStore eventStore = new PrinterEventStore();
+        PrintJobExecutionStepStore stepStore = new PrintJobExecutionStepStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
+
+        PrintJobService jobService = new PrintJobService(store, eventStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+
+        PrinterRegistry registry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler scheduler = new PrinterMonitoringScheduler(registry, stateCache);
+        RecordingPrinterPort port = new RecordingPrinterPort("""
+                echo:busy: processing
+                echo:Invalid mesh.
+                Error:Failed to enable Bed Leveling
+                ok
+                """);
+
+        try {
+            registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
+            PrinterSdFile printerSdFile = printerSdFileService.register(
+                    "printer-1",
+                    "TEST4.GCO",
+                    "TEST4.GCO",
+                    9L,
+                    "TEST4.GCO 9",
+                    null
+            );
+
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            jobService.markRunning(job.id());
+
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
+
+            assertTrue(result.success());
+            assertEquals("M524", result.wireCommand());
+            assertEquals(JobState.CANCELLED, store.findById(job.id()).orElseThrow().state());
+        } finally {
+            scheduler.stop();
+        }
+    }
+
     private void initializeDatabase(String fileName) {
         String databaseFile = tempDir.resolve(fileName).toString();
         System.setProperty(RuntimeDefaults.DATABASE_FILE_PROPERTY, databaseFile);
@@ -195,6 +290,41 @@ class AutonomousPrintControlServiceTest {
         @Override
         public String sendCommand(String command) {
             commands.add(command);
+            return response;
+        }
+
+        @Override
+        public void disconnect() {
+        }
+
+        private java.util.List<String> commands() {
+            return commands;
+        }
+    }
+
+    private static final class SequencePrinterPort implements PrinterPort {
+        private final java.util.List<String> commands = new java.util.ArrayList<>();
+        private final java.util.List<String> responses;
+        private int index;
+
+        private SequencePrinterPort(String... responses) {
+            this.responses = java.util.List.of(responses);
+        }
+
+        @Override
+        public void connect() {
+        }
+
+        @Override
+        public String sendRawLine(String line) {
+            return "ok";
+        }
+
+        @Override
+        public String sendCommand(String command) {
+            commands.add(command);
+            String response = responses.get(Math.min(index, responses.size() - 1));
+            index++;
             return response;
         }
 
