@@ -1765,7 +1765,7 @@ Expected result:
 
 ### step I — Dashboard print-job controls and recovery actions
 
-status: planned
+status: done
 
 Purpose:
 
@@ -1779,6 +1779,8 @@ Goals:
 * expose controlled pause and resume actions in the dashboard for active autonomous `PRINT_FILE` jobs
 * add dedicated API routes for autonomous print pause and resume if they are not already exposed
 * keep cancel behavior available for running and paused print jobs
+* treat autonomous print cancel as a verified workflow: send abort, then confirm through SD print status before marking the job terminal
+* prevent cancel from changing terminal jobs; `COMPLETED`, `FAILED`, and `CANCELLED` jobs must keep their final outcome
 * add a cancel-request / waiting-for-printer-confirmation state when firmware reports busy or requires a physical printer-side stop confirmation
 * add a restart/retry action for completed, failed, or cancelled `PRINT_FILE` jobs
 * make restart create a new job attempt rather than mutating old completed history
@@ -1797,6 +1799,7 @@ Goals:
   * pause command and response
   * resume command and response
   * cancel command and response
+  * cancel status verification command and response
   * cancel-request / printer-busy evidence
   * restart source job
   * terminal outcome of each attempt
@@ -1842,19 +1845,21 @@ POST /printers/{id}/sd-card/recovery/close-upload
 
 Current anomalies and CRs to verify in Step I:
 
-* Dashboard date/time values are technically precise but not operator-friendly.
-* Print page job-card `Load history` and `Load diagnostics` behavior should match the selected-printer History page behavior.
-* Job-card delete controls must be verified and fixed where currently ineffective.
+* Dashboard date/time values are now formatted for operators instead of raw ISO instants.
+* Print page and global Jobs page job cards expose history and diagnostics consistently.
+* Job-card delete controls are wired through the existing delete endpoint.
 * `TURN_FAN_OFF` reports `M107 -> ok`, but the real printer fan continues running loudly.
 * `SET_FAN_SPEED` with `M106 S0` reports `ok`, but the real printer fan sound does not change.
 * Fan-control behavior needs hardware interpretation: distinguish controllable part-cooling fan from hotend, board, or power-supply fans that may not respond to `M106`/`M107`.
 * Fan jobs currently prove command acceptance only; Step I should decide whether follow-up verification, clearer dashboard wording, or printer-specific capability notes are needed.
 * `SET_NOZZLE_TEMPERATURE` and `SET_BED_TEMPERATURE` still need real-printer dashboard verification.
 * Some commands work while the printer is USB-powered only, such as `M105`, but movement/heating/state-changing commands may be unsafe or firmware-hostile without mains power.
-* If reliable mains-power detection is not possible, Step I should add conservative operator warnings and command gating for risky jobs.
-* Failed or interrupted SD upload can leave the printer in an SD file-write session; recovery should include a correctly numbered `M29` close path.
-* Cancel during autonomous print can receive repeated `busy` responses or mixed stale serial output; dashboard should show the real control state instead of implying immediate cancellation.
-* Dashboard should include a browser favicon/tab icon.
+* Reliable mains-power detection is not exposed by the currently observed firmware response; later work should keep adding conservative warnings/gating as evidence becomes available.
+* Failed or interrupted SD upload can leave the printer in an SD file-write session; Step I adds an operator recovery action that sends a numbered/checksummed `M29` close path.
+* Cancel during autonomous print can receive repeated `busy` responses or mixed stale serial output; dashboard/backend now avoid terminal cancellation unless status verification confirms the print stopped.
+* An `ok` after `M524` is not enough evidence by itself because stale serial responses can be mixed in; Step I cancellation verifies with `M27` before marking the job `CANCELLED`.
+* Completed, failed, and cancelled jobs keep their terminal outcome and expose restart/retry instead of cancel.
+* Dashboard includes a browser favicon/tab icon.
 
 Expected result:
 

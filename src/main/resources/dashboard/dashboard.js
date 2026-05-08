@@ -1,5 +1,6 @@
 import {
   cancelJob,
+  closePrinterSdUploadSession,
   createJob,
   deletePrinterSdFile,
   createPrinter,
@@ -20,6 +21,9 @@ import {
   getPrinters,
   registerPrinterSdFile,
   registerPrintFile,
+  pauseJob,
+  restartJob,
+  resumeJob,
   saveMonitoringRules,
   savePrintFileSettings,
   setPrinterSdFileEnabled,
@@ -41,6 +45,7 @@ import { renderPrinterSdCard } from "./views/printer-sd-card.js";
 import { renderSettingsPage } from "./views/settings.js";
 import {
   getJobsForSelectedPrinter,
+  getPrinterSdTargetFilter,
   getSelectedPrinter,
   PRIMARY_VIEW_IDS,
   PRINTER_VIEW_IDS,
@@ -57,6 +62,7 @@ import {
   setPrinterCommandResult,
   setPrinterEvents,
   setPrinterSdCardFiles,
+  setPrinterSdTargetFilter,
   setPrinters,
   setPrimaryView,
   setPrinterView,
@@ -369,6 +375,16 @@ function bindGlobalListeners() {
       return;
     }
 
+    const closeUploadSessionButton = event.target.closest("[data-close-sd-upload-session]");
+    if (closeUploadSessionButton) {
+      await handleCloseSdUploadSession(
+        closeUploadSessionButton.dataset.printerId,
+        closeUploadSessionButton.dataset.lineNumber || "2"
+      );
+      renderApp();
+      return;
+    }
+
     const printerSdFileEnabledButton = event.target.closest("[data-printer-sd-file-enabled]");
     if (printerSdFileEnabledButton) {
       await handleSetPrinterSdFileEnabled(
@@ -402,6 +418,20 @@ function bindGlobalListeners() {
 
   document.addEventListener("submit", (event) => {
     event.preventDefault();
+  });
+
+  document.addEventListener("change", (event) => {
+    const filterInput = event.target.closest("[data-sd-target-filter]");
+    if (!filterInput) {
+      return;
+    }
+
+    setPrinterSdTargetFilter(
+      filterInput.dataset.printerId,
+      filterInput.dataset.sdTargetFilter,
+      filterInput.value
+    );
+    renderApp();
   });
 
   document.addEventListener("toggle", (event) => {
@@ -682,6 +712,33 @@ async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename)
   }
 }
 
+async function handleCloseSdUploadSession(printerId, lineNumberValue) {
+  if (!printerId) {
+    return;
+  }
+
+  const lineNumber = Number.parseInt(lineNumberValue, 10);
+
+  try {
+    const response = await closePrinterSdUploadSession(
+      printerId,
+      Number.isFinite(lineNumber) ? lineNumber : 2
+    );
+    setPrinterSdUploadStatus(printerId, {
+      state: "success",
+      message: `Sent upload recovery close at line ${response.lineNumber}. Response: ${response.response || "n/a"}`
+    });
+    setMessage(`Closed SD upload session for ${printerId}.`);
+    await refreshAllData({ silent: true });
+  } catch (error) {
+    setPrinterSdUploadStatus(printerId, {
+      state: "error",
+      message: `Recovery close failed: ${error.message}`
+    });
+    setMessage(`Failed to close SD upload session: ${error.message}`);
+  }
+}
+
 
 async function handleSavePrinterSdFile(form) {
   const payload = {
@@ -771,12 +828,42 @@ async function handleJobAction(action, jobId) {
       return;
     }
 
+    if (action === "pause") {
+      const response = await pauseJob(jobId);
+      setMessage(`Paused job ${jobId}. Command: ${response.execution?.wireCommand || "n/a"}.`);
+      await refreshAllData({ silent: true });
+      await loadJobEventsIntoState(jobId);
+      await loadJobExecutionStepsIntoState(jobId);
+      return;
+    }
+
+    if (action === "resume") {
+      const response = await resumeJob(jobId);
+      setMessage(`Resumed job ${jobId}. Command: ${response.execution?.wireCommand || "n/a"}.`);
+      await refreshAllData({ silent: true });
+      await loadJobEventsIntoState(jobId);
+      await loadJobExecutionStepsIntoState(jobId);
+      return;
+    }
+
     if (action === "cancel") {
       await cancelJob(jobId);
       setMessage(`Cancelled job ${jobId}.`);
       await refreshAllData({ silent: true });
       await loadJobEventsIntoState(jobId);
       await loadJobExecutionStepsIntoState(jobId);
+      return;
+    }
+
+    if (action === "restart") {
+      const response = await restartJob(jobId);
+      const restartedJobId = response.job?.id || "new job";
+      setMessage(`Created restart job ${restartedJobId} from ${jobId}.`);
+      await refreshAllData({ silent: true });
+      if (response.job?.id) {
+        await loadJobEventsIntoState(response.job.id);
+      }
+      await loadJobEventsIntoState(jobId);
       return;
     }
 
@@ -1048,7 +1135,7 @@ function updateLivePrinterFields(container, printer) {
     status: renderStatusLabel(printer, printer.state || "UNKNOWN"),
     hotendTemperature: formatTemperature(printer.hotendTemperature),
     bedTemperature: formatTemperature(printer.bedTemperature),
-    updatedAt: printer.updatedAt || "n/a",
+    updatedAt: formatDateTime(printer.updatedAt),
     lastResponse: printer.lastResponse || "n/a",
     errorMessage: printer.errorMessage || "none"
   };
@@ -1081,6 +1168,26 @@ export function formatTemperature(value) {
   }
 
   return `${Number(value).toFixed(1)} °C`;
+}
+
+export function formatDateTime(value) {
+  if (!value) {
+    return "n/a";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
 }
 
 export function resolveStateClass(printer) {
@@ -1136,7 +1243,7 @@ export function getMostRecentUpdatedAt() {
     .map((printer) => printer.updatedAt)
     .filter((value) => typeof value === "string" && value.trim() !== "");
 
-  return updatedValues[0] || "n/a";
+  return formatDateTime(updatedValues[0]);
 }
 
 function readOptionalNumber(value) {

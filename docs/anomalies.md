@@ -207,17 +207,21 @@ Current behavior after fixes:
 
 * cancel path sends `M524`
 * if printer returns only `busy`, PrinterHub retries briefly
-* if printer returns stale output plus `ok`, cancel can be accepted
+* if printer returns stale output plus `ok`, PrinterHub now asks `M27` before accepting cancel as terminal
+* cancel is accepted only when the follow-up status indicates the printer is no longer SD printing
 * if the printer stays busy for the retry window, the job can remain `RUNNING`
 * a later cancel can succeed once the printer accepts `M524`, for example after the blocking print command has finished
+* if `M524` returns `ok` but `M27` still reports `SD printing`, PrinterHub keeps the job non-terminal instead of marking it `CANCELLED`
 
 Remaining Step I issue:
 
 * dashboard needs an intermediate state such as `CANCEL_REQUESTED` or `WAITING_FOR_PRINTER_STOP`
 * if firmware requires printer-side confirmation, dashboard should say so clearly
 * cancel still needs dedicated Step I dashboard testing
-* if cancel fails because the printer stays busy, the dashboard should not leave the operator confused by a plain `RUNNING` state
+* if cancel fails because the printer stays busy or still reports SD printing, the dashboard should not leave the operator confused by a plain `RUNNING` state
 * Step I should decide whether to keep a visible cancel-request state, show a retry action, or automatically poll until the printer confirms stop/completion
+* dashboard controls should not offer cancel after a job has reached `COMPLETED`, `FAILED`, or `CANCELLED`
+* backend now rejects cancel for terminal jobs so a completed job cannot later be rewritten as cancelled
 
 Roadmap: `0.2.3 Step I`
 

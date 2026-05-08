@@ -218,6 +218,11 @@ public final class RemoteApiServer {
         } catch (IllegalStateException exception) {
             String message = safeMessage(exception);
 
+            if (OperationMessages.INVALID_JOB_STATE.equals(message)) {
+                sendJson(exchange, 400, errorJson(message));
+                return;
+            }
+
             if (OperationMessages.JOB_NOT_FOUND.equals(message)
                     || OperationMessages.PRINTER_NOT_FOUND.equals(message)
                     || OperationMessages.PRINTER_SD_FILE_NOT_FOUND.equals(message)) {
@@ -651,8 +656,23 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (parts.length == 2 && "pause".equals(parts[1])) {
+            handleJobPause(exchange, jobId);
+            return;
+        }
+
+        if (parts.length == 2 && "resume".equals(parts[1])) {
+            handleJobResume(exchange, jobId);
+            return;
+        }
+
         if (parts.length == 2 && "cancel".equals(parts[1])) {
             handleJobCancel(exchange, jobId);
+            return;
+        }
+
+        if (parts.length == 2 && "restart".equals(parts[1])) {
+            handleJobRestart(exchange, jobId);
             return;
         }
 
@@ -756,6 +776,13 @@ public final class RemoteApiServer {
 
         PrintJob currentJob = printJobService.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException(OperationMessages.JOB_NOT_FOUND));
+        if (currentJob.state() == JobState.COMPLETED
+                || currentJob.state() == JobState.FAILED
+                || currentJob.state() == JobState.CANCELLED) {
+            sendJson(exchange, 400, errorJson(OperationMessages.INVALID_JOB_STATE));
+            return;
+        }
+
         PrintJob job;
 
         if (currentJob.type() == JobType.PRINT_FILE
@@ -766,6 +793,85 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 200, printJobJson(job));
+    }
+
+    private void handleJobPause(HttpExchange exchange, String jobId) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        AutonomousPrintControlService.ControlResult result = autonomousPrintControlService.pause(jobId);
+        sendJson(exchange, 200, controlResultJson(result));
+    }
+
+    private void handleJobResume(HttpExchange exchange, String jobId) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        AutonomousPrintControlService.ControlResult result = autonomousPrintControlService.resume(jobId);
+        sendJson(exchange, 200, controlResultJson(result));
+    }
+
+    private void handleJobRestart(HttpExchange exchange, String jobId) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        PrintJob sourceJob = printJobService.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException(OperationMessages.JOB_NOT_FOUND));
+
+        if (sourceJob.type() != JobType.PRINT_FILE
+                || (sourceJob.state() != JobState.COMPLETED
+                && sourceJob.state() != JobState.FAILED
+                && sourceJob.state() != JobState.CANCELLED)) {
+            sendJson(exchange, 400, errorJson(OperationMessages.INVALID_JOB_STATE));
+            return;
+        }
+
+        String printerSdFileId = sourceJob.printerSdFileId();
+        if (printerSdFileId == null || printerSdFileId.isBlank()) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_SD_FILE_NOT_FOUND));
+            return;
+        }
+
+        PrinterSdFile printerSdFile = printerSdFileService.findById(printerSdFileId).orElse(null);
+        if (printerSdFile == null) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_SD_FILE_NOT_FOUND));
+            return;
+        }
+        if (printerSdFile.deleted()) {
+            sendJson(exchange, 400, errorJson(OperationMessages.PRINTER_SD_FILE_DELETED));
+            return;
+        }
+        if (!printerSdFile.enabled()) {
+            sendJson(exchange, 400, errorJson(OperationMessages.PRINTER_SD_FILE_DISABLED));
+            return;
+        }
+
+        PrintJob restarted = printJobService.create(
+                "Restart of " + sourceJob.name(),
+                JobType.PRINT_FILE,
+                sourceJob.printerId(),
+                printerSdFile.printFileId(),
+                printerSdFile.id(),
+                sourceJob.targetTemperature(),
+                sourceJob.fanSpeed());
+
+        printJobService.recordJobAuditEvent(
+                sourceJob.id(),
+                OperationMessages.EVENT_JOB_RESTARTED,
+                "Job restart requested: " + restarted.id());
+        printJobService.recordJobAuditEvent(
+                restarted.id(),
+                OperationMessages.EVENT_JOB_RESTARTED,
+                "Job restarted from source job: " + sourceJob.id());
+
+        sendJson(exchange, 201, "{\"sourceJobId\":\"" + escapeJson(sourceJob.id())
+                + "\",\"job\":" + printJobJson(restarted) + "}");
     }
 
     private void handlePrintersRoot(HttpExchange exchange) throws IOException {
@@ -850,6 +956,14 @@ public final class RemoteApiServer {
 
         if (parts.length == 3 && "sd-card".equals(parts[1]) && "uploads".equals(parts[2])) {
             handlePrinterSdCardUploads(exchange, printerId);
+            return;
+        }
+
+        if (parts.length == 4
+                && "sd-card".equals(parts[1])
+                && "recovery".equals(parts[2])
+                && "close-upload".equals(parts[3])) {
+            handlePrinterSdCardCloseUploadRecovery(exchange, printerId);
             return;
         }
 
@@ -1093,6 +1207,28 @@ public final class RemoteApiServer {
         sendJson(exchange, 200, sdCardUploadResultJson(result));
     }
 
+    private void handlePrinterSdCardCloseUploadRecovery(HttpExchange exchange, String printerId) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        PrinterRuntimeNode node = printerRegistry.findById(printerId).orElse(null);
+
+        if (node == null) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_NOT_FOUND));
+            return;
+        }
+
+        String body = readBody(exchange);
+        Integer requestedLineNumber = optionalJsonIntegerObject(body, "lineNumber");
+        int lineNumber = requestedLineNumber == null ? 2 : requestedLineNumber;
+        String response = sdCardUploadService.closeOpenUploadSession(printerId, lineNumber);
+        sendJson(exchange, 200, "{\"printerId\":\"" + escapeJson(printerId)
+                + "\",\"lineNumber\":" + lineNumber
+                + ",\"response\":\"" + escapeJson(response) + "\"}");
+    }
+
     private void handlePrinterSdCardFiles(HttpExchange exchange, String printerId) throws IOException {
         if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
@@ -1301,6 +1437,23 @@ public final class RemoteApiServer {
                         result.failureReason() == null ? null : result.failureReason().name())
                 + ","
                 + "\"failureDetail\":" + nullableString(result.detail())
+                + "}"
+                + "}";
+    }
+
+    private String controlResultJson(AutonomousPrintControlService.ControlResult result) {
+        return "{"
+                + "\"job\":" + printJobJson(result.job()) + ","
+                + "\"execution\":{"
+                + "\"accepted\":" + result.success() + ","
+                + "\"success\":" + result.success() + ","
+                + "\"wireCommand\":" + nullableString(result.wireCommand()) + ","
+                + "\"response\":" + nullableString(result.response()) + ","
+                + "\"outcome\":" + nullableString(result.success() ? "SUCCESS" : "FAILED") + ","
+                + "\"failureReason\":" + nullableString(
+                        result.failureReason() == null ? null : result.failureReason().name())
+                + ","
+                + "\"failureDetail\":" + nullableString(result.failureDetail())
                 + "}"
                 + "}";
     }
@@ -1681,6 +1834,10 @@ public final class RemoteApiServer {
 
         if (resourcePath.endsWith(".js")) {
             return "application/javascript; charset=utf-8";
+        }
+
+        if (resourcePath.endsWith(".svg")) {
+            return "image/svg+xml";
         }
 
         return "application/octet-stream";

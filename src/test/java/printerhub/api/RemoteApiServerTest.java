@@ -3,6 +3,7 @@ package printerhub.api;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import printerhub.OperationMessages;
 import printerhub.OperatorMessageReportWriter;
 import printerhub.PrinterPort;
 import printerhub.PrinterSnapshot;
@@ -10,6 +11,7 @@ import printerhub.PrinterState;
 import printerhub.command.PrinterCommandService;
 import printerhub.command.SdCardService;
 import printerhub.job.AsyncPrintJobExecutor;
+import printerhub.job.JobState;
 import printerhub.job.PrintFileService;
 import printerhub.job.PrintJobExecutionService;
 import printerhub.job.PrintJobService;
@@ -707,6 +709,21 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void dashboardFaviconReturnsSvg() throws Exception {
+        TestContext context = createContext("dashboard-favicon.db");
+
+        try {
+            HttpResponse<String> response = context.get("/dashboard/favicon.svg");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.headers().firstValue("content-type").orElse("").contains("image/svg+xml"));
+            assertTrue(response.body().contains("<svg"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void dashboardJsReturnsJavaScript() throws Exception {
         TestContext context = createContext("dashboard-js.db");
 
@@ -1249,6 +1266,36 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void postJobCancelRejectsCompletedJob() throws Exception {
+        TestContext context = createContext("job-cancel-completed.db");
+
+        try {
+            HttpResponse<String> createResponse = context.request(
+                    "POST",
+                    "/jobs",
+                    """
+                            {"name":"Read firmware","type":"READ_FIRMWARE_INFO","printerId":"printer-1"}
+                            """);
+
+            assertEquals(201, createResponse.statusCode());
+            String jobId = extractJsonString(createResponse.body(), "id");
+            assertNotNull(jobId);
+            context.printJobService.markCompleted(jobId);
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/jobs/" + jobId + "/cancel",
+                    null);
+
+            assertEquals(400, response.statusCode());
+            assertTrue(response.body().contains(OperationMessages.INVALID_JOB_STATE));
+            assertEquals(JobState.COMPLETED, context.printJobService.findById(jobId).orElseThrow().state());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void postJobCancelSendsAbortForRunningPrintFileJob() throws Exception {
         TestContext context = createContext("job-cancel-running-print-file.db");
 
@@ -1287,6 +1334,124 @@ class RemoteApiServerTest {
             assertTrue(response.body().contains("\"id\":\"" + jobId + "\""));
             assertTrue(response.body().contains("\"state\":\"CANCELLED\""));
             assertTrue(printerPort.commands().contains("M524"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postJobPauseAndResumeControlRunningPrintFileJob() throws Exception {
+        TestContext context = createContext("job-pause-resume-running-print-file.db");
+
+        try {
+            String printerId = "printer-1";
+            RecordingPrinterPort printerPort = new RecordingPrinterPort();
+            context.printerRegistry.register(new PrinterRuntimeNode(
+                    printerId,
+                    "Printer 1",
+                    "/dev/ttyUSB0",
+                    "real",
+                    printerPort,
+                    true));
+
+            String printerSdFileId = registerPrinterSdFile(context, printerId, "TEST.GCO", "test.gcode", null);
+            HttpResponse<String> createResponse = context.request(
+                    "POST",
+                    "/jobs",
+                    "{\"name\":\"Print test\",\"type\":\"PRINT_FILE\",\"printerId\":\""
+                            + printerId
+                            + "\",\"printerSdFileId\":\""
+                            + printerSdFileId
+                            + "\"}");
+
+            assertEquals(201, createResponse.statusCode());
+            String jobId = extractJsonString(createResponse.body(), "id");
+            assertNotNull(jobId);
+            context.printJobService.markRunning(jobId);
+
+            HttpResponse<String> pauseResponse = context.request(
+                    "POST",
+                    "/jobs/" + jobId + "/pause",
+                    null);
+
+            assertEquals(200, pauseResponse.statusCode());
+            assertTrue(pauseResponse.body().contains("\"state\":\"PAUSED\""));
+            assertTrue(pauseResponse.body().contains("\"wireCommand\":\"M25\""));
+
+            HttpResponse<String> resumeResponse = context.request(
+                    "POST",
+                    "/jobs/" + jobId + "/resume",
+                    null);
+
+            assertEquals(200, resumeResponse.statusCode());
+            assertTrue(resumeResponse.body().contains("\"state\":\"RUNNING\""));
+            assertTrue(resumeResponse.body().contains("\"wireCommand\":\"M24\""));
+            assertTrue(printerPort.commands().contains("M25"));
+            assertTrue(printerPort.commands().contains("M24"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postJobRestartCreatesNewPrintFileJobFromTerminalJob() throws Exception {
+        TestContext context = createContext("job-restart-print-file.db");
+
+        try {
+            String printerId = "printer-1";
+            String printerSdFileId = registerPrinterSdFile(context, printerId, "TEST.GCO", "test.gcode", null);
+            HttpResponse<String> createResponse = context.request(
+                    "POST",
+                    "/jobs",
+                    "{\"name\":\"Print test\",\"type\":\"PRINT_FILE\",\"printerId\":\""
+                            + printerId
+                            + "\",\"printerSdFileId\":\""
+                            + printerSdFileId
+                            + "\"}");
+
+            assertEquals(201, createResponse.statusCode());
+            String sourceJobId = extractJsonString(createResponse.body(), "id");
+            assertNotNull(sourceJobId);
+            context.printJobService.markCompleted(sourceJobId);
+
+            HttpResponse<String> restartResponse = context.request(
+                    "POST",
+                    "/jobs/" + sourceJobId + "/restart",
+                    null);
+
+            assertEquals(201, restartResponse.statusCode());
+            assertTrue(restartResponse.body().contains("\"sourceJobId\":\"" + sourceJobId + "\""));
+            assertTrue(restartResponse.body().contains("\"state\":\"ASSIGNED\""));
+            assertTrue(restartResponse.body().contains("\"printerSdFileId\":\"" + printerSdFileId + "\""));
+            assertEquals(JobState.COMPLETED, context.printJobService.findById(sourceJobId).orElseThrow().state());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrinterSdUploadRecoverySendsNumberedM29() throws Exception {
+        TestContext context = createContext("sd-upload-recovery-close.db");
+
+        try {
+            String printerId = "printer-1";
+            RecordingPrinterPort printerPort = new RecordingPrinterPort();
+            context.printerRegistry.register(new PrinterRuntimeNode(
+                    printerId,
+                    "Printer 1",
+                    "/dev/ttyUSB0",
+                    "real",
+                    printerPort,
+                    true));
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/" + printerId + "/sd-card/recovery/close-upload",
+                    "{\"lineNumber\":7}");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"lineNumber\":7"));
+            assertTrue(printerPort.commands().stream().anyMatch(command -> command.startsWith("N7 M29*")));
         } finally {
             context.close();
         }
@@ -1719,6 +1884,9 @@ class RemoteApiServerTest {
         public String sendCommand(String command) {
             ensureConnected();
             commands.add(command);
+            if ("M27".equals(command)) {
+                return "Not SD printing";
+            }
             return "ok";
         }
 

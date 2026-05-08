@@ -277,6 +277,68 @@ public final class SdCardUploadService {
         }
     }
 
+    public String closeOpenUploadSession(String printerId, int lineNumber) {
+        if (printerId == null || printerId.isBlank()) {
+            throw new IllegalArgumentException(OperationMessages.PRINTER_ID_MUST_NOT_BE_BLANK);
+        }
+        if (lineNumber < 0) {
+            throw new IllegalArgumentException("lineNumber must be zero or greater");
+        }
+
+        PrinterRuntimeNode node = printerRegistry.findById(printerId.trim())
+                .orElseThrow(() -> new IllegalStateException(OperationMessages.PRINTER_NOT_FOUND));
+
+        PrinterActionGuard.GuardDecision decision = printerActionGuard.validateForSdUpload(node);
+        if (!decision.allowed()) {
+            throw new IllegalStateException(OperationMessages.safeDetail(
+                    decision.detail(),
+                    decision.failureReason() == null ? OperationMessages.PRECONDITION_FAILED
+                            : decision.failureReason().name()));
+        }
+
+        String executionToken = "sd-upload-recovery:" + Instant.now();
+
+        node.beginJobExecution(executionToken);
+        monitoringScheduler.stopMonitoring(node.id());
+
+        try {
+            node.printerPort().connect();
+            String response = sendChecksummedLineWithRetry(node, lineNumber, "M29");
+            printerEventStore.record(
+                    node.id(),
+                    null,
+                    "SD_CARD_UPLOAD_RECOVERY_CLOSED",
+                    "SD upload recovery close sent: line="
+                            + lineNumber
+                            + " | response="
+                            + OperationMessages.safeDetail(response, "no response"));
+            return response;
+        } finally {
+            try {
+                node.printerPort().disconnect();
+            } catch (Exception exception) {
+                System.err.println(OperationMessages.failedToDisconnectPrinterNode(
+                        node.id(),
+                        OperationMessages.safeDetail(
+                                exception.getMessage(),
+                                OperationMessages.UNKNOWN_RUNTIME_CLOSE_ERROR)));
+            }
+
+            node.endJobExecution();
+
+            try {
+                if (node.enabled()) {
+                    monitoringScheduler.startMonitoring(node);
+                }
+            } catch (Exception exception) {
+                System.err.println(OperationMessages.apiOperationFailed(
+                        OperationMessages.safeDetail(
+                                exception.getMessage(),
+                                OperationMessages.UNKNOWN_API_ERROR)));
+            }
+        }
+    }
+
     private long streamFileLinesWithChecksum(
             PrinterRuntimeNode node,
             Path hostPath,

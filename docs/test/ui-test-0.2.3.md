@@ -61,6 +61,8 @@ M117 PrinterHub done
      - Cancel button becomes disabled
      - printer should stop the SD print
      - diagnostics should show the cancel/abort command path, likely `M524`
+     - diagnostics should also show SD-print status verification, likely `M27`
+     - if `M27` still reports SD printing, the job should not be marked `CANCELLED`
 
 6. **History / Diagnostics Review**
    - On the job card, click **Load history**.
@@ -79,3 +81,61 @@ M117 PrinterHub done
      - history shows terminal completion evidence
      - dashboard no longer treats it as active
 
+
+## Test steps (step I)
+
+1. **Job Controls By State**
+   - Open selected printer → **Print**.
+   - Confirm:
+     - `ASSIGNED` jobs show Start and Cancel.
+     - `RUNNING PRINT_FILE` jobs show Pause and Cancel.
+     - `PAUSED PRINT_FILE` jobs show Resume and Cancel.
+     - `COMPLETED`, `FAILED`, and `CANCELLED` jobs do not allow Cancel.
+     - terminal `PRINT_FILE` jobs show Restart when the SD target still exists and is enabled.
+
+2. **Pause / Resume**
+   - Start a safe autonomous SD print.
+   - Click **Pause** while it is `RUNNING`.
+   - Expected:
+     - job moves to `PAUSED`
+     - history/diagnostics show `M25`
+   - Click **Resume**.
+   - Expected:
+     - job returns to `RUNNING`
+     - history/diagnostics show `M24`
+
+3. **Verified Cancel**
+   - Click **Cancel** while a print is `RUNNING` or `PAUSED`.
+   - Expected:
+     - diagnostics show `M524`
+     - diagnostics also show `M27` status verification
+     - job becomes `CANCELLED` only when the printer reports SD printing has stopped
+     - if the printer still reports `SD printing`, the job remains non-terminal
+
+4. **Terminal Restart**
+   - Let a `PRINT_FILE` job complete or use a failed/cancelled print-file job.
+   - Click **Restart**.
+   - Expected:
+     - a new `ASSIGNED` print-file job is created
+     - the original terminal job remains terminal
+     - history shows the restart relationship
+
+5. **SD Target Filters**
+   - Go to selected printer → **SD Card**.
+   - Use the registered target filters:
+     - availability: all / available / deleted
+     - enabled: all / enabled / disabled
+     - host link: all / linked / unlinked
+   - Expected:
+     - the registered target table changes without losing registrations
+     - deleted or disabled targets remain reviewable when filters include them
+
+6. **Upload Recovery**
+   - After an interrupted SD upload session, use **Close upload session**.
+   - Expected:
+     - dashboard sends a numbered/checksummed `M29`
+     - upload recovery result is visible in the SD Card upload status area
+
+7. **Dashboard Polish**
+   - Confirm dashboard date/time values are readable instead of raw ISO timestamps.
+   - Confirm the browser tab shows the PrinterHub favicon.
