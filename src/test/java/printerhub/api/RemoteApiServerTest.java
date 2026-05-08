@@ -402,6 +402,59 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getPrinterSdCardFilesRejectsWhilePrinterExecutionInProgress() throws Exception {
+        TestContext context = createContext("printer-sd-card-files-busy.db");
+
+        try {
+            PrinterRuntimeNode node = PrinterRuntimeNodeFactory.create(
+                    "printer-1",
+                    "Printer 1",
+                    "SIM_PORT",
+                    "sim",
+                    true);
+            context.configurationStore.save(node);
+            context.printerRegistry.register(node);
+            node.beginJobExecution("sd-upload:test");
+
+            HttpResponse<String> response = context.get("/printers/printer-1/sd-card/files");
+
+            assertEquals(409, response.statusCode());
+            assertEquals("{\"error\":\"printer_busy\"}", response.body());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrinterCommandRejectsWhilePrinterExecutionInProgress() throws Exception {
+        TestContext context = createContext("printer-command-busy.db");
+
+        try {
+            PrinterRuntimeNode node = PrinterRuntimeNodeFactory.create(
+                    "printer-1",
+                    "Printer 1",
+                    "SIM_PORT",
+                    "sim",
+                    true);
+            context.configurationStore.save(node);
+            context.printerRegistry.register(node);
+            node.beginJobExecution("sd-upload:test");
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/printer-1/commands",
+                    """
+                            {"command":"M105"}
+                            """);
+
+            assertEquals(409, response.statusCode());
+            assertEquals("{\"error\":\"printer_busy\"}", response.body());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void getPrinterEventsReturnsPersistedCommandEvents() throws Exception {
         TestContext context = createContext("printer-events.db");
 

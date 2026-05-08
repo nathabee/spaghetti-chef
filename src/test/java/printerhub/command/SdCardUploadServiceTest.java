@@ -86,6 +86,15 @@ class SdCardUploadServiceTest {
             assertTrue(result.success());
             assertEquals("TEST4.GCO", result.linkedFirmwarePath());
             assertEquals(1L, result.uploadedLineCount());
+            assertEquals(1L, result.totalLineCount());
+            assertEquals(Files.size(hostFile), result.totalByteCount());
+
+            SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
+            assertFalse(progress.active());
+            assertEquals("success", progress.state());
+            assertEquals(1L, progress.uploadedLineCount());
+            assertEquals(1L, progress.totalLineCount());
+            assertEquals(Files.size(hostFile), progress.totalByteCount());
 
             Optional<PrinterSdFile> storedFile = printerSdFileService.findByPrinterIdAndFirmwarePath(
                     "printer-1",
@@ -104,6 +113,9 @@ class SdCardUploadServiceTest {
                             "raw:N3 M29*27",
                             "raw:N4 M20*21"),
                     printerPort.operations().subList(0, 6));
+            assertTrue(printerEventStore.findRecentByPrinterId("printer-1", 20)
+                    .stream()
+                    .anyMatch(event -> "SD_CARD_UPLOAD_PROGRESS".equals(event.eventType())));
         } finally {
             monitoringScheduler.stop();
         }
@@ -149,7 +161,61 @@ class SdCardUploadServiceTest {
                     "TEST5.GCO");
 
             assertTrue(result.success());
+            assertEquals(1L, result.rejectedLineCount());
             assertEquals(2, printerPort.payloadAttempts());
+
+            SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
+            assertEquals(1L, progress.rejectedLineCount());
+        } finally {
+            monitoringScheduler.stop();
+        }
+    }
+
+    @Test
+    void uploadFailsWhenPrinterRequestsDifferentResendLineEvenWithOk() throws Exception {
+        initializeDatabase("sd-upload-resend-mismatch.db");
+
+        Path hostFile = tempDir.resolve("upload-resend-mismatch.gcode");
+        Files.writeString(hostFile, "M104 S0\nM105\n");
+
+        PrinterRegistry printerRegistry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(printerRegistry, stateCache);
+        PrinterEventStore printerEventStore = new PrinterEventStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        PrintFileService printFileService = new PrintFileService(printFileStore);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
+        SdCardUploadService uploadService = new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore);
+
+        PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
+        ResendMismatchPrinterPort printerPort = new ResendMismatchPrinterPort();
+        printerRegistry.register(new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/ttyUSB0",
+                "real",
+                printerPort,
+                true));
+
+        try {
+            IllegalStateException exception = assertThrows(
+                    IllegalStateException.class,
+                    () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TEST8.GCO"));
+
+            assertTrue(exception.getMessage().contains("Printer requested resend for line 2"));
+            assertTrue(exception.getMessage().contains("uploading line 3"));
+            assertTrue(printerPort.operations().contains("raw:N2 M29*26"));
+
+            SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
+            assertFalse(progress.active());
+            assertEquals("error", progress.state());
         } finally {
             monitoringScheduler.stop();
         }
@@ -437,6 +503,54 @@ class SdCardUploadServiceTest {
 
         private int payloadAttempts() {
             return payloadAttempts.get();
+        }
+    }
+
+    private static final class ResendMismatchPrinterPort implements PrinterPort {
+
+        private final List<String> operations = new ArrayList<>();
+        private boolean connected;
+
+        @Override
+        public void connect() {
+            connected = true;
+        }
+
+        @Override
+        public String sendCommand(String command) {
+            ensureConnected();
+            return "ok";
+        }
+
+        @Override
+        public String sendRawLine(String line) {
+            ensureConnected();
+            operations.add("raw:" + line);
+
+            return switch (line) {
+                case "N0 M110 N0*125", "N1 M28 TEST8.GCO*115", "N2 M104 S0*103", "N2 M29*26" -> "ok";
+                case "N3 M105*36" -> """
+                        Error:No Checksum with line number, Last Line: 20313
+                        Resend: 2
+                        ok
+                        """;
+                default -> throw new IllegalStateException("Unexpected raw line: " + line);
+            };
+        }
+
+        @Override
+        public void disconnect() {
+            connected = false;
+        }
+
+        private void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
+            }
+        }
+
+        private List<String> operations() {
+            return List.copyOf(operations);
         }
     }
 

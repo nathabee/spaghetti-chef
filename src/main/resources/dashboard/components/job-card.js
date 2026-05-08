@@ -4,16 +4,20 @@ export function renderJobCard(job, options = {}) {
   const eventsHtml = options.eventsHtml ?? `<p class="muted">Job history not loaded yet.</p>`;
   const executionStepsHtml = options.executionStepsHtml ?? `<p class="muted">Execution diagnostics not loaded yet.</p>`;
   const showActions = options.showActions ?? true;
+  const printerUploadActive = options.printerUploadActive === true;
   const historyOpen = options.historyOpen === true;
   const diagnosticsOpen = options.diagnosticsOpen === true;
-  const canStart = job.state === "ASSIGNED";
+  const canStart = job.state === "ASSIGNED" && !printerUploadActive;
   const isPrintFileJob = job.type === "PRINT_FILE";
   const isTerminal = ["COMPLETED", "FAILED", "CANCELLED"].includes(job.state);
-  const canPause = isPrintFileJob && job.state === "RUNNING";
-  const canResume = isPrintFileJob && job.state === "PAUSED";
-  const canCancel = !isTerminal && !["CANCELLING"].includes(job.state);
-  const canRestart = isPrintFileJob && isTerminal && job.printerSdFileId;
+  const canPause = isPrintFileJob && job.state === "RUNNING" && !printerUploadActive;
+  const canResume = isPrintFileJob && job.state === "PAUSED" && !printerUploadActive;
+  const canCancel = !isTerminal && !["CANCELLING"].includes(job.state) && !printerUploadActive;
+  const canRestart = isPrintFileJob && isTerminal && job.printerSdFileId && !printerUploadActive;
   const cancelLabel = job.state === "CANCELLING" ? "Cancelling" : "Cancel";
+  const uploadNotice = printerUploadActive
+    ? `<p class="muted">Printer SD upload is active; same-printer job controls are locked until it finishes.</p>`
+    : "";
 
   return `
     <article class="job-card">
@@ -68,6 +72,7 @@ export function renderJobCard(job, options = {}) {
           <button type="button" class="secondary-button" data-job-action="load-execution-steps" data-job-id="${escapeHtml(job.id)}">Load diagnostics</button>
           <button type="button" class="danger-button" data-job-action="delete" data-job-id="${escapeHtml(job.id)}">Delete</button>
         </div>
+        ${uploadNotice}
       ` : ""}
 
       <details class="events-section" data-job-detail-section="history" data-job-id="${escapeHtml(job.id)}" ${historyOpen ? "open" : ""}>

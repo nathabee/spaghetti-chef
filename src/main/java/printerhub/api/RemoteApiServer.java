@@ -961,6 +961,14 @@ public final class RemoteApiServer {
 
         if (parts.length == 4
                 && "sd-card".equals(parts[1])
+                && "uploads".equals(parts[2])
+                && "status".equals(parts[3])) {
+            handlePrinterSdCardUploadStatus(exchange, printerId);
+            return;
+        }
+
+        if (parts.length == 4
+                && "sd-card".equals(parts[1])
                 && "recovery".equals(parts[2])
                 && "close-upload".equals(parts[3])) {
             handlePrinterSdCardCloseUploadRecovery(exchange, printerId);
@@ -1173,6 +1181,10 @@ public final class RemoteApiServer {
             sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_NOT_FOUND));
             return;
         }
+        if (node.executionInProgress()) {
+            sendJson(exchange, 409, errorJson(OperationMessages.PRINTER_BUSY));
+            return;
+        }
 
         String body = readBody(exchange);
         String command = requiredJsonString(body, "command");
@@ -1207,6 +1219,23 @@ public final class RemoteApiServer {
         sendJson(exchange, 200, sdCardUploadResultJson(result));
     }
 
+    private void handlePrinterSdCardUploadStatus(HttpExchange exchange, String printerId) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        PrinterRuntimeNode node = printerRegistry.findById(printerId).orElse(null);
+
+        if (node == null) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_NOT_FOUND));
+            return;
+        }
+
+        sendJson(exchange, 200, sdCardUploadProgressJson(
+                sdCardUploadService.uploadProgress(printerId).orElse(null)));
+    }
+
     private void handlePrinterSdCardCloseUploadRecovery(HttpExchange exchange, String printerId) throws IOException {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
             sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
@@ -1239,6 +1268,10 @@ public final class RemoteApiServer {
 
         if (node == null) {
             sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_NOT_FOUND));
+            return;
+        }
+        if (node.executionInProgress()) {
+            sendJson(exchange, 409, errorJson(OperationMessages.PRINTER_BUSY));
             return;
         }
 
@@ -1883,18 +1916,53 @@ public final class RemoteApiServer {
     }
 
     private String sdCardUploadResultJson(SdCardUploadService.UploadResult result) {
-    return "{"
-            + "\"printerId\":\"" + escapeJson(result.printerId()) + "\","
-            + "\"printFileId\":\"" + escapeJson(result.printFileId()) + "\","
-            + "\"originalFilename\":\"" + escapeJson(result.originalFilename()) + "\","
-            + "\"requestedTargetFilename\":\"" + escapeJson(result.requestedTargetFilename()) + "\","
-            + "\"linkedFirmwarePath\":\"" + escapeJson(result.linkedFirmwarePath()) + "\","
-            + "\"printerSdFileId\":\"" + escapeJson(result.printerSdFileId()) + "\","
-            + "\"uploadedLineCount\":" + result.uploadedLineCount() + ","
-            + "\"success\":" + result.success() + ","
-            + "\"detail\":" + nullableString(result.detail())
-            + "}";
-}
+        return "{"
+                + "\"printerId\":\"" + escapeJson(result.printerId()) + "\","
+                + "\"printFileId\":\"" + escapeJson(result.printFileId()) + "\","
+                + "\"originalFilename\":\"" + escapeJson(result.originalFilename()) + "\","
+                + "\"requestedTargetFilename\":\"" + escapeJson(result.requestedTargetFilename()) + "\","
+                + "\"linkedFirmwarePath\":\"" + escapeJson(result.linkedFirmwarePath()) + "\","
+                + "\"printerSdFileId\":\"" + escapeJson(result.printerSdFileId()) + "\","
+                + "\"uploadedLineCount\":" + result.uploadedLineCount() + ","
+                + "\"totalLineCount\":" + result.totalLineCount() + ","
+                + "\"totalByteCount\":" + result.totalByteCount() + ","
+                + "\"rejectedLineCount\":" + result.rejectedLineCount() + ","
+                + "\"success\":" + result.success() + ","
+                + "\"detail\":" + nullableString(result.detail())
+                + "}";
+    }
+
+    private String sdCardUploadProgressJson(SdCardUploadService.UploadProgress progress) {
+        if (progress == null) {
+            return "{\"active\":false,\"state\":\"idle\"}";
+        }
+
+        long totalLineCount = progress.totalLineCount();
+        long uploadedLineCount = progress.uploadedLineCount();
+        long percent = totalLineCount <= 0 ? 0L : Math.min(100L, uploadedLineCount * 100L / totalLineCount);
+        long qualityPercent = uploadedLineCount <= 0
+                ? 100L
+                : Math.max(0L, Math.min(100L,
+                        (uploadedLineCount * 100L) / (uploadedLineCount + progress.rejectedLineCount())));
+
+        return "{"
+                + "\"printerId\":\"" + escapeJson(progress.printerId()) + "\","
+                + "\"printFileId\":" + nullableString(progress.printFileId()) + ","
+                + "\"originalFilename\":" + nullableString(progress.originalFilename()) + ","
+                + "\"requestedTargetFilename\":" + nullableString(progress.requestedTargetFilename()) + ","
+                + "\"state\":\"" + escapeJson(progress.state()) + "\","
+                + "\"active\":" + progress.active() + ","
+                + "\"uploadedLineCount\":" + progress.uploadedLineCount() + ","
+                + "\"totalLineCount\":" + progress.totalLineCount() + ","
+                + "\"totalByteCount\":" + progress.totalByteCount() + ","
+                + "\"rejectedLineCount\":" + progress.rejectedLineCount() + ","
+                + "\"percent\":" + percent + ","
+                + "\"qualityPercent\":" + qualityPercent + ","
+                + "\"startedAt\":" + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
+                + "\"updatedAt\":" + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
+                + "\"detail\":" + nullableString(progress.detail())
+                + "}";
+    }
 
 
     private String printJobExecutionStepJson(PrintJobExecutionStep step) {

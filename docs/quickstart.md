@@ -1,10 +1,12 @@
 # Quickstart
 
-This guide explains how to build and run PrinterHub locally in the current `0.1.x` runtime architecture.
+This guide explains how to run PrinterHub from an expert package or build it
+locally from source.
 
 It focuses only on the shortest path to:
 
-- build the project
+- run a prebuilt package without recompilation
+- optionally build the project
 - start the local runtime
 - add a simulated printer
 - verify monitoring through the API and dashboard
@@ -15,11 +17,16 @@ It focuses only on the shortest path to:
 
 Operating system:
 
-- Linux (tested on Ubuntu)
+- Linux for the Linux package
+- Windows for the Windows package
+- Linux tested on Ubuntu for development and Jenkins
 
 Required tools:
 
 - Java 21
+
+Required only when building from source:
+
 - Maven
 - SQLite
 - curl
@@ -32,12 +39,42 @@ Real hardware is not required for normal local verification.
 
 ---
 
+## Run From Package
+
+Use this path when you downloaded a Jenkins/GitHub artifact and do not want to
+recompile.
+
+Linux:
+
+```bash
+tar -xzf printer-hub-<version>-linux.tar.gz
+cd linux
+./printerhub.sh /dev/ttyUSB0 real 18080
+```
+
+Windows:
+
+```bat
+rem extract printer-hub-<version>-windows.zip first
+printerhub.bat COM3 real 18080
+```
+
+Then open:
+
+```text
+http://localhost:18080/dashboard
+```
+
+The packages require Java 21 to be installed already.
+
+---
+
 ## Clone repository
 
 ```bash
 git clone https://github.com/nathabee/printer-hub.git
 cd printer-hub
-````
+```
 
 ---
 
@@ -66,9 +103,27 @@ target/printer-hub-<version>-all.jar
 
 ---
 
+## Run The Built Jar
+
+After `mvn clean verify`, you can run the shaded jar directly.
+
+Linux:
+
+```bash
+java -Dprinterhub.databaseFile=printerhub.db -jar target/printer-hub-<version>-all.jar api /dev/ttyUSB0 real 18080
+```
+
+Windows:
+
+```bat
+java -Dprinterhub.databaseFile=printerhub.db -jar target\printer-hub-<version>-all.jar api COM3 real 18080
+```
+
+---
+
 ## Start the local runtime
 
-Start PrinterHub:
+For development, Maven can start PrinterHub directly:
 
 ```bash
 mvn exec:java \
@@ -417,4 +472,3 @@ After the quickstart works, continue with:
 * `devops.md`
 * `developer.md`
 * `roadmap.md`
- 

@@ -1,6 +1,7 @@
 # DevOps Overview
 
-This document summarizes the current CI pipeline, the verification scope, and the remaining delivery work for PrinterHub `0.1.x`.
+This document summarizes the CI pipeline, verification scope, and expert
+packaging workflow for PrinterHub.
 
 Environment setup and Jenkins installation are described in:
 
@@ -32,6 +33,9 @@ curl --version
 python3 --version
 ```
 
+The Jenkins Java installation must be Java 21. PrinterHub compiles with Maven
+compiler release `21`.
+
 ---
 
 ## Current pipeline
@@ -45,7 +49,7 @@ Checkout
 -> Local runtime smoke test
 -> Robustness smoke test
 -> Prepare release bundle
--> Package release archive
+-> Package expert Linux and Windows distributions
 -> Optional GitHub release publication
 -> Archive reports and smoke artifacts
 ```
@@ -76,7 +80,7 @@ This covers:
 | Build          | Done    | Maven compile/package                                                              |
 | Test           | Done    | JUnit verification across runtime, monitoring, persistence, API, and serial layers |
 | Integrate      | Done    | Runtime components verified together                                               |
-| Package        | Done    | shaded jar and release archive produced                                            |
+| Package        | Done    | shaded jar, Linux package, Windows package, and release archive produced           |
 | Runtime verify | Done    | Jenkins smoke lifecycle and robustness checks                                      |
 | Release        | Partial | optional GitHub release publication exists                                         |
 | Deploy         | Not yet | no persistent staging or production deployment from Jenkins                        |
@@ -177,6 +181,8 @@ target/operator-message-report.md
 target/*.json
 target/*.txt
 release/**
+dist/printer-hub-<version>-linux.tar.gz
+dist/printer-hub-<version>-windows.zip
 *.tar.gz
 ```
 
@@ -223,6 +229,44 @@ configured-printers.txt
 printer-snapshots.txt
 printer-events.txt
 ```
+
+---
+
+## Expert Runtime Packages
+
+When `RELEASE_VERSION` is set, Jenkins also creates two small expert packages:
+
+```text
+printer-hub-<version>-linux.tar.gz
+printer-hub-<version>-windows.zip
+```
+
+Both packages contain the same shaded runnable jar. They do not bundle Java.
+
+Linux package:
+
+```text
+linux/
+├── printer-hub.jar
+├── printerhub.sh
+├── README.md
+├── INSTALL.md
+└── QUICKSTART.md
+```
+
+Windows package:
+
+```text
+windows/
+├── printer-hub.jar
+├── printerhub.bat
+├── README.md
+├── INSTALL.md
+└── QUICKSTART.md
+```
+
+This gives expert Linux and Windows users a no-recompile runtime package while
+keeping GitHub artifacts small.
 
 ---
 
@@ -337,4 +381,4 @@ git reset --hard origin/main
 
 This updates the local production folder to the current remote `main`.
 
---- 
+---

@@ -1,12 +1,13 @@
 # PrinterHub Dashboard Test Ledger
 
-This file tracks real-dashboard observations for the `0.2.3` work.
+This file tracks real-dashboard observations from the `0.2.3` work and the
+follow-up corrections planned for `0.2.4`.
 
 Legend:
 
 * `OK` means the behavior was verified or is considered acceptable.
 * `KO` means an anomaly, missing UX behavior, or firmware-specific issue still needs follow-up.
-* `Step I` means the item has been moved into the roadmap as planned work.
+* `0.2.4` means the item has been moved into the next correction roadmap release.
 
 ---
 
@@ -25,7 +26,7 @@ Important:
 
 * This file is acceptable for verifying autonomous start and completion.
 * This file is not ideal for cancel testing, because `G4 S60` can keep Marlin in `busy: processing`.
-* Cancel behavior remains a Step I area because the printer may require either repeated abort attempts or printer-side stop confirmation.
+* Cancel behavior remains a `0.2.4` correction area because the printer may require either repeated abort attempts or printer-side stop confirmation.
 
 ---
 
@@ -213,17 +214,17 @@ Current behavior after fixes:
 * a later cancel can succeed once the printer accepts `M524`, for example after the blocking print command has finished
 * if `M524` returns `ok` but `M27` still reports `SD printing`, PrinterHub keeps the job non-terminal instead of marking it `CANCELLED`
 
-Remaining Step I issue:
+Remaining `0.2.4` issue:
 
 * dashboard needs an intermediate state such as `CANCEL_REQUESTED` or `WAITING_FOR_PRINTER_STOP`
 * if firmware requires printer-side confirmation, dashboard should say so clearly
-* cancel still needs dedicated Step I dashboard testing
+* cancel still needs dedicated dashboard testing against real-printer busy / confirmation behavior
 * if cancel fails because the printer stays busy or still reports SD printing, the dashboard should not leave the operator confused by a plain `RUNNING` state
-* Step I should decide whether to keep a visible cancel-request state, show a retry action, or automatically poll until the printer confirms stop/completion
+* decide whether to keep a visible cancel-request state, show a retry action, or automatically poll until the printer confirms stop/completion
 * dashboard controls should not offer cancel after a job has reached `COMPLETED`, `FAILED`, or `CANCELLED`
 * backend now rejects cancel for terminal jobs so a completed job cannot later be rewritten as cancelled
 
-Roadmap: `0.2.3 Step I`
+Roadmap: `0.2.4`
 
 ---
 
@@ -240,7 +241,28 @@ Expected:
 * dashboard/API should expose an operator recovery action to close a stuck upload session
 * recovery should persist an event/diagnostic entry
 
-Roadmap: `0.2.3 Step I`
+Roadmap: `0.2.4`
+
+---
+
+### CR-5: Long SD Upload Progress and Same-Printer Action Locking
+
+Observed:
+
+* large `.gcode` transfers can take many minutes over the serial SD upload path
+* the dashboard currently needs clearer progress feedback during long upload sessions
+* without a printer-scoped upload lock, the operator could try another upload or start/control a job on the same printer while transfer is still active
+
+Expected:
+
+* calculate upload work before starting the transfer, using total upload lines and/or total bytes
+* show a dashboard progress bar with clear in-progress, success, and failure states
+* disable conflicting same-printer actions until the upload ends in success or failure
+* keep unrelated printers usable
+* persist upload lifecycle diagnostics/events, including started, progress checkpoints where useful, resend/retry evidence, completed, failed, and recovery-close attempts
+* make retry exhaustion visible so the operator knows which line or byte range failed
+
+Roadmap: `0.2.4`
 
 ---
 
@@ -258,7 +280,7 @@ Expected:
 * gate dangerous commands/jobs when printer power state is not safe
 * extend dashboard state beyond simple `IDLE` where needed
 
-Roadmap: `0.2.3 Step I`
+Roadmap: `0.2.4`
 
 ---
 
@@ -298,7 +320,7 @@ Expected:
 * add printer-specific notes/capabilities where possible
 * decide whether fan-control follow-up verification is possible
 
-Roadmap: `0.2.3 Step I`
+Roadmap: `0.2.4`
 
 ---
 
@@ -315,7 +337,7 @@ Expected:
 * verify monitoring later reflects temperature movement where applicable
 * document whether success means command accepted or target physically reached
 
-Roadmap: `0.2.3 Step I`
+Roadmap: `0.2.4`
 
 ---
 

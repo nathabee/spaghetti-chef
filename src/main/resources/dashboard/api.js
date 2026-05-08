@@ -156,6 +156,10 @@ export async function uploadPrinterSdFile(printerId, printFileId, targetFilename
   });
 }
 
+export async function getPrinterSdUploadStatus(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/sd-card/uploads/status`);
+}
+
 export async function registerPrintFile(path) {
   return requestJson("/print-files", {
     method: "POST",

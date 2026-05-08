@@ -1,146 +1,191 @@
 # Install
 
-This document describes the required local and CI setup for PrinterHub `0.1.x`.
+This document describes how to install and run PrinterHub from the small expert
+packages produced by Jenkins.
 
-It covers:
-
-- developer machine prerequisites
-- optional real-printer access
-- Jenkins machine prerequisites
-- Jenkins pipeline setup
+PrinterHub does not bundle a Java runtime. Install Java 21 first, then use the
+Linux or Windows package without recompiling the project.
 
 ---
 
-## Developer machine prerequisites
+## Requirements
 
-Install the required tools:
+Required on every runtime machine:
 
-```bash
-sudo apt update
-sudo apt install openjdk-21-jdk
-sudo apt install maven
-sudo apt install sqlite3
-sudo apt install curl
-sudo apt install minicom
-````
+```text
+Java 21
+```
 
-Check the installation:
+Check:
 
 ```bash
 java -version
-javac -version
-mvn -version
-sqlite3 --version
-curl --version
 ```
+
+Expected:
+
+```text
+version 21
+```
+
+Optional developer/diagnostic tools:
+
+```text
+Maven
+curl
+sqlite3
+minicom or another serial console
+```
+
+Maven is only needed when building from source. It is not needed when running the
+Jenkins package.
 
 ---
 
-## Real hardware access
+## Linux Package
 
-Real printer access is only required when testing against an actual USB-connected printer.
+Download:
 
-Simulation mode does not need serial-port permissions.
+```text
+printer-hub-<version>-linux.tar.gz
+```
 
-Add the current user to the `dialout` group:
+Extract:
+
+```bash
+tar -xzf printer-hub-<version>-linux.tar.gz
+cd linux
+```
+
+Run with defaults:
+
+```bash
+./printerhub.sh
+```
+
+The default command uses:
+
+```text
+serial port: /dev/ttyUSB0
+mode: real
+API port: 18080
+database: printerhub.db
+```
+
+Run with explicit values:
+
+```bash
+./printerhub.sh /dev/ttyUSB0 real 18080
+```
+
+Use a custom database file:
+
+```bash
+PRINTERHUB_DATABASE_FILE=printerhub-real.db ./printerhub.sh /dev/ttyUSB0 real 18080
+```
+
+Open the dashboard:
+
+```text
+http://localhost:18080/dashboard
+```
+
+### Linux Serial Permission
+
+If `/dev/ttyUSB0` cannot be opened, add your user to `dialout`:
 
 ```bash
 sudo usermod -aG dialout $USER
 ```
 
-Then start a new login session:
+Then log out and back in.
 
-```bash
-logout
-```
-
-After login, verify:
+Check:
 
 ```bash
 groups
 ```
 
-Expected result:
+---
+
+## Windows Package
+
+Download:
 
 ```text
-dialout
+printer-hub-<version>-windows.zip
 ```
 
-If the printer is connected, the serial device is typically visible as:
+Extract the zip and open a terminal in the extracted folder.
+
+Run with defaults:
+
+```bat
+printerhub.bat
+```
+
+The default command uses:
 
 ```text
-/dev/ttyUSB0
+serial port: COM3
+mode: real
+API port: 18080
+database: printerhub.db
 ```
 
-Manual checks can be done with tools such as:
+Run with explicit values:
 
-```bash
-minicom
+```bat
+printerhub.bat COM3 real 18080
+```
+
+Use a custom database file:
+
+```bat
+set PRINTERHUB_DATABASE_FILE=printerhub-real.db
+printerhub.bat COM3 real 18080
+```
+
+Open the dashboard:
+
+```text
+http://localhost:18080/dashboard
 ```
 
 ---
 
-## Local build and verification
+## Direct Jar Run
 
-Run a full local verification:
-
-```bash
-mvn clean verify
-```
-
-Expected result:
-
-* project compiles successfully
-* JUnit tests pass
-* JaCoCo report is generated
-* shaded runtime jar is produced
-
-Main output locations:
+Both packages contain the same runnable jar:
 
 ```text
-target/surefire-reports/
-target/site/jacoco/
-target/*-all.jar
+printer-hub.jar
+```
+
+Linux example:
+
+```bash
+java -Dprinterhub.databaseFile=printerhub-real.db -jar printer-hub.jar api /dev/ttyUSB0 real 18080
+```
+
+Windows example:
+
+```bat
+java -Dprinterhub.databaseFile=printerhub-real.db -jar printer-hub.jar api COM3 real 18080
 ```
 
 ---
 
-## Local runtime start
+## Jenkins Machine Requirements
 
-Start the local runtime with simulation:
-
-```bash
-mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=8080 \
-  -Dprinterhub.monitoring.intervalSeconds=1 \
-  -Dprinterhub.databaseFile=printerhub.db
-```
-
-Expected runtime endpoints:
-
-```text
-http://localhost:8080/health
-http://localhost:8080/printers
-http://localhost:8080/dashboard
-```
-
----
-
-## Jenkins machine prerequisites
-
-Install the required tools on the Jenkins host:
+The Jenkins machine that builds the packages needs:
 
 ```bash
 sudo apt update
-sudo apt install openjdk-21-jdk
-sudo apt install maven
-sudo apt install sqlite3
-sudo apt install curl
-sudo apt install python3
+sudo apt install openjdk-21-jdk maven sqlite3 curl python3
 ```
 
-Check the installation:
+Check:
 
 ```bash
 java -version
@@ -151,137 +196,29 @@ curl --version
 python3 --version
 ```
 
-These tools are required because the Jenkins pipeline currently performs:
-
-* Maven build and test execution
-* SQLite inspection during smoke tests
-* HTTP endpoint checks with `curl`
-* small JSON field extraction with `python3`
-
----
-
-## Jenkins pipeline job
-
-Create a Jenkins pipeline job.
-
-Example:
-
-Jenkins → New Item
-
-Name:
+The pipeline uses these tools for:
 
 ```text
-printerhub-develop
-```
-
-Type:
-
-```text
-Pipeline
-```
-
-Then configure:
-
-Pipeline:
-
-```text
-Pipeline script from SCM
-```
-
-SCM:
-
-```text
-Git
-```
-
-Repository URL:
-
-```text
-https://github.com/nathabee/printer-hub.git
-```
-
-Branch specifier example:
-
-```text
-*/develop
-```
-
-Script Path:
-
-```text
-Jenkinsfile
-```
-
-Save the job.
-
----
-
-## Optional GitHub token for release publishing
-
-A GitHub token is not required for normal repository checkout over public HTTPS.
-
-It is only needed when the pipeline should publish a GitHub release.
-
-Add the credential in Jenkins:
-
-Jenkins → Manage Jenkins → Credentials → Add
-
-Type:
-
-```text
-Secret text
-```
-
-ID:
-
-```text
-github-token
-```
-
-Value:
-
-```text
-GitHub personal access token
-```
-
-Description:
-
-```text
-GitHub release token
+Java 21 compilation
+Maven test/package execution
+SQLite smoke-test inspection
+curl HTTP smoke checks
+python3 JSON field extraction in smoke tests
+jar command for the Windows zip package
+tar for the Linux package and release archive
 ```
 
 ---
 
-## First Jenkins build
+## Jenkins Artifacts
 
-Run the pipeline job.
-
-Expected result:
-
-* repository is checked out
-* `mvn clean verify` succeeds
-* JUnit reports are published
-* JaCoCo coverage is archived
-* normal lifecycle smoke test succeeds
-* robustness smoke test succeeds
-* runtime and smoke artifacts are archived
-
-Typical archived evidence includes:
+For release builds with `RELEASE_VERSION` set, Jenkins produces:
 
 ```text
-target/surefire-reports/**
-target/site/jacoco/**
-target/runtime-smoke.log
-target/runtime-robustness.log
-target/operator-message-report.md
+dist/printer-hub-<version>-linux.tar.gz
+dist/printer-hub-<version>-windows.zip
+printer-hub-<version>-release.tar.gz
 ```
 
----
-
-## Notes
-
-* Simulation mode is the default verification path in CI.
-* Real hardware is not required for Jenkins verification.
-* Serial-port permissions are only relevant for manual real-printer testing.
-* SQLite is part of the runtime verification flow and is therefore required both locally and in Jenkins.
- 
+The Linux and Windows packages are the expert runtime packages. The release
+archive is CI evidence: reports, smoke-test logs, docs, and release notes.
