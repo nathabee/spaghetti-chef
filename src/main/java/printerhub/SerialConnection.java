@@ -140,10 +140,24 @@ public final class SerialConnection implements PrinterPort {
 
     @Override
     public synchronized String sendRawLine(String line) {
+        return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+    }
+
+    /**
+     * Send a raw line to the printer and read the response.
+     * 
+     * @param line the line to send
+     * @param mode the communication mode (affects timeout and polling strategy)
+     * @return the printer response
+     */
+    public synchronized String sendRawLine(String line, SerialIOMode mode) {
         ensureConnected();
 
         if (line == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("line"));
+        }
+        if (mode == null) {
+            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("mode"));
         }
 
         try {
@@ -151,7 +165,11 @@ public final class SerialConnection implements PrinterPort {
                     .getBytes(StandardCharsets.UTF_8));
             out.flush();
 
-            return readLine(SerialDefaults.LONG_RUNNING_COMMAND_READ_TIMEOUT_MS);
+            int readTimeoutMs = mode == SerialIOMode.FILE_STREAMING
+                    ? SerialDefaults.FILE_STREAMING_READ_TIMEOUT_MS
+                    : SerialDefaults.LONG_RUNNING_COMMAND_READ_TIMEOUT_MS;
+
+            return readLine(readTimeoutMs, mode);
         } catch (IOException exception) {
             disconnect();
             throw new IllegalStateException(
@@ -197,6 +215,22 @@ public final class SerialConnection implements PrinterPort {
     }
 
     private String readLine(int readTimeoutMs) throws IOException, TimeoutException, InterruptedException {
+        return readLine(readTimeoutMs, SerialIOMode.COMMAND_RESPONSE);
+    }
+
+    private String readLine(int readTimeoutMs, SerialIOMode mode) throws IOException, TimeoutException, InterruptedException {
+        int activitySleepMs = mode == SerialIOMode.FILE_STREAMING
+                ? SerialDefaults.FILE_STREAMING_READ_ACTIVITY_SLEEP_MS
+                : SerialDefaults.READ_ACTIVITY_SLEEP_MS;
+        
+        int idleSleepMs = mode == SerialIOMode.FILE_STREAMING
+                ? SerialDefaults.FILE_STREAMING_READ_IDLE_SLEEP_MS
+                : SerialDefaults.READ_IDLE_SLEEP_MS;
+        
+        int quietPeriodMs = mode == SerialIOMode.FILE_STREAMING
+                ? SerialDefaults.FILE_STREAMING_QUIET_PERIOD_MS
+                : SerialDefaults.QUIET_PERIOD_MS;
+        
         StringBuilder response = new StringBuilder();
         long start = System.currentTimeMillis();
         long lastDataTime = start;
@@ -214,14 +248,14 @@ public final class SerialConnection implements PrinterPort {
             }
 
             if (readSomething) {
-                Thread.sleep(SerialDefaults.READ_ACTIVITY_SLEEP_MS);
+                Thread.sleep(activitySleepMs);
             } else {
                 if (response.length() > 0
                         && hasCommandCompletionSignal(response.toString())
-                        && System.currentTimeMillis() - lastDataTime > SerialDefaults.QUIET_PERIOD_MS) {
+                        && System.currentTimeMillis() - lastDataTime > quietPeriodMs) {
                     break;
                 }
-                Thread.sleep(SerialDefaults.READ_IDLE_SLEEP_MS);
+                Thread.sleep(idleSleepMs);
             }
         }
 

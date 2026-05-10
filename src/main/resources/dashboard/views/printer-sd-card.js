@@ -238,6 +238,29 @@ function renderSdUploadStatus(uploadStatus) {
       <progress max="100" value="${escapeHtml(String(percent))}"></progress>
     `
     : "";
+  
+  // Performance metrics
+  const performanceHtml = uploadStatus.active && uploadStatus.bytesPerSecond
+    ? `
+      <div class="info-row">
+        <span>Performance</span>
+        <strong>${escapeHtml(String(Math.round(uploadStatus.bytesPerSecond)))} bytes/sec</strong>
+      </div>
+      ${uploadStatus.linesPerSecond ? `<div class="info-row">
+        <span>&nbsp;</span>
+        <strong>${escapeHtml(String(Math.round(uploadStatus.linesPerSecond * 10) / 10))} lines/sec</strong>
+      </div>` : ''}
+      ${uploadStatus.efficiencyPercent ? `<div class="info-row">
+        <span>&nbsp;</span>
+        <strong>${escapeHtml(String(Math.round(uploadStatus.efficiencyPercent)))}% efficiency</strong>
+      </div>` : ''}
+      ${uploadStatus.estimatedSecondsRemaining ? `<div class="info-row">
+        <span>Time remaining</span>
+        <strong>${escapeHtml(formatTimeRemaining(uploadStatus.estimatedSecondsRemaining))}</strong>
+      </div>` : ''}
+    `
+    : "";
+    
   const rejectedLineCount = Number(uploadStatus.rejectedLineCount || 0);
   const qualityPercent = Number(uploadStatus.qualityPercent ?? calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount));
   const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
@@ -266,6 +289,7 @@ function renderSdUploadStatus(uploadStatus) {
         <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
       </div>
       ${progressHtml}
+      ${performanceHtml}
       ${qualityHtml}
     </div>
   `;
@@ -287,6 +311,20 @@ function resolveUploadQualityClass(qualityPercent, rejectedLineCount) {
     return "upload-quality-warn";
   }
   return "upload-quality-bad";
+}
+
+function formatTimeRemaining(seconds) {
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 function renderFirmwareFileTable(printerId, files, registeredFiles) {

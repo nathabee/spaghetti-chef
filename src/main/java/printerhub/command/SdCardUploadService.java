@@ -1,6 +1,7 @@
 package printerhub.command;
 
 import printerhub.OperationMessages;
+import printerhub.SerialIOMode;
 import printerhub.job.JobFailureReason;
 import printerhub.job.PrintFile;
 import printerhub.job.PrintFileService;
@@ -531,7 +532,7 @@ public final class SdCardUploadService {
 
         for (int attempt = 1; attempt <= PrinterProtocolDefaults.SD_UPLOAD_MAX_RETRIES_PER_LINE; attempt++) {
             logUploadWire(node.id(), "->", checksummedLine + " [attempt " + attempt + "]");
-            lastResponse = node.printerPort().sendRawLine(checksummedLine);
+            lastResponse = node.printerPort().sendRawLine(checksummedLine, SerialIOMode.FILE_STREAMING);
             logUploadWire(node.id(), "<-", lastResponse);
 
             Integer requestedResendLine = requestedResendLine(lastResponse);
@@ -846,6 +847,98 @@ public final class SdCardUploadService {
             Instant startedAt,
             Instant updatedAt,
             String detail) {
+
+        /**
+         * Calculate the current upload rate in bytes per second.
+         * Returns 0 if no progress has been made or insufficient time has elapsed.
+         */
+        public double bytesPerSecond() {
+            if (startedAt == null || updatedAt == null || uploadedLineCount == 0) {
+                return 0.0;
+            }
+
+            long elapsedMs = updatedAt.toEpochMilli() - startedAt.toEpochMilli();
+            if (elapsedMs <= 0) {
+                return 0.0;
+            }
+
+            // Estimate bytes uploaded based on line count (rough approximation)
+            // This is an estimate since we don't track exact bytes per line
+            long estimatedBytesUploaded = (long) (uploadedLineCount * 50.0); // Average ~50 bytes per line
+            return (estimatedBytesUploaded * 1000.0) / elapsedMs;
+        }
+
+        /**
+         * Calculate the current upload rate in lines per second.
+         * Returns 0 if no progress has been made or insufficient time has elapsed.
+         */
+        public double linesPerSecond() {
+            if (startedAt == null || updatedAt == null || uploadedLineCount == 0) {
+                return 0.0;
+            }
+
+            long elapsedMs = updatedAt.toEpochMilli() - startedAt.toEpochMilli();
+            if (elapsedMs <= 0) {
+                return 0.0;
+            }
+
+            return (uploadedLineCount * 1000.0) / elapsedMs;
+        }
+
+        /**
+         * Calculate the elapsed time in seconds since upload started.
+         */
+        public long elapsedSeconds() {
+            if (startedAt == null || updatedAt == null) {
+                return 0L;
+            }
+
+            return (updatedAt.toEpochMilli() - startedAt.toEpochMilli()) / 1000L;
+        }
+
+        /**
+         * Calculate the estimated time remaining in seconds.
+         * Returns 0 if no progress has been made or upload is complete.
+         */
+        public long estimatedSecondsRemaining() {
+            if (!active || uploadedLineCount == 0 || totalLineCount == 0) {
+                return 0L;
+            }
+
+            double linesPerSecond = linesPerSecond();
+            if (linesPerSecond <= 0.0) {
+                return 0L;
+            }
+
+            long remainingLines = totalLineCount - uploadedLineCount;
+            return (long) Math.ceil(remainingLines / linesPerSecond);
+        }
+
+        /**
+         * Calculate the theoretical maximum throughput based on baud rate.
+         * Assumes 115200 baud (14.4 KB/s) with some overhead.
+         */
+        public double theoreticalMaxBytesPerSecond() {
+            // 115200 baud = 115200 bits/second
+            // 8 bits per byte = 14400 bytes/second theoretical
+            // With protocol overhead, effective is typically 10-12 KB/s
+            return 12000.0; // Conservative estimate
+        }
+
+        /**
+         * Calculate efficiency as percentage of theoretical maximum.
+         * Returns 0 if no progress has been made.
+         */
+        public double efficiencyPercent() {
+            double actual = bytesPerSecond();
+            double theoretical = theoreticalMaxBytesPerSecond();
+
+            if (actual <= 0.0 || theoretical <= 0.0) {
+                return 0.0;
+            }
+
+            return Math.min(100.0, (actual * 100.0) / theoretical);
+        }
 
         public static UploadProgress running(
                 String printerId,

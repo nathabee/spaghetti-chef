@@ -1960,7 +1960,14 @@ public final class RemoteApiServer {
                 + "\"qualityPercent\":" + qualityPercent + ","
                 + "\"startedAt\":" + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
                 + "\"updatedAt\":" + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
-                + "\"detail\":" + nullableString(progress.detail())
+                + "\"detail\":" + nullableString(progress.detail()) + ","
+                // Performance metrics
+                + "\"bytesPerSecond\":" + String.format("%.1f", progress.bytesPerSecond()) + ","
+                + "\"linesPerSecond\":" + String.format("%.2f", progress.linesPerSecond()) + ","
+                + "\"elapsedSeconds\":" + progress.elapsedSeconds() + ","
+                + "\"estimatedSecondsRemaining\":" + progress.estimatedSecondsRemaining() + ","
+                + "\"theoreticalMaxBytesPerSecond\":" + String.format("%.0f", progress.theoreticalMaxBytesPerSecond()) + ","
+                + "\"efficiencyPercent\":" + String.format("%.1f", progress.efficiencyPercent())
                 + "}";
     }
 

@@ -78,6 +78,10 @@ Run with explicit values:
 ./printerhub.sh /dev/ttyUSB0 real 18080
 ```
 
+The launcher currently uses the port value and database file. Printer
+configuration is managed in the dashboard or persisted database, not created
+from the launcher arguments.
+
 Use a custom database file:
 
 ```bash
@@ -139,6 +143,10 @@ Run with explicit values:
 printerhub.bat COM3 real 18080
 ```
 
+The launcher currently uses the port value and database file. Printer
+configuration is managed in the dashboard or persisted database, not created
+from the launcher arguments.
+
 Use a custom database file:
 
 ```bat
@@ -165,13 +173,19 @@ printer-hub.jar
 Linux example:
 
 ```bash
-java -Dprinterhub.databaseFile=printerhub-real.db -jar printer-hub.jar api /dev/ttyUSB0 real 18080
+java -Dprinterhub.databaseFile=printerhub-real.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
 ```
 
 Windows example:
 
 ```bat
-java -Dprinterhub.databaseFile=printerhub-real.db -jar printer-hub.jar api COM3 real 18080
+java -Dprinterhub.databaseFile=printerhub-real.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
+```
+
+If `-Dprinterhub.api.port` is omitted, PrinterHub uses its backend default:
+
+```text
+http://localhost:8080/dashboard
 ```
 
 ---

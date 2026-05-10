@@ -357,8 +357,8 @@ Example local run:
 
 ```bash
 mvn exec:java \
--Dexec.mainClass="printerhub.Main" \
--Dexec.args="api SIM_PORT sim 18080"
+-Dprinterhub.api.port=18080 \
+-Dexec.mainClass="printerhub.Main"
 ````
 
 Example verification:
@@ -1881,8 +1881,12 @@ Expected result for 0.2.3 overall:
 ---
 
 ## 0.2.4 — Real-Printer Correction, SD Upload Hardening, and Local Packaging
+ 
 
-status: planned
+### 0.2.4 — Step A - Real-Printer Correction, SD Upload Hardening, and Local Packaging
+
+status: done
+
 
 Purpose:
 
@@ -1945,6 +1949,41 @@ Expected result:
 * PrinterHub runs as a documented, repeatable local service near the printers, not only as a manually started development jar
 
 ---
+
+
+## 0.2.4 - step B - performance monitoring and serial communication mode differentiation
+
+status: in progress
+
+Goals:
+
+* anomalie correction : port default packaging (window and linux) not aligned with the current installation documentation
+
+* Serial communication mode differentiation: distinguish command-response (slow-tolerant) from file-streaming (fast-responsive) modes to recover lost throughput in SD upload and prepare architecture for streamed print execution in 0.2.8.
+
+* performance monitoring for sd load (backend and frontend)
+
+The dashboard now displays the performance metrics that were previously added to the UploadProgress record and exposed through the REST API endpoint
+
+
+
+
+Expected result:
+
+Performance Improvement :
+Theoretical Calculation
+115200 baud = 14.4 KB/s = 14.4 bytes/ms
+
+For a 100-line file (~5KB):
+
+Metric	Before	After	Improvement
+Sleep per line	50-250ms	1-10ms	-95%
+Total sleeps for 100 lines	7.5+ seconds	~1 second	-87% ⚡
+Transmission time (theoretical)	0.35s	0.35s	0% (unchanged)
+Total upload time	7.9 seconds	~1.4 seconds	-82% 🚀
+
+
+
 
 ## 0.2.5 — Runtime Recovery and Serial Device Robustness
 
