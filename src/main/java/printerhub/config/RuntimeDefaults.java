@@ -34,4 +34,6 @@ public final class RuntimeDefaults {
     public static final long DEFAULT_MIN_SNAPSHOT_INTERVAL_SECONDS = 30L;
     public static final long DEFAULT_MONITORING_EVENT_DEDUP_WINDOW_SECONDS = 60L;
     public static final String DEFAULT_ERROR_PERSISTENCE_BEHAVIOR = "DEDUPLICATED";
+    public static final boolean DEFAULT_TRACE = false;
+    public static final int DEFAULT_MONITORING_UPLOAD_BATCH_SIZE = 5;
 }

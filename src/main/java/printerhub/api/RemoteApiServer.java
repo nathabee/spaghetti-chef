@@ -285,7 +285,11 @@ public final class RemoteApiServer {
                     optionalJsonBoolean(
                             body,
                             "debugWireTracingEnabled",
-                            currentRules.debugWireTracingEnabled()));
+                            currentRules.debugWireTracingEnabled()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadBatchSize",
+                            currentRules.sdUploadBatchSize()));
 
             monitoringRulesStore.save(updatedRules);
             monitoringScheduler.updateMonitoringRules(updatedRules);
@@ -1309,7 +1313,8 @@ public final class RemoteApiServer {
                 + "\"temperatureDeltaThreshold\":" + formatDouble(monitoringRules.temperatureDeltaThreshold()) + ","
                 + "\"eventDeduplicationWindowSeconds\":" + monitoringRules.eventDeduplicationWindowSeconds() + ","
                 + "\"errorPersistenceBehavior\":\"" + escapeJson(monitoringRules.errorPersistenceBehavior().name()) + "\","
-                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled()
+                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled() + ","
+                + "\"sdUploadBatchSize\":" + monitoringRules.sdUploadBatchSize()
                 + "}";
     }
 

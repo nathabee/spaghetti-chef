@@ -46,6 +46,11 @@ export function renderSettingsPage() {
             </select>
           </label>
 
+          <label>
+            SD upload batch size
+            <input id="sdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(monitoringRules.sdUploadBatchSize ?? 1)}" required>
+          </label>
+
           <label class="checkbox-label">
             <input id="debugWireTracingEnabledInput" name="debugWireTracingEnabled" type="checkbox" ${(monitoringRules.debugWireTracingEnabled ?? false) ? "checked" : ""}>
             Enable printer wire trace logging

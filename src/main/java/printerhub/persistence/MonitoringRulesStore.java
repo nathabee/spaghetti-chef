@@ -19,7 +19,8 @@ public final class MonitoringRulesStore {
                     temperature_threshold,
                     event_dedup_window_seconds,
                     error_persistence_behavior,
-                    debug_wire_tracing_enabled
+                    debug_wire_tracing_enabled,
+                    sd_upload_batch_size
                 FROM monitoring_rules
                 WHERE id = ?;
                 """;
@@ -43,7 +44,8 @@ public final class MonitoringRulesStore {
                         MonitoringRules.parseErrorPersistenceBehavior(
                                 resultSet.getString("error_persistence_behavior")
                         ),
-                        resultSet.getInt("debug_wire_tracing_enabled") == 1
+                        resultSet.getInt("debug_wire_tracing_enabled") == 1,
+                        resultSet.getInt("sd_upload_batch_size")
                 );
             }
         } catch (SQLException exception) {
@@ -70,9 +72,10 @@ public final class MonitoringRulesStore {
                     event_dedup_window_seconds,
                     error_persistence_behavior,
                     debug_wire_tracing_enabled,
+                    sd_upload_batch_size,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(id) DO UPDATE SET
                     poll_interval_seconds = excluded.poll_interval_seconds,
                     min_interval_seconds = excluded.min_interval_seconds,
@@ -80,6 +83,7 @@ public final class MonitoringRulesStore {
                     event_dedup_window_seconds = excluded.event_dedup_window_seconds,
                     error_persistence_behavior = excluded.error_persistence_behavior,
                     debug_wire_tracing_enabled = excluded.debug_wire_tracing_enabled,
+                    sd_upload_batch_size = excluded.sd_upload_batch_size,
                     updated_at = CURRENT_TIMESTAMP;
                 """;
 
@@ -94,6 +98,7 @@ public final class MonitoringRulesStore {
             statement.setLong(5, monitoringRules.eventDeduplicationWindowSeconds());
             statement.setString(6, monitoringRules.errorPersistenceBehavior().name());
             statement.setInt(7, monitoringRules.debugWireTracingEnabled() ? 1 : 0);
+            statement.setInt(8, monitoringRules.sdUploadBatchSize());
 
             statement.executeUpdate();
             return monitoringRules;

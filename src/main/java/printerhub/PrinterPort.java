@@ -1,5 +1,7 @@
 package printerhub;
 
+import java.util.List;
+
 public interface PrinterPort {
 
     void connect();
@@ -8,19 +10,20 @@ public interface PrinterPort {
 
     String sendRawLine(String line);
 
-    /**
-     * Send a raw line with a specified communication mode.
-     * Mode determines timeout and polling strategy for the response.
-     * 
-     * Default implementation delegates to sendRawLine(line) for backward compatibility.
-     * Override to support mode-specific optimizations.
-     * 
-     * @param line the line to send
-     * @param mode the communication mode (COMMAND_RESPONSE or FILE_STREAMING)
-     * @return the printer response
-     */
     default String sendRawLine(String line, SerialIOMode mode) {
         return sendRawLine(line);
+    }
+
+    default void writeRawLine(String line, SerialIOMode mode) {
+        throw new UnsupportedOperationException("writeRawLine is not supported");
+    }
+
+    default String readRawResponse(SerialIOMode mode) {
+        throw new UnsupportedOperationException("readRawResponse is not supported");
+    }
+
+    default List<String> sendRawLinesPipelined(List<String> lines, SerialIOMode mode) {
+        throw new UnsupportedOperationException("sendRawLinesPipelined is not supported");
     }
 
     void disconnect();

@@ -613,6 +613,7 @@ async function handleSaveMonitoringRules(form) {
     temperatureDeltaThreshold: Number.parseFloat(form.querySelector("#temperatureDeltaThresholdInput").value),
     eventDeduplicationWindowSeconds: Number.parseInt(form.querySelector("#eventDeduplicationWindowSecondsInput").value, 10),
     errorPersistenceBehavior: form.querySelector("#errorPersistenceBehaviorInput").value,
+    sdUploadBatchSize: Number.parseInt(form.querySelector("#sdUploadBatchSizeInput").value, 10),
     debugWireTracingEnabled: form.querySelector("#debugWireTracingEnabledInput").checked
   };
 

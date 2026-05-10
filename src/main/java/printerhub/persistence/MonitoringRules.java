@@ -16,7 +16,9 @@ public final class MonitoringRules {
     private final long eventDeduplicationWindowSeconds;
     private final ErrorPersistenceBehavior errorPersistenceBehavior;
     private final boolean debugWireTracingEnabled;
+    private final int sdUploadBatchSize;
 
+    /* 
     public MonitoringRules(
             long pollIntervalSeconds,
             long snapshotMinimumIntervalSeconds,
@@ -30,7 +32,8 @@ public final class MonitoringRules {
                 temperatureDeltaThreshold,
                 eventDeduplicationWindowSeconds,
                 errorPersistenceBehavior,
-                false
+                false,
+                1
         );
     }
 
@@ -41,6 +44,27 @@ public final class MonitoringRules {
             long eventDeduplicationWindowSeconds,
             ErrorPersistenceBehavior errorPersistenceBehavior,
             boolean debugWireTracingEnabled
+    ) {
+        this(
+                pollIntervalSeconds,
+                snapshotMinimumIntervalSeconds,
+                temperatureDeltaThreshold,
+                eventDeduplicationWindowSeconds,
+                errorPersistenceBehavior,
+                debugWireTracingEnabled,
+                1
+        );
+    }
+    */
+
+    public MonitoringRules(
+            long pollIntervalSeconds,
+            long snapshotMinimumIntervalSeconds,
+            double temperatureDeltaThreshold,
+            long eventDeduplicationWindowSeconds,
+            ErrorPersistenceBehavior errorPersistenceBehavior,
+            boolean debugWireTracingEnabled,
+            int sdUploadBatchSize
     ) {
         if (pollIntervalSeconds <= 0) {
             throw new IllegalArgumentException(
@@ -72,12 +96,19 @@ public final class MonitoringRules {
             );
         }
 
+        if (sdUploadBatchSize < 1 || sdUploadBatchSize > 100) {
+            throw new IllegalArgumentException(
+                    "sdUploadBatchSize must be between 1 and 100"
+            );
+        }
+
         this.pollIntervalSeconds = pollIntervalSeconds;
         this.snapshotMinimumIntervalSeconds = snapshotMinimumIntervalSeconds;
         this.temperatureDeltaThreshold = temperatureDeltaThreshold;
         this.eventDeduplicationWindowSeconds = eventDeduplicationWindowSeconds;
         this.errorPersistenceBehavior = errorPersistenceBehavior;
         this.debugWireTracingEnabled = debugWireTracingEnabled;
+        this.sdUploadBatchSize = sdUploadBatchSize;
     }
 
     public static MonitoringRules defaults() {
@@ -86,7 +117,9 @@ public final class MonitoringRules {
                 RuntimeDefaults.DEFAULT_MIN_SNAPSHOT_INTERVAL_SECONDS,
                 RuntimeDefaults.DEFAULT_TEMPERATURE_THRESHOLD,
                 RuntimeDefaults.DEFAULT_MONITORING_EVENT_DEDUP_WINDOW_SECONDS,
-                parseErrorPersistenceBehavior(RuntimeDefaults.DEFAULT_ERROR_PERSISTENCE_BEHAVIOR)
+                parseErrorPersistenceBehavior(RuntimeDefaults.DEFAULT_ERROR_PERSISTENCE_BEHAVIOR),
+                RuntimeDefaults.DEFAULT_TRACE,
+                RuntimeDefaults.DEFAULT_MONITORING_UPLOAD_BATCH_SIZE
         );
     }
 
@@ -112,6 +145,10 @@ public final class MonitoringRules {
 
     public boolean debugWireTracingEnabled() {
         return debugWireTracingEnabled;
+    }
+
+    public int sdUploadBatchSize() {
+        return sdUploadBatchSize;
     }
 
     public static ErrorPersistenceBehavior parseErrorPersistenceBehavior(String value) {

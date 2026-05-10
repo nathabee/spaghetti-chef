@@ -32,7 +32,9 @@ class PrinterSnapshotStoreTest {
                         30,
                         1.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -64,7 +66,9 @@ class PrinterSnapshotStoreTest {
                         9999,
                         100.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -98,7 +102,9 @@ class PrinterSnapshotStoreTest {
                         9999,
                         1.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -132,7 +138,9 @@ class PrinterSnapshotStoreTest {
                         9999,
                         5.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -166,7 +174,9 @@ class PrinterSnapshotStoreTest {
                         30,
                         100.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
