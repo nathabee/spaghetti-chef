@@ -14,7 +14,9 @@ next:
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
-- 0.2.4 — Real-Printer Correction, SD Upload Hardening, and Local Packaging
+- 0.2.4 — Step C — Windowed SD upload
+- 0.2.4 — Step B — SD upload observability and transfer performance
+- 0.2.4 — step A — Real-Printer Correction, SD Upload Hardening, and Local Packaging
 - 0.2.3 — step I — Dashboard print-job controls and recovery actions
 - 0.2.3 — step H — Autonomous running print supervision and operator controls
 - 0.2.3 — step G — Autonomous real-printer print-start workflow and SD-card operation hardening

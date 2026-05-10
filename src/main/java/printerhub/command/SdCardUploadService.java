@@ -1,6 +1,8 @@
 package printerhub.command;
 
 import printerhub.OperationMessages;
+import printerhub.SerialIOMode;
+import printerhub.SerialConnection;
 import printerhub.job.JobFailureReason;
 import printerhub.job.PrintFile;
 import printerhub.job.PrintFileService;
@@ -18,12 +20,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import printerhub.config.PrinterProtocolDefaults;
 
 public final class SdCardUploadService {
@@ -37,6 +41,7 @@ public final class SdCardUploadService {
     private final PrinterEventStore printerEventStore;
     private final SdCardFileParser sdCardFileParser;
     private final BooleanSupplier debugWireTracingEnabledSupplier;
+    private final IntSupplier sdUploadBatchSizeSupplier;
     private final ConcurrentMap<String, UploadProgress> uploadProgressByPrinterId = new ConcurrentHashMap<>();
 
     public SdCardUploadService(
@@ -55,8 +60,8 @@ public final class SdCardUploadService {
                 sdCardService,
                 printerSdFileService,
                 printerEventStore,
-                () -> new MonitoringRulesStore().load().debugWireTracingEnabled()
-        );
+                () -> new MonitoringRulesStore().load().debugWireTracingEnabled(),
+                () -> new MonitoringRulesStore().load().sdUploadBatchSize());
     }
 
     SdCardUploadService(
@@ -68,6 +73,28 @@ public final class SdCardUploadService {
             PrinterSdFileService printerSdFileService,
             PrinterEventStore printerEventStore,
             BooleanSupplier debugWireTracingEnabledSupplier) {
+        this(
+                printerRegistry,
+                monitoringScheduler,
+                printerActionGuard,
+                printFileService,
+                sdCardService,
+                printerSdFileService,
+                printerEventStore,
+                debugWireTracingEnabledSupplier,
+                () -> new MonitoringRulesStore().load().sdUploadBatchSize());
+    }
+
+    SdCardUploadService(
+            PrinterRegistry printerRegistry,
+            PrinterMonitoringScheduler monitoringScheduler,
+            PrinterActionGuard printerActionGuard,
+            PrintFileService printFileService,
+            SdCardService sdCardService,
+            PrinterSdFileService printerSdFileService,
+            PrinterEventStore printerEventStore,
+            BooleanSupplier debugWireTracingEnabledSupplier,
+            IntSupplier sdUploadBatchSizeSupplier) {
         if (printerRegistry == null) {
             throw new IllegalArgumentException(OperationMessages.PRINTER_REGISTRY_MUST_NOT_BE_NULL);
         }
@@ -90,7 +117,11 @@ public final class SdCardUploadService {
             throw new IllegalArgumentException(OperationMessages.EVENT_STORE_MUST_NOT_BE_NULL);
         }
         if (debugWireTracingEnabledSupplier == null) {
-            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
+            throw new IllegalArgumentException(
+                    OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
+        }
+        if (sdUploadBatchSizeSupplier == null) {
+            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("sdUploadBatchSizeSupplier"));
         }
 
         this.printerRegistry = printerRegistry;
@@ -102,6 +133,7 @@ public final class SdCardUploadService {
         this.printerEventStore = printerEventStore;
         this.sdCardFileParser = new SdCardFileParser();
         this.debugWireTracingEnabledSupplier = debugWireTracingEnabledSupplier;
+        this.sdUploadBatchSizeSupplier = sdUploadBatchSizeSupplier;
     }
 
     public Optional<UploadProgress> uploadProgress(String printerId) {
@@ -151,6 +183,7 @@ public final class SdCardUploadService {
         monitoringScheduler.stopMonitoring(node.id());
 
         boolean writeOpened = false;
+        int nextProtocolLineNumber = 2;
 
         try {
             updateUploadProgress(UploadProgress.running(
@@ -200,7 +233,7 @@ public final class SdCardUploadService {
                             + " | response="
                             + OperationMessages.safeDetail(startResponse, "no response"));
 
-            long uploadedLineCount = streamFileLinesWithChecksum(
+            StreamUploadResult streamResult = streamFileLinesWithChecksum(
                     node,
                     hostPath,
                     2,
@@ -208,10 +241,14 @@ public final class SdCardUploadService {
                     printFile,
                     targetFilename);
 
+            long uploadedLineCount = streamResult.uploadedLineCount();
+            nextProtocolLineNumber = streamResult.nextLineNumber();
+
             String finishResponse = sendChecksummedLineWithRetry(
                     node,
-                    (int) uploadedLineCount + 2,
+                    nextProtocolLineNumber,
                     "M29");
+            nextProtocolLineNumber++;
 
             printerEventStore.record(
                     node.id(),
@@ -226,7 +263,8 @@ public final class SdCardUploadService {
 
             SdCardFileList fileList = listFilesWithChecksum(
                     node,
-                    (int) uploadedLineCount + 3);
+                    nextProtocolLineNumber);
+
             for (SdCardFile file : fileList.files()) {
                 printerSdFileService.registerListedFile(node.id(), file);
             }
@@ -268,7 +306,7 @@ public final class SdCardUploadService {
                     null);
         } catch (Exception exception) {
             if (writeOpened) {
-                closeUploadSessionAfterFailure(node, exception);
+                closeUploadSessionAfterFailure(node, nextProtocolLineNumber, exception);
             }
 
             String detail = OperationMessages.safeDetail(
@@ -394,7 +432,7 @@ public final class SdCardUploadService {
         }
     }
 
-    private long streamFileLinesWithChecksum(
+    private StreamUploadResult streamFileLinesWithChecksum(
             PrinterRuntimeNode node,
             Path hostPath,
             int firstLineNumber,
@@ -403,9 +441,12 @@ public final class SdCardUploadService {
             String targetFilename) {
         long uploadedLineCount = 0;
         long nextProgressEventPercent = 10;
+        int batchSize = Math.max(1, sdUploadBatchSizeSupplier.getAsInt());
 
         try (BufferedReader reader = Files.newBufferedReader(hostPath)) {
             String rawLine;
+            List<String> batchLines = new ArrayList<>();
+            List<Integer> batchLineNumbers = new ArrayList<>();
 
             while ((rawLine = reader.readLine()) != null) {
                 String payload = normalizeUploadPayload(rawLine);
@@ -413,11 +454,17 @@ public final class SdCardUploadService {
                     continue;
                 }
 
+                int lineNumber = firstLineNumber + (int) uploadedLineCount;
                 uploadedLineCount++;
-                sendChecksummedLineWithRetry(
-                        node,
-                        firstLineNumber + (int) uploadedLineCount - 1,
-                        payload);
+
+                batchLines.add(payload);
+                batchLineNumbers.add(lineNumber);
+
+                if (batchLines.size() >= batchSize) {
+                    sendBatchWithChecksum(node, batchLines, batchLineNumbers);
+                    batchLines.clear();
+                    batchLineNumbers.clear();
+                }
 
                 UploadProgress currentProgress = uploadProgressByPrinterId.get(node.id());
                 Instant startedAt = currentProgress == null ? Instant.now() : currentProgress.startedAt();
@@ -454,11 +501,136 @@ public final class SdCardUploadService {
                     }
                 }
             }
+
+            if (!batchLines.isEmpty()) {
+                sendBatchWithChecksum(node, batchLines, batchLineNumbers);
+            }
         } catch (IOException exception) {
             throw new IllegalStateException(OperationMessages.PRINT_FILE_MUST_BE_READABLE, exception);
         }
 
-        return uploadedLineCount;
+        int nextLineNumber = firstLineNumber + (int) uploadedLineCount;
+        return new StreamUploadResult(uploadedLineCount, nextLineNumber);
+    }
+
+    private void sendBatchWithChecksum(
+            PrinterRuntimeNode node,
+            List<String> payloads,
+            List<Integer> lineNumbers) {
+        if (payloads.size() != lineNumbers.size()) {
+            throw new IllegalArgumentException("Payloads and line numbers lists must have the same size");
+        }
+
+        if (payloads.isEmpty()) {
+            return;
+        }
+
+        if (payloads.size() == 1) {
+            sendChecksummedLineWithRetry(node, lineNumbers.get(0), payloads.get(0));
+            return;
+        }
+
+        sendBatchPipelined(node, payloads, lineNumbers);
+    }
+
+    private void sendBatchPipelined(
+            PrinterRuntimeNode node,
+            List<String> payloads,
+            List<Integer> lineNumbers) {
+        if (payloads.size() != lineNumbers.size()) {
+            throw new IllegalArgumentException("Payloads and line numbers lists must have the same size");
+        }
+        if (payloads.isEmpty()) {
+            return;
+        }
+
+        List<String> checksummedLines = new ArrayList<>();
+        for (int i = 0; i < payloads.size(); i++) {
+            checksummedLines.add(buildChecksummedLine(lineNumbers.get(i), payloads.get(i)));
+        }
+
+        int resendLine = sendAndReadPipelinedWindow(node, checksummedLines, lineNumbers);
+        if (resendLine < 0) {
+            return;
+        }
+
+        int resendIndex = indexOfLineNumber(lineNumbers, resendLine);
+        if (resendIndex < 0) {
+            throw new SdUploadLineException(
+                    resendLine,
+                    "Printer requested resend for line "
+                            + resendLine
+                            + " but that line was not present in the active pipelined window.");
+        }
+
+        for (int i = resendIndex; i < payloads.size(); i++) {
+            sendChecksummedLineWithRetry(node, lineNumbers.get(i), payloads.get(i));
+        }
+    }
+
+    private int sendAndReadPipelinedWindow(
+            PrinterRuntimeNode node,
+            List<String> checksummedLines,
+            List<Integer> lineNumbers) {
+        for (String checksummedLine : checksummedLines) {
+            logUploadWire(node.id(), "->", checksummedLine + " [pipelined]");
+            node.printerPort().writeRawLine(checksummedLine, SerialIOMode.FILE_STREAMING);
+        }
+
+        for (int i = 0; i < lineNumbers.size(); i++) {
+            String response = node.printerPort().readRawResponse(SerialIOMode.FILE_STREAMING);
+            int lineNumber = lineNumbers.get(i);
+
+            logUploadWire(node.id(), "<-", response);
+
+            Integer requestedResendLine = requestedResendLine(response);
+            if (requestedResendLine != null) {
+                incrementRejectedLineCount(node.id());
+
+                int resendLine = requestedResendLine < 0 ? lineNumber : requestedResendLine;
+
+                printerEventStore.record(
+                        node.id(),
+                        null,
+                        "SD_CARD_UPLOAD_RESEND_REQUESTED",
+                        "SD upload resend requested during pipelined upload: line="
+                                + resendLine
+                                + " | response="
+                                + OperationMessages.safeDetail(response, "no response"));
+
+                return resendLine;
+            }
+
+            if (responseContainsUploadError(response)) {
+                incrementRejectedLineCount(node.id());
+                throw new SdUploadLineException(
+                        lineNumber,
+                        "Printer reported SD upload error for line "
+                                + lineNumber
+                                + ": "
+                                + OperationMessages.safeDetail(response, "no response"));
+            }
+
+            if (!responseContainsOk(response)) {
+                throw new SdUploadLineException(
+                        lineNumber,
+                        "Unexpected pipelined SD upload response for line "
+                                + lineNumber
+                                + ": "
+                                + OperationMessages.safeDetail(response, "no response"));
+            }
+        }
+
+        return -1;
+    }
+
+    private int indexOfLineNumber(List<Integer> lineNumbers, int lineNumber) {
+        for (int i = 0; i < lineNumbers.size(); i++) {
+            if (lineNumbers.get(i) == lineNumber) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private UploadPlan analyzeUploadPlan(Path hostPath) {
@@ -526,13 +698,34 @@ public final class SdCardUploadService {
             PrinterRuntimeNode node,
             int lineNumber,
             String payload) {
+        long startTime = System.nanoTime();
         String checksummedLine = buildChecksummedLine(lineNumber, payload);
+        long checksumTime = System.nanoTime();
+
         String lastResponse = null;
 
         for (int attempt = 1; attempt <= PrinterProtocolDefaults.SD_UPLOAD_MAX_RETRIES_PER_LINE; attempt++) {
+            long sendStartTime = System.nanoTime();
+            long sendTimestamp = System.currentTimeMillis();
             logUploadWire(node.id(), "->", checksummedLine + " [attempt " + attempt + "]");
-            lastResponse = node.printerPort().sendRawLine(checksummedLine);
+            lastResponse = node.printerPort().sendRawLine(checksummedLine, SerialIOMode.FILE_STREAMING);
+            long responseTime = System.nanoTime();
+            long responseTimestamp = System.currentTimeMillis();
+            int sleepCycles = 0;
+            if (node.printerPort() instanceof SerialConnection) {
+                sleepCycles = ((SerialConnection) node.printerPort()).getLastSleepCycles();
+            }
             logUploadWire(node.id(), "<-", lastResponse);
+
+            if (debugWireTracingEnabledSupplier.getAsBoolean()) {
+                long checksumMs = (checksumTime - startTime) / 1_000_000;
+                long sendWaitMs = (responseTime - sendStartTime) / 1_000_000;
+                long wallClockMs = responseTimestamp - sendTimestamp;
+                long totalMs = (responseTime - startTime) / 1_000_000;
+                System.out.println("[PrinterHub] SD upload timing " + node.id() + " line=" + lineNumber
+                        + " attempt=" + attempt + " checksum=" + checksumMs + "ms send+wait=" + sendWaitMs + "ms wall="
+                        + wallClockMs + "ms sleeps=" + sleepCycles + " total=" + totalMs + "ms");
+            }
 
             Integer requestedResendLine = requestedResendLine(lastResponse);
             if (requestedResendLine != null && requestedResendLine == lineNumber) {
@@ -610,17 +803,33 @@ public final class SdCardUploadService {
         return payload;
     }
 
-    private void closeUploadSessionAfterFailure(PrinterRuntimeNode node, Exception exception) {
-        int closeLineNumber = exception instanceof SdUploadLineException uploadException
-                ? uploadException.lineNumber()
-                : 2;
+    private void closeUploadSessionAfterFailure(
+            PrinterRuntimeNode node,
+            int nextProtocolLineNumber,
+            Exception exception) {
+        int closeLineNumber = Math.max(2, nextProtocolLineNumber);
+
+        if (exception instanceof SdUploadLineException uploadException) {
+            closeLineNumber = Math.max(closeLineNumber, uploadException.lineNumber());
+        }
 
         try {
-            sendChecksummedLineWithRetry(node, closeLineNumber, "M29");
+            String response = sendChecksummedLineWithRetry(node, closeLineNumber, "M29");
+
+            printerEventStore.record(
+                    node.id(),
+                    null,
+                    "SD_CARD_UPLOAD_RECOVERY_CLOSED",
+                    "SD upload recovery close sent: line="
+                            + closeLineNumber
+                            + " | response="
+                            + OperationMessages.safeDetail(response, "no response"));
         } catch (Exception closeException) {
             System.err.println(OperationMessages.apiOperationFailed(
                     "Failed to close SD upload session after upload failure: "
-                            + OperationMessages.safeDetail(closeException.getMessage(), OperationMessages.UNKNOWN_API_ERROR)));
+                            + OperationMessages.safeDetail(
+                                    closeException.getMessage(),
+                                    OperationMessages.UNKNOWN_API_ERROR)));
         }
     }
 
@@ -832,6 +1041,9 @@ public final class SdCardUploadService {
     private record UploadPlan(long totalLineCount, long totalByteCount) {
     }
 
+    private record StreamUploadResult(long uploadedLineCount, int nextLineNumber) {
+    }
+
     public record UploadProgress(
             String printerId,
             String printFileId,
@@ -846,6 +1058,98 @@ public final class SdCardUploadService {
             Instant startedAt,
             Instant updatedAt,
             String detail) {
+
+        /**
+         * Calculate the current upload rate in bytes per second.
+         * Returns 0 if no progress has been made or insufficient time has elapsed.
+         */
+        public double bytesPerSecond() {
+            if (startedAt == null || updatedAt == null || uploadedLineCount == 0) {
+                return 0.0;
+            }
+
+            long elapsedMs = updatedAt.toEpochMilli() - startedAt.toEpochMilli();
+            if (elapsedMs <= 0) {
+                return 0.0;
+            }
+
+            // Estimate bytes uploaded based on line count (rough approximation)
+            // This is an estimate since we don't track exact bytes per line
+            long estimatedBytesUploaded = (long) (uploadedLineCount * 50.0); // Average ~50 bytes per line
+            return (estimatedBytesUploaded * 1000.0) / elapsedMs;
+        }
+
+        /**
+         * Calculate the current upload rate in lines per second.
+         * Returns 0 if no progress has been made or insufficient time has elapsed.
+         */
+        public double linesPerSecond() {
+            if (startedAt == null || updatedAt == null || uploadedLineCount == 0) {
+                return 0.0;
+            }
+
+            long elapsedMs = updatedAt.toEpochMilli() - startedAt.toEpochMilli();
+            if (elapsedMs <= 0) {
+                return 0.0;
+            }
+
+            return (uploadedLineCount * 1000.0) / elapsedMs;
+        }
+
+        /**
+         * Calculate the elapsed time in seconds since upload started.
+         */
+        public long elapsedSeconds() {
+            if (startedAt == null || updatedAt == null) {
+                return 0L;
+            }
+
+            return (updatedAt.toEpochMilli() - startedAt.toEpochMilli()) / 1000L;
+        }
+
+        /**
+         * Calculate the estimated time remaining in seconds.
+         * Returns 0 if no progress has been made or upload is complete.
+         */
+        public long estimatedSecondsRemaining() {
+            if (!active || uploadedLineCount == 0 || totalLineCount == 0) {
+                return 0L;
+            }
+
+            double linesPerSecond = linesPerSecond();
+            if (linesPerSecond <= 0.0) {
+                return 0L;
+            }
+
+            long remainingLines = totalLineCount - uploadedLineCount;
+            return (long) Math.ceil(remainingLines / linesPerSecond);
+        }
+
+        /**
+         * Calculate the theoretical maximum throughput based on baud rate.
+         * Assumes 115200 baud (14.4 KB/s) with some overhead.
+         */
+        public double theoreticalMaxBytesPerSecond() {
+            // 115200 baud = 115200 bits/second
+            // 8 bits per byte = 14400 bytes/second theoretical
+            // With protocol overhead, effective is typically 10-12 KB/s
+            return 12000.0; // Conservative estimate
+        }
+
+        /**
+         * Calculate efficiency as percentage of theoretical maximum.
+         * Returns 0 if no progress has been made.
+         */
+        public double efficiencyPercent() {
+            double actual = bytesPerSecond();
+            double theoretical = theoreticalMaxBytesPerSecond();
+
+            if (actual <= 0.0 || theoretical <= 0.0) {
+                return 0.0;
+            }
+
+            return Math.min(100.0, (actual * 100.0) / theoretical);
+        }
 
         public static UploadProgress running(
                 String printerId,

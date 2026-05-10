@@ -357,8 +357,8 @@ Example local run:
 
 ```bash
 mvn exec:java \
--Dexec.mainClass="printerhub.Main" \
--Dexec.args="api SIM_PORT sim 18080"
+-Dprinterhub.api.port=18080 \
+-Dexec.mainClass="printerhub.Main"
 ````
 
 Example verification:
@@ -1880,56 +1880,38 @@ Expected result for 0.2.3 overall:
 
 ---
 
-## 0.2.4 — Real-Printer Correction, SD Upload Hardening, and Local Packaging
 
-status: planned
+## 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
 
 Purpose:
 
-Use the real-printer findings from `0.2.3` dashboard testing to close the
-remaining operational gaps, then package that hardened runtime as a repeatable
-local service.
+Use the real-printer findings from `0.2.3` dashboard testing to close the remaining operational gaps, then package the hardened runtime as a repeatable local service.
 
-This release combines the correction/CR pass with the earlier local-runtime
-packaging milestone.
+---
+
+### 0.2.4 — Step A — Real-printer correction and anomaly closure
+
+status: done
 
 Goals:
 
-* verify and harden completion detection for short autonomous SD prints so jobs do not remain stuck in `RUNNING` after the printer has finished
-* prevent stale active-job / printer-busy state from blocking restart or new print attempts when monitoring already shows the printer is idle
-* improve cancel UX for printers that report `busy` or require physical confirmation before they accept stop/abort behavior
-* represent waiting states clearly in the dashboard, such as `CANCEL_REQUESTED`, `WAITING_FOR_PRINTER_STOP`, or recovery-needed states where appropriate
+* harden completion detection for short autonomous SD prints so jobs do not remain stuck in `RUNNING` after the printer has already finished
+* prevent stale active-job or stale printer-busy state from blocking restart or new print attempts when monitoring already shows the printer is idle
+* improve cancel handling for printers that report `busy` or require physical confirmation before stop behavior is actually visible
+* represent waiting and recovery states clearly in the dashboard, such as `CANCEL_REQUESTED`, `WAITING_FOR_PRINTER_STOP`, and recovery-needed situations
 * keep cancellation evidence command-specific, so stale serial `ok` responses are not mistaken for proof that `M524` stopped the print
-* add long SD upload progress reporting based on total upload lines and/or bytes calculated before transfer starts
-* show SD upload progress in the dashboard with a progress bar and clear in-progress / success / failure state
-* while an SD upload is active for one printer, disable conflicting actions for that same printer, including other uploads and print-job start/control actions
-* keep unrelated printers usable during one printer's upload
-* persist SD upload lifecycle evidence, including upload started, progress checkpoints where useful, successful completion, failed completion, retry exhaustion, and recovery-close attempts
-* keep SD upload retry/resend behavior visible enough for operators to know which line failed after retry exhaustion
-* strengthen SD upload recovery after interrupted `M28` file-write sessions
-* verify `SET_NOZZLE_TEMPERATURE` and `SET_BED_TEMPERATURE` on the real printer with conservative target values
-* clarify whether temperature job success means command accepted, temperature moving, or target physically reached
-* clarify fan-control behavior on the observed Ender-style printer, especially the difference between controllable part-cooling fan and always-on hotend/board/power-supply fans
-* detect or conservatively represent USB-only versus mains-powered printer state where firmware evidence allows
-* gate or warn before dangerous movement/heating/state-changing commands when the printer may not be safely mains-powered
-* package PrinterHub as a local runtime service
-* document production-style jar execution outside the source tree
-* document runtime config location
-* document database location
-* document dashboard/static asset location if relevant
-* provide startup script and/or service wrapper for local installation
-* document and support `systemd` usage
-* define log location and working-directory expectations
-* prepare deployment on a local machine connected to printers
-* keep the current Ubuntu/Linux packaging path as the first documented target
-* add Windows-oriented packaging and verification after the Linux local-service path is stable
+* strengthen SD upload recovery after interrupted `M28` write sessions
+* verify `SET_NOZZLE_TEMPERATURE` and `SET_BED_TEMPERATURE` on the real printer with conservative values
+* clarify whether temperature job success means command accepted, target trend observed, or target physically reached
+* clarify observed fan-control behavior on the Ender-style printer, especially the distinction between controllable part-cooling fan and always-on hotend, board, or PSU fans
+* detect or conservatively represent USB-only versus mains-powered state where firmware evidence allows
+* gate or warn before dangerous movement, heating, or state-changing commands when safe printer power state is uncertain
 
 Anomaly / CR inputs:
 
 ```text
 KO-3  cancel is real printer control, not only job state
 KO-4  SD upload recovery after failed file connection
-CR-5  long SD upload progress and same-printer action locking
 KO-5  USB-only power versus mains power
 KO-6  fan control reports success but fan does not change
 KO-7  temperature jobs need real-printer verification
@@ -1937,14 +1919,138 @@ KO-7  temperature jobs need real-printer verification
 
 Expected result:
 
-* real-printer dashboard behavior matches what the firmware actually did
-* long SD transfers are visible, reviewable, and protected from conflicting same-printer actions
-* restart/new print attempts are not blocked by stale `RUNNING` or stale busy state
+* real-printer dashboard behavior matches observed firmware behavior
+* stale `RUNNING` and stale busy states no longer block restart or new print attempts
 * operators can distinguish command acceptance from verified physical effect
-* the remaining 0.2.3 real-printer anomalies are corrected or documented as hardware/firmware limitations
-* PrinterHub runs as a documented, repeatable local service near the printers, not only as a manually started development jar
+* remaining `0.2.3` real-printer anomalies are either corrected or documented as firmware or hardware limits
 
 ---
+
+### 0.2.4 — Step B — SD upload observability and transfer performance
+
+status: done
+
+Goals:
+
+* add long SD upload progress reporting based on total upload lines and total file size known before transfer starts
+* expose upload progress through backend state and dashboard UI
+* show in-progress, success, and failure states clearly, including retry or resend evidence when relevant
+* disable conflicting actions for the same printer while an SD upload is active, while keeping unrelated printers usable
+* differentiate serial communication behavior between command-response operations and file-streaming operations
+* reduce host-side polling overhead during SD transfer so upload throughput is not artificially limited by the runtime
+* prepare the serial layer for later streamed print execution in `0.2.8`
+
+Expected result:
+
+* SD uploads are visible and reviewable during execution
+* same-printer conflicting actions are blocked while upload is active
+* command-response and file-streaming traffic are handled with different serial timing strategies
+* SD upload performance is improved where host-side wait behavior was part of the bottleneck
+* transfer behavior is instrumented well enough to compare real-printer results at different batch and timing settings
+
+---
+
+### 0.2.4 — Step C — Windowed SD upload
+
+status: done
+
+Goals:
+
+* introduce a configurable SD upload batch-size setting representing the maximum number of numbered lines allowed in flight
+* preserve the original per-line behavior when batch size is `1`
+* allow real pipelined upload behavior when batch size is greater than `1`
+* parse acknowledgement blocks correctly so multiple `ok` responses are not collapsed into a single logical response
+* keep resend, upload error, and recovery-close behavior visible enough for diagnostics
+* ensure `M29` closes the upload session using the correct next protocol line number rather than reusing the failed line number
+* use the setting to monitor may amount of recovery for file upload SD_UPLOAD_MAX_RETRIES_PER_LINE
+
+Anomalies :
+Bug 1 : The parser splits a multi-line Marlin error/resend block too early.
+Bug 2 : The recovery close still uses stale nextProtocolLineNumber when a failure happens in the middle of streaming.
+Bug 3 : pipelined timeout loses the line context
+Bug 4 : file-streaming timeout disconnects too early for recovery close
+
+Expected result:
+
+* `batch=1` keeps the previous safe behavior
+* `batch>1` enables real multi-line in-flight SD transfer
+* upload sequencing is protocol-correct for numbered and checksummed lines
+* failures during pipelined upload are diagnosable and recoverable
+* the runtime can now measure whether real-printer upload speed improves with small in-flight windows
+
+
+state machine recovery in batch :
+
+```text
+OPEN_UPLOAD
+  -> M110 N0
+  -> M28 target.gco
+  -> upload file content in batches
+
+For each batch:
+  -> send whole batch in pipelined mode
+  -> read responses one by one
+
+  if all responses are ok:
+      -> next batch
+
+  if printer requests Resend: X:
+      -> stop pipelined processing for this batch
+      -> find X inside the current batch
+      -> resend line X with normal retry logic
+      -> resend X+1, X+2, ... to the end of that same batch, line-by-line
+      -> when batch tail is fully accepted, continue with next batch in pipelined mode
+
+  if X is not inside the active batch:
+      -> fail upload
+      -> optional recovery-close with M29
+      -> stop
+
+  if unrecoverable line error / retry exhaustion / connection failure:
+      -> fail upload
+      -> optional recovery-close with M29
+      -> stop
+
+After all file lines accepted:
+  -> send M29
+  -> list files with M20
+  -> verify uploaded file exists
+  -> success
+
+``` 
+
+algo is in :
+src/main/java/printerhub/command/SdCardUploadService.java:  private void sendBatchPipelined
+
+
+---
+
+
+## 0.2.4 — Step D — upload channel isolation and session synchronization
+
+status: planned
+
+Goals:
+
+* give SD upload exclusive ownership of the selected printer serial channel
+* ensure monitoring is fully stopped and no in-flight polling response remains pending before upload synchronization starts
+* drain stale serial input before `M110 N0`
+* reject stale status/temperature replies as valid upload-session acknowledgements
+* require command-specific confirmation for `M28` file-write open and `M29` file-write close
+* persist channel-drain, synchronization, open, close, stale-response, and failure evidence in printer events
+* keep upload performance summary visible, but treat correctness and protocol synchronization as the primary objective
+
+Expected result:
+
+* SD upload starts on a clean and exclusive serial session
+* previous `M105` monitoring replies cannot be misread as `M110` or `M28` acknowledgements
+* the first pipelined batch starts only after the printer has explicitly confirmed SD write-open
+* failures are diagnosable as stale-channel, response mismatch, resend mismatch, timeout, or printer-side error
+* the windowed resend algorithm from Step C operates on a synchronized upload channel
+
+
+---
+
 
 ## 0.2.5 — Runtime Recovery and Serial Device Robustness
 

@@ -16,7 +16,9 @@ class MonitoringRulesTest {
                 45,
                 2.5,
                 90,
-                MonitoringRules.ErrorPersistenceBehavior.ALWAYS
+                MonitoringRules.ErrorPersistenceBehavior.ALWAYS,
+                true,
+                5
         );
 
         assertEquals(12, rules.pollIntervalSeconds());
@@ -24,6 +26,8 @@ class MonitoringRulesTest {
         assertEquals(2.5, rules.temperatureDeltaThreshold());
         assertEquals(90, rules.eventDeduplicationWindowSeconds());
         assertEquals(MonitoringRules.ErrorPersistenceBehavior.ALWAYS, rules.errorPersistenceBehavior());
+        assertEquals(true, rules.debugWireTracingEnabled());
+        assertEquals(5, rules.sdUploadBatchSize());
     }
 
     @Test
@@ -59,7 +63,9 @@ class MonitoringRulesTest {
                 30,
                 0.0,
                 60,
-                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                false,
+                1
         );
 
         assertEquals(0.0, rules.temperatureDeltaThreshold());
@@ -72,7 +78,9 @@ class MonitoringRulesTest {
                 0,
                 1.0,
                 60,
-                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                false,
+                1
         );
 
         assertEquals(0, rules.snapshotMinimumIntervalSeconds());
@@ -85,7 +93,9 @@ class MonitoringRulesTest {
                 30,
                 1.0,
                 0,
-                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                false,
+                1
         );
 
         assertEquals(0, rules.eventDeduplicationWindowSeconds());
@@ -100,7 +110,9 @@ class MonitoringRulesTest {
                         30,
                         1.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -119,7 +131,9 @@ class MonitoringRulesTest {
                         -1,
                         1.0,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -138,7 +152,9 @@ class MonitoringRulesTest {
                         30,
                         -0.1,
                         60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -157,7 +173,9 @@ class MonitoringRulesTest {
                         30,
                         1.0,
                         -1,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED
+                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                        false,
+                        1
                 )
         );
 
@@ -176,7 +194,9 @@ class MonitoringRulesTest {
                         30,
                         1.0,
                         60,
-                        null
+                        null,
+                        false,
+                        1
                 )
         );
 

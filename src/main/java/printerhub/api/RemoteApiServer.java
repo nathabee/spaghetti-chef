@@ -285,7 +285,11 @@ public final class RemoteApiServer {
                     optionalJsonBoolean(
                             body,
                             "debugWireTracingEnabled",
-                            currentRules.debugWireTracingEnabled()));
+                            currentRules.debugWireTracingEnabled()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadBatchSize",
+                            currentRules.sdUploadBatchSize()));
 
             monitoringRulesStore.save(updatedRules);
             monitoringScheduler.updateMonitoringRules(updatedRules);
@@ -1309,7 +1313,8 @@ public final class RemoteApiServer {
                 + "\"temperatureDeltaThreshold\":" + formatDouble(monitoringRules.temperatureDeltaThreshold()) + ","
                 + "\"eventDeduplicationWindowSeconds\":" + monitoringRules.eventDeduplicationWindowSeconds() + ","
                 + "\"errorPersistenceBehavior\":\"" + escapeJson(monitoringRules.errorPersistenceBehavior().name()) + "\","
-                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled()
+                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled() + ","
+                + "\"sdUploadBatchSize\":" + monitoringRules.sdUploadBatchSize()
                 + "}";
     }
 
@@ -1960,7 +1965,14 @@ public final class RemoteApiServer {
                 + "\"qualityPercent\":" + qualityPercent + ","
                 + "\"startedAt\":" + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
                 + "\"updatedAt\":" + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
-                + "\"detail\":" + nullableString(progress.detail())
+                + "\"detail\":" + nullableString(progress.detail()) + ","
+                // Performance metrics
+                + "\"bytesPerSecond\":" + String.format("%.1f", progress.bytesPerSecond()) + ","
+                + "\"linesPerSecond\":" + String.format("%.2f", progress.linesPerSecond()) + ","
+                + "\"elapsedSeconds\":" + progress.elapsedSeconds() + ","
+                + "\"estimatedSecondsRemaining\":" + progress.estimatedSecondsRemaining() + ","
+                + "\"theoreticalMaxBytesPerSecond\":" + String.format("%.0f", progress.theoreticalMaxBytesPerSecond()) + ","
+                + "\"efficiencyPercent\":" + String.format("%.1f", progress.efficiencyPercent())
                 + "}";
     }
 

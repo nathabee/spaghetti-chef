@@ -110,13 +110,13 @@ After `mvn clean verify`, you can run the shaded jar directly.
 Linux:
 
 ```bash
-java -Dprinterhub.databaseFile=printerhub.db -jar target/printer-hub-<version>-all.jar api /dev/ttyUSB0 real 18080
+java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar target/printer-hub-<version>-all.jar
 ```
 
 Windows:
 
 ```bat
-java -Dprinterhub.databaseFile=printerhub.db -jar target\printer-hub-<version>-all.jar api COM3 real 18080
+java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar target\printer-hub-<version>-all.jar
 ```
 
 ---

@@ -862,7 +862,7 @@ MODE="${2:-real}"
 API_PORT="${3:-18080}"
 DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
 
-exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -jar printer-hub.jar api "${PORT_NAME}" "${MODE}" "${API_PORT}"
+exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
 EOF
                     chmod +x package/linux/printerhub.sh
 
@@ -881,7 +881,7 @@ if "%API_PORT%"=="" set API_PORT=18080
 
 if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
 
-java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -jar printer-hub.jar api "%PORT_NAME%" "%MODE%" "%API_PORT%"
+java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
 EOF
 
                     tar -C package -czf "dist/${LINUX_PACKAGE}" linux

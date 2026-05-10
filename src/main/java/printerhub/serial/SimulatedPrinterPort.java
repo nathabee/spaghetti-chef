@@ -2,6 +2,7 @@ package printerhub.serial;
 
 import printerhub.OperationMessages;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 import printerhub.config.PrinterProtocolDefaults;
 
 import java.util.Locale;
@@ -78,6 +79,13 @@ public final class SimulatedPrinterPort implements PrinterPort {
         }
 
         return PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
+    }
+
+    @Override
+    public String sendRawLine(String line, SerialIOMode mode) {
+        // Simulated printer doesn't use mode-specific behavior;
+        // forward to the standard sendRawLine for consistency
+        return sendRawLine(line);
     }
 
     @Override

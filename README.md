@@ -277,6 +277,12 @@ Real-printer note:
   style Marlin behavior
 * on that path, PrinterHub uses a dedicated numbered/checksummed upload session
   instead of the normal single-command request/response path
+* host-to-printer SD upload is synchronous and can be very slow on this class of
+  serial Marlin printer; for large real print files, it is usually more
+  practical to copy the `.gcode` to the printer SD card separately and then use
+  PrinterHub to refresh/register the printer-side SD target
+* the dashboard upload progress shows confirmed transferred lines and transfer
+  quality, but it does not make the printer-side serial transfer fast
 
 Job start behavior:
 

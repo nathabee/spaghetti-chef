@@ -18,6 +18,7 @@ import printerhub.persistence.PrinterSdFileStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeStateCache;
+import printerhub.SerialIOMode;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -209,8 +210,9 @@ class SdCardUploadServiceTest {
                     IllegalStateException.class,
                     () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TEST8.GCO"));
 
-            assertTrue(exception.getMessage().contains("Printer requested resend for line 2"));
-            assertTrue(exception.getMessage().contains("uploading line 3"));
+            assertTrue(exception.getMessage().contains("not present in the active pipelined window"));
+            assertTrue(exception.getMessage().contains("Printer requested resend for line 1"));
+            assertTrue(printerPort.operations().contains("raw:N1 M28 TEST8.GCO*115"));
             assertTrue(printerPort.operations().contains("raw:N2 M29*26"));
 
             SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
@@ -453,6 +455,7 @@ class SdCardUploadServiceTest {
     private static final class ResendThenOkPrinterPort implements PrinterPort {
 
         private final AtomicInteger payloadAttempts = new AtomicInteger();
+        private final List<String> pendingResponses = new ArrayList<>();
         private boolean connected;
 
         @Override
@@ -463,7 +466,6 @@ class SdCardUploadServiceTest {
         @Override
         public String sendCommand(String command) {
             ensureConnected();
-
             return "ok";
         }
 
@@ -491,8 +493,28 @@ class SdCardUploadServiceTest {
         }
 
         @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            String response = sendRawLine(line);
+            pendingResponses.add(response);
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (pendingResponses.isEmpty()) {
+                throw new IllegalStateException("No pending response");
+            }
+
+            return pendingResponses.remove(0);
+        }
+
+        @Override
         public void disconnect() {
             connected = false;
+            pendingResponses.clear();
         }
 
         private void ensureConnected() {
@@ -509,6 +531,7 @@ class SdCardUploadServiceTest {
     private static final class ResendMismatchPrinterPort implements PrinterPort {
 
         private final List<String> operations = new ArrayList<>();
+        private final List<String> pendingResponses = new ArrayList<>();
         private boolean connected;
 
         @Override
@@ -531,7 +554,7 @@ class SdCardUploadServiceTest {
                 case "N0 M110 N0*125", "N1 M28 TEST8.GCO*115", "N2 M104 S0*103", "N2 M29*26" -> "ok";
                 case "N3 M105*36" -> """
                         Error:No Checksum with line number, Last Line: 20313
-                        Resend: 2
+                        Resend: 1
                         ok
                         """;
                 default -> throw new IllegalStateException("Unexpected raw line: " + line);
@@ -539,8 +562,28 @@ class SdCardUploadServiceTest {
         }
 
         @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            String response = sendRawLine(line);
+            pendingResponses.add(response);
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (pendingResponses.isEmpty()) {
+                throw new IllegalStateException("No pending response");
+            }
+
+            return pendingResponses.remove(0);
+        }
+
+        @Override
         public void disconnect() {
             connected = false;
+            pendingResponses.clear();
         }
 
         private void ensureConnected() {
@@ -574,7 +617,12 @@ class SdCardUploadServiceTest {
             ensureConnected();
 
             return switch (line) {
-                case "N0 M110 N0*125", "N1 M28 TEST6.GCO*125", "N2 M104 S0*103", "N3 M29*27" -> "ok";
+                case "N0 M110 N0*125", "N2 M104 S0*103", "N3 M29*27" -> "ok";
+                case "N1 M28 TEST6.GCO*125" -> """
+                        echo:Now fresh file: TEST6.GCO
+                        Writing to file: TEST6.GCO
+                        ok
+                        """;
                 case "N4 M20*21" -> """
                         Begin file list
                         TEST4.GCO 9
@@ -600,6 +648,7 @@ class SdCardUploadServiceTest {
     private static final class CommentAwarePrinterPort implements PrinterPort {
 
         private final List<String> operations = new ArrayList<>();
+        private final List<String> pendingResponses = new ArrayList<>();
         private boolean connected;
 
         @Override
@@ -636,8 +685,28 @@ class SdCardUploadServiceTest {
         }
 
         @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            String response = sendRawLine(line);
+            pendingResponses.add(response);
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (pendingResponses.isEmpty()) {
+                throw new IllegalStateException("No pending response");
+            }
+
+            return pendingResponses.remove(0);
+        }
+
+        @Override
         public void disconnect() {
             connected = false;
+            pendingResponses.clear();
         }
 
         private void ensureConnected() {
