@@ -15,7 +15,7 @@ next:
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
-- 0.2.4 — Remote —  Operational bootstrap solution before the `1.0.0` remote farm management
+- 0.2.4 — Remote —  Operational bootstrap solution before the 1.0.0 remote farm management
 - 0.2.4 — Step D — buffered resend recovery and degraded replay stabilization
 - 0.2.4 — Step C — Windowed SD upload
 - 0.2.4 — Step B — SD upload observability and transfer performance

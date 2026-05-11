@@ -47,21 +47,31 @@ function Get-JavaCommand {
 
     if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
         $configured = $EnvMap['PRINTERHUB_JAVA']
-        if (-not [string]::IsNullOrWhiteSpace($configured) -and (Test-Path -LiteralPath $configured)) {
-            return $configured
+        if (-not [string]::IsNullOrWhiteSpace($configured)) {
+            Write-Host "Configured PRINTERHUB_JAVA: $configured"
+            if (Test-Path -LiteralPath $configured) {
+                return $configured
+            }
+
+            Write-Host "Configured PRINTERHUB_JAVA path does not exist."
         }
+    } else {
+        Write-Host "PRINTERHUB_JAVA is not set in run.env"
     }
 
     $cmd = Get-Command java -ErrorAction SilentlyContinue
     if ($null -ne $cmd) {
         if ($cmd.Source) {
+            Write-Host "Resolved java from Get-Command: $($cmd.Source)"
             return $cmd.Source
         }
         if ($cmd.Path) {
+            Write-Host "Resolved java from Get-Command: $($cmd.Path)"
             return $cmd.Path
         }
     }
 
+    Write-Host "Get-Command java returned nothing."
     return $null
 }
 
@@ -79,6 +89,8 @@ function Get-JavaMajorVersion {
         }
 
         $firstLine = $out | Select-Object -First 1
+        Write-Host "java -version first line: $firstLine"
+
         if ($firstLine -match '"(?<version>\d+)(\.\d+)?(\.\d+)?.*"') {
             return [int]$Matches.version
         }
@@ -86,6 +98,8 @@ function Get-JavaMajorVersion {
         return $null
     }
     catch {
+        Write-Host "Failed to execute Java command: $JavaCommand"
+        Write-Host $_.Exception.Message
         return $null
     }
 }
@@ -97,9 +111,14 @@ $relDir = "$root\rel"
 $logDir = "$root\log"
 $runEnvPath = "$root\data\run.env"
 
+Write-Host "Using run.env: $runEnvPath"
+
 $envMap = Read-RunEnv -Path $runEnvPath
 $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
+
+Write-Host "Detected Java command: $javaCommand"
+Write-Host "Detected Java major version: $javaMajor"
 
 if ($null -eq $javaCommand) {
     Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
