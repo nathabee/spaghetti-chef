@@ -233,13 +233,9 @@ export async function deleteJob(jobId) {
   });
 }
 
-export async function closePrinterSdUploadSession(printerId, lineNumber = 2) {
+export async function closePrinterSdUploadSession(printerId) {
   return requestJson(`/printers/${encodeURIComponent(printerId)}/sd-card/recovery/close-upload`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ lineNumber })
+    method: "POST"
   });
 }
 

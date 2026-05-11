@@ -21,6 +21,7 @@ public final class SerialDefaults {
     public static final int FILE_STREAMING_QUIET_PERIOD_MS = 10;
     public static final int FILE_STREAMING_READ_ACTIVITY_SLEEP_MS = 1;
     public static final int FILE_STREAMING_READ_IDLE_SLEEP_MS = 1;
+    public static final int FILE_STREAMING_RECOVERY_REPLAY_DELAY_MS = 15;
     
     public static final String DEFAULT_COMMAND_TERMINATOR = "\n";
 

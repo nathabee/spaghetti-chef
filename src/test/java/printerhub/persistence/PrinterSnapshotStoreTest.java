@@ -14,290 +14,285 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PrinterSnapshotStoreTest {
 
-    @TempDir
-    Path tempDir;
+        @TempDir
+        Path tempDir;
 
-    @AfterEach
-    void clearDatabaseProperty() {
-        System.clearProperty("printerhub.databaseFile");
-    }
-
-    @Test
-    void saveStoresFirstSnapshot() {
-        useDatabase("snapshot-first.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore(
-                new MonitoringRules(
-                        5,
-                        30,
-                        1.0,
-                        60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
-                        false,
-                        1
-                )
-        );
-
-        PrinterSnapshot snapshot = PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                21.5,
-                22.0,
-                "ok T:21.5 B:22.0",
-                Instant.parse("2026-04-29T10:00:00Z")
-        );
-
-        store.save("printer-1", snapshot);
-
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(1, snapshots.size());
-        assertEquals(PrinterState.IDLE, snapshots.get(0).state());
-        assertEquals(21.5, snapshots.get(0).hotendTemperature());
-        assertEquals(22.0, snapshots.get(0).bedTemperature());
-        assertEquals("ok T:21.5 B:22.0", snapshots.get(0).lastResponse());
-    }
-
-    @Test
-    void stateChangeForcesSnapshotPersistence() {
-        useDatabase("snapshot-state-change.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore(
-                new MonitoringRules(
-                        5,
-                        9999,
-                        100.0,
-                        60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
-                        false,
-                        1
-                )
-        );
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                21.0,
-                22.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:00Z")
-        ));
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.HEATING,
-                21.1,
-                22.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:05Z")
-        ));
-
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(2, snapshots.size());
-    }
-
-    @Test
-    void temperatureDeltaAboveThresholdForcesSnapshotPersistence() {
-        useDatabase("snapshot-temp-delta.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore(
-                new MonitoringRules(
-                        5,
-                        9999,
-                        1.0,
-                        60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
-                        false,
-                        1
-                )
-        );
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                20.0,
-                20.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:00Z")
-        ));
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                21.2,
-                20.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:05Z")
-        ));
-
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(2, snapshots.size());
-    }
-
-    @Test
-    void belowThresholdDuplicateSnapshotIsSkipped() {
-        useDatabase("snapshot-skip.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore(
-                new MonitoringRules(
-                        5,
-                        9999,
-                        5.0,
-                        60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
-                        false,
-                        1
-                )
-        );
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                20.0,
-                20.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:00Z")
-        ));
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                20.5,
-                20.2,
-                "ok",
-                Instant.parse("2026-04-29T10:00:05Z")
-        ));
-
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(1, snapshots.size());
-    }
-
-    @Test
-    void minIntervalAllowsLaterSnapshotPersistence() {
-        useDatabase("snapshot-min-interval.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore(
-                new MonitoringRules(
-                        5,
-                        30,
-                        100.0,
-                        60,
-                        MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
-                        false,
-                        1
-                )
-        );
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                20.0,
-                20.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:00Z")
-        ));
-
-        store.save("printer-1", PrinterSnapshot.fromResponse(
-                PrinterState.IDLE,
-                20.0,
-                20.0,
-                "ok",
-                Instant.parse("2026-04-29T10:00:31Z")
-        ));
-
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(2, snapshots.size());
-    }
-
-    @Test
-    void findRecentByPrinterIdUsesDefaultLimitWhenNonPositive() {
-        useDatabase("snapshot-default-limit.db");
-
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
-
-        for (int i = 0; i < 25; i++) {
-            store.save("printer-1", PrinterSnapshot.fromResponse(
-                    PrinterState.IDLE,
-                    20.0 + i,
-                    20.0,
-                    "ok",
-                    Instant.parse("2026-04-29T10:00:00Z").plusSeconds(i * 31L)
-            ));
+        @AfterEach
+        void clearDatabaseProperty() {
+                System.clearProperty("printerhub.databaseFile");
         }
 
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 0);
-        assertEquals(20, snapshots.size());
-    }
+        @Test
+        void saveStoresFirstSnapshot() {
+                useDatabase("snapshot-first.db");
 
-    @Test
-    void errorSnapshotIsLoadedAsErrorSnapshot() {
-        useDatabase("snapshot-error.db");
+                PrinterSnapshotStore store = new PrinterSnapshotStore(
+                                new MonitoringRules(
+                                                5,
+                                                30,
+                                                1.0,
+                                                60,
+                                                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                                                false,
+                                                1,
+                                                2,
+                                                100,
+                                                10,
+                                                5));
 
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
+                PrinterSnapshot snapshot = PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                21.5,
+                                22.0,
+                                "ok T:21.5 B:22.0",
+                                Instant.parse("2026-04-29T10:00:00Z"));
 
-        store.save("printer-1", PrinterSnapshot.error(
-                PrinterState.ERROR,
-                50.0,
-                25.0,
-                "Error: heater failure",
-                "Heater failure",
-                Instant.parse("2026-04-29T10:00:00Z")
-        ));
+                store.save("printer-1", snapshot);
 
-        List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
-        assertEquals(1, snapshots.size());
-        assertEquals(PrinterState.ERROR, snapshots.get(0).state());
-        assertEquals("Heater failure", snapshots.get(0).errorMessage());
-    }
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(1, snapshots.size());
+                assertEquals(PrinterState.IDLE, snapshots.get(0).state());
+                assertEquals(21.5, snapshots.get(0).hotendTemperature());
+                assertEquals(22.0, snapshots.get(0).bedTemperature());
+                assertEquals("ok T:21.5 B:22.0", snapshots.get(0).lastResponse());
+        }
 
-    @Test
-    void saveFailsForBlankPrinterId() {
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
+        @Test
+        void stateChangeForcesSnapshotPersistence() {
+                useDatabase("snapshot-state-change.db");
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> store.save("   ", PrinterSnapshot.disconnected(Instant.parse("2026-04-29T10:00:00Z")))
-        );
+                PrinterSnapshotStore store = new PrinterSnapshotStore(
+                                new MonitoringRules(
+                                                5,
+                                                9999,
+                                                100.0,
+                                                60,
+                                                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                                                false,
+                                                1,
+                                                2,
+                                                100,
+                                                10,
+                                                5));
 
-        assertEquals("printerId must not be blank", exception.getMessage());
-    }
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                21.0,
+                                22.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:00Z")));
 
-    @Test
-    void saveFailsForNullSnapshot() {
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.HEATING,
+                                21.1,
+                                22.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:05Z")));
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> store.save("printer-1", null)
-        );
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(2, snapshots.size());
+        }
 
-        assertEquals("snapshot must not be null", exception.getMessage());
-    }
+        @Test
+        void belowThresholdDuplicateSnapshotIsSkipped() {
+                useDatabase("snapshot-skip.db");
 
-    @Test
-    void findRecentByPrinterIdFailsForBlankPrinterId() {
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
+                PrinterSnapshotStore store = new PrinterSnapshotStore(
+                                new MonitoringRules(
+                                                5,
+                                                9999,
+                                                5.0,
+                                                60,
+                                                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                                                false,
+                                                1,
+                                                2,
+                                                100,
+                                                10,
+                                                5));
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> store.findRecentByPrinterId("   ", 10)
-        );
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                20.0,
+                                20.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:00Z")));
 
-        assertEquals("printerId must not be blank", exception.getMessage());
-    }
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                20.5,
+                                20.2,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:05Z")));
 
-    @Test
-    void saveWrapsDatabaseFailure() {
-        System.setProperty("printerhub.databaseFile", tempDir.resolve("not-a-db-dir").toString());
-        assertDoesNotThrow(() -> java.nio.file.Files.createDirectories(tempDir.resolve("not-a-db-dir")));
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(1, snapshots.size());
+        }
 
-        PrinterSnapshotStore store = new PrinterSnapshotStore();
+        @Test
+        void temperatureDeltaAboveThresholdForcesSnapshotPersistence() {
+                useDatabase("snapshot-temp-delta.db");
 
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> store.save(
-                        "printer-1",
-                        PrinterSnapshot.disconnected(Instant.parse("2026-04-29T10:00:00Z"))
-                )
-        );
+                PrinterSnapshotStore store = new PrinterSnapshotStore(
+                                new MonitoringRules(
+                                                5,
+                                                9999,
+                                                1.0,
+                                                60,
+                                                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                                                false,
+                                                1,
+                                                2,
+                                                100,
+                                                10,
+                                                5));
 
-        assertEquals("Failed to check latest printer snapshot", exception.getMessage());
-    }
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                20.0,
+                                20.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:00Z")));
 
-    private void useDatabase(String fileName) {
-        Path dbFile = tempDir.resolve(fileName);
-        System.setProperty("printerhub.databaseFile", dbFile.toString());
-        new DatabaseInitializer().initialize();
-    }
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                21.2,
+                                20.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:05Z")));
+
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(2, snapshots.size());
+        }
+
+        @Test
+        void minIntervalAllowsLaterSnapshotPersistence() {
+                useDatabase("snapshot-min-interval.db");
+
+                PrinterSnapshotStore store = new PrinterSnapshotStore(
+                                new MonitoringRules(
+                                                5,
+                                                30,
+                                                100.0,
+                                                60,
+                                                MonitoringRules.ErrorPersistenceBehavior.DEDUPLICATED,
+                                                false,
+                                                1,
+                                                2,
+                                                100,
+                                                10,
+                                                5));
+
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                20.0,
+                                20.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:00Z")));
+
+                store.save("printer-1", PrinterSnapshot.fromResponse(
+                                PrinterState.IDLE,
+                                20.0,
+                                20.0,
+                                "ok",
+                                Instant.parse("2026-04-29T10:00:31Z")));
+
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(2, snapshots.size());
+        }
+
+        @Test
+        void findRecentByPrinterIdUsesDefaultLimitWhenNonPositive() {
+                useDatabase("snapshot-default-limit.db");
+
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                for (int i = 0; i < 25; i++) {
+                        store.save("printer-1", PrinterSnapshot.fromResponse(
+                                        PrinterState.IDLE,
+                                        20.0 + i,
+                                        20.0,
+                                        "ok",
+                                        Instant.parse("2026-04-29T10:00:00Z").plusSeconds(i * 31L)));
+                }
+
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 0);
+                assertEquals(20, snapshots.size());
+        }
+
+        @Test
+        void errorSnapshotIsLoadedAsErrorSnapshot() {
+                useDatabase("snapshot-error.db");
+
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                store.save("printer-1", PrinterSnapshot.error(
+                                PrinterState.ERROR,
+                                50.0,
+                                25.0,
+                                "Error: heater failure",
+                                "Heater failure",
+                                Instant.parse("2026-04-29T10:00:00Z")));
+
+                List<PrinterSnapshot> snapshots = store.findRecentByPrinterId("printer-1", 10);
+                assertEquals(1, snapshots.size());
+                assertEquals(PrinterState.ERROR, snapshots.get(0).state());
+                assertEquals("Heater failure", snapshots.get(0).errorMessage());
+        }
+
+        @Test
+        void saveFailsForBlankPrinterId() {
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                IllegalArgumentException exception = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> store.save("   ",
+                                                PrinterSnapshot.disconnected(Instant.parse("2026-04-29T10:00:00Z"))));
+
+                assertEquals("printerId must not be blank", exception.getMessage());
+        }
+
+        @Test
+        void saveFailsForNullSnapshot() {
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                IllegalArgumentException exception = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> store.save("printer-1", null));
+
+                assertEquals("snapshot must not be null", exception.getMessage());
+        }
+
+        @Test
+        void findRecentByPrinterIdFailsForBlankPrinterId() {
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                IllegalArgumentException exception = assertThrows(
+                                IllegalArgumentException.class,
+                                () -> store.findRecentByPrinterId("   ", 10));
+
+                assertEquals("printerId must not be blank", exception.getMessage());
+        }
+
+        @Test
+        void saveWrapsDatabaseFailure() {
+                System.setProperty("printerhub.databaseFile", tempDir.resolve("not-a-db-dir").toString());
+                assertDoesNotThrow(() -> java.nio.file.Files.createDirectories(tempDir.resolve("not-a-db-dir")));
+
+                PrinterSnapshotStore store = new PrinterSnapshotStore();
+
+                IllegalStateException exception = assertThrows(
+                                IllegalStateException.class,
+                                () -> store.save(
+                                                "printer-1",
+                                                PrinterSnapshot.disconnected(Instant.parse("2026-04-29T10:00:00Z"))));
+
+                assertEquals("Failed to check latest printer snapshot", exception.getMessage());
+        }
+
+        private void useDatabase(String fileName) {
+                Path dbFile = tempDir.resolve(fileName);
+                System.setProperty("printerhub.databaseFile", dbFile.toString());
+                new DatabaseInitializer().initialize();
+        }
 }

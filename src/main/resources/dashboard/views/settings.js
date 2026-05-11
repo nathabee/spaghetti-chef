@@ -2,7 +2,7 @@ import { escapeHtml, isSimulatedMode } from "../dashboard.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { state } from "../state.js";
 
-export function renderSettingsPage() {
+ export function renderSettingsPage() {
   const monitoringRules = state.monitoringRules || {};
   const printFileSettings = state.printFileSettings || {};
   const printers = state.printers;
@@ -13,7 +13,7 @@ export function renderSettingsPage() {
         <div class="section-header">
           <div>
             <h2>Monitoring rules</h2>
-            <p class="lead">Runtime polling and persistence settings already available in the backend.</p>
+            <p class="lead">Runtime polling, SD upload, and persistence settings already available in the backend.</p>
           </div>
         </div>
 
@@ -48,7 +48,59 @@ export function renderSettingsPage() {
 
           <label>
             SD upload batch size
-            <input id="sdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(monitoringRules.sdUploadBatchSize ?? 1)}" required>
+            <input id="sdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(monitoringRules.sdUploadBatchSize ?? 5)}" required>
+          </label>
+
+          <label>
+            SD upload recovery window multiplier
+            <input
+              id="sdUploadRecoveryWindowMultiplierInput"
+              name="sdUploadRecoveryWindowMultiplier"
+              type="number"
+              step="1"
+              min="1"
+              max="100"
+              value="${escapeHtml(monitoringRules.sdUploadRecoveryWindowMultiplier ?? 2)}"
+              required>
+          </label>
+
+          <label>
+            SD upload max errors
+            <input
+              id="sdUploadMaxErrorsInput"
+              name="sdUploadMaxErrors"
+              type="number"
+              step="1"
+              min="1"
+              max="1000000"
+              value="${escapeHtml(monitoringRules.sdUploadMaxErrors ?? 100)}"
+              required>
+          </label>
+
+          <label>
+            SD upload max consecutive identical resends
+            <input
+              id="sdUploadMaxConsecutiveIdenticalResendsInput"
+              name="sdUploadMaxConsecutiveIdenticalResends"
+              type="number"
+              step="1"
+              min="1"
+              max="1000"
+              value="${escapeHtml(monitoringRules.sdUploadMaxConsecutiveIdenticalResends ?? 10)}"
+              required>
+          </label>
+
+          <label>
+            SD upload min performance percent
+            <input
+              id="sdUploadMinPerformancePercentInput"
+              name="sdUploadMinPerformancePercent"
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              value="${escapeHtml(monitoringRules.sdUploadMinPerformancePercent ?? 5)}"
+              required>
           </label>
 
           <label class="checkbox-label">

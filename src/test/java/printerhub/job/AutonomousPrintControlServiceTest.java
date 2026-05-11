@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 import printerhub.config.RuntimeDefaults;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
@@ -45,7 +46,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -60,13 +62,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Pause me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Pause me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.pause(job.id());
 
             assertTrue(result.success());
@@ -89,7 +92,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -104,13 +108,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Pause me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Pause me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.pause(job.id());
 
             assertTrue(result.success());
@@ -135,7 +140,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -150,14 +156,15 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Resume me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Resume me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
             jobService.markPaused(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.resume(job.id());
 
             assertTrue(result.success());
@@ -180,7 +187,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -195,13 +203,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
 
             assertTrue(result.success());
@@ -226,7 +235,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -235,8 +245,7 @@ class AutonomousPrintControlServiceTest {
                 "echo:busy: processing",
                 "echo:busy: processing",
                 "ok",
-                "Not SD printing"
-        );
+                "Not SD printing");
 
         try {
             registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
@@ -246,13 +255,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
 
             assertTrue(result.success());
@@ -274,7 +284,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -286,8 +297,7 @@ class AutonomousPrintControlServiceTest {
                         Error:Failed to enable Bed Leveling
                         ok
                         """,
-                "Not SD printing"
-        );
+                "Not SD printing");
 
         try {
             registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
@@ -297,13 +307,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
 
             assertTrue(result.success());
@@ -326,7 +337,8 @@ class AutonomousPrintControlServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-07T20:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -335,8 +347,7 @@ class AutonomousPrintControlServiceTest {
                 "ok",
                 "SD printing byte 10/200",
                 "SD printing byte 20/200",
-                "SD printing byte 30/200"
-        );
+                "SD printing byte 30/200");
 
         try {
             registry.register(new PrinterRuntimeNode("printer-1", "Printer 1", "SIM_PORT", "sim", port, true));
@@ -346,13 +357,14 @@ class AutonomousPrintControlServiceTest {
                     "TEST4.GCO",
                     9L,
                     "TEST4.GCO 9",
-                    null
-            );
+                    null);
 
-            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(), null, null);
+            PrintJob job = jobService.create("Cancel me", JobType.PRINT_FILE, "printer-1", null, printerSdFile.id(),
+                    null, null);
             jobService.markRunning(job.id());
 
-            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler, stepStore);
+            AutonomousPrintControlService service = new AutonomousPrintControlService(jobService, registry, scheduler,
+                    stepStore);
             AutonomousPrintControlService.ControlResult result = service.cancel(job.id());
 
             assertFalse(result.success());
@@ -373,7 +385,9 @@ class AutonomousPrintControlServiceTest {
 
     private static final class RecordingPrinterPort implements PrinterPort {
         private final java.util.List<String> commands = new java.util.ArrayList<>();
+        private final java.util.List<String> pendingRawResponses = new java.util.ArrayList<>();
         private final String response;
+        private boolean connected;
 
         private RecordingPrinterPort(String response) {
             this.response = response;
@@ -381,32 +395,99 @@ class AutonomousPrintControlServiceTest {
 
         @Override
         public void connect() {
+            connected = true;
         }
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+            commands.add(line);
+
+            if (!pendingRawResponses.isEmpty()) {
+                return pendingRawResponses.remove(0);
+            }
+
             return "ok";
         }
 
         @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+            commands.add(line);
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (!pendingRawResponses.isEmpty()) {
+                return pendingRawResponses.remove(0);
+            }
+
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            ensureConnected();
+
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> results = new java.util.ArrayList<>(lines.size());
+            for (String line : lines) {
+                commands.add(line);
+                if (!pendingRawResponses.isEmpty()) {
+                    results.add(pendingRawResponses.remove(0));
+                } else {
+                    results.add("ok");
+                }
+            }
+            return results;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            ensureConnected();
+            pendingRawResponses.clear();
+        }
+
+        @Override
         public String sendCommand(String command) {
+            ensureConnected();
             commands.add(command);
             return response;
         }
 
         @Override
         public void disconnect() {
+            connected = false;
+            pendingRawResponses.clear();
         }
 
         private java.util.List<String> commands() {
             return commands;
+        }
+
+        private void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
+            }
         }
     }
 
     private static final class SequencePrinterPort implements PrinterPort {
         private final java.util.List<String> commands = new java.util.ArrayList<>();
         private final java.util.List<String> responses;
+        private final java.util.List<String> pendingRawResponses = new java.util.ArrayList<>();
         private int index;
+        private boolean connected;
 
         private SequencePrinterPort(String... responses) {
             this.responses = java.util.List.of(responses);
@@ -414,15 +495,64 @@ class AutonomousPrintControlServiceTest {
 
         @Override
         public void connect() {
+            connected = true;
         }
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+            commands.add(line);
             return "ok";
         }
 
         @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+            commands.add(line);
+            pendingRawResponses.add("ok");
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (!pendingRawResponses.isEmpty()) {
+                return pendingRawResponses.remove(0);
+            }
+
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            ensureConnected();
+
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> results = new java.util.ArrayList<>(lines.size());
+            for (String line : lines) {
+                commands.add(line);
+                results.add("ok");
+            }
+            return results;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            ensureConnected();
+            pendingRawResponses.clear();
+        }
+
+        @Override
         public String sendCommand(String command) {
+            ensureConnected();
             commands.add(command);
             String response = responses.get(Math.min(index, responses.size() - 1));
             index++;
@@ -431,10 +561,19 @@ class AutonomousPrintControlServiceTest {
 
         @Override
         public void disconnect() {
+            connected = false;
+            pendingRawResponses.clear();
         }
 
         private java.util.List<String> commands() {
             return commands;
         }
+
+        private void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
+            }
+        }
     }
+
 }

@@ -20,6 +20,9 @@ public final class PrinterProtocolDefaults {
     public static final String COMMAND_PAUSE_SD_PRINT = "M25";
     public static final String COMMAND_ABORT_SD_PRINT = "M524";
     public static final String COMMAND_DELETE_SD_FILE = "M30";
+    public static final String COMMAND_RESET_LINE_NUMBER = "M110 N0";
+    public static final String COMMAND_OPEN_SD_WRITE = "M28";
+    public static final String COMMAND_CLOSE_SD_WRITE = "M29";
     public static final int SD_PRINT_CONTROL_MAX_BUSY_RETRIES = 5;
     public static final long SD_PRINT_CONTROL_BUSY_RETRY_DELAY_MS = 500L;
     public static final int SD_PRINT_CANCEL_VERIFY_ATTEMPTS = 3;
@@ -32,6 +35,7 @@ public final class PrinterProtocolDefaults {
     public static final String SIM_DISCONNECTED_MODE = "sim-disconnected";
     public static final String SIM_TIMEOUT_MODE = "sim-timeout";
     public static final String SIM_ERROR_MODE = "sim-error";
+
 
     public static final String SIMULATED_RESPONSE_DEFAULT_OK = "ok";
     public static final String SIMULATED_RESPONSE_M105 = "ok T:21.80 /0.00 B:21.52 /0.00 @:0 B@:0";

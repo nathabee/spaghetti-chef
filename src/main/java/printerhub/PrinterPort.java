@@ -26,5 +26,7 @@ public interface PrinterPort {
         throw new UnsupportedOperationException("sendRawLinesPipelined is not supported");
     }
 
+    void discardPendingInput(int quietPeriodMs, int maxDrainMs);
+
     void disconnect();
 }

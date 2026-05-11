@@ -404,8 +404,7 @@ function bindGlobalListeners() {
     const closeUploadSessionButton = event.target.closest("[data-close-sd-upload-session]");
     if (closeUploadSessionButton) {
       await handleCloseSdUploadSession(
-        closeUploadSessionButton.dataset.printerId,
-        closeUploadSessionButton.dataset.lineNumber || "2"
+        closeUploadSessionButton.dataset.printerId
       );
       renderApp();
       return;
@@ -614,6 +613,22 @@ async function handleSaveMonitoringRules(form) {
     eventDeduplicationWindowSeconds: Number.parseInt(form.querySelector("#eventDeduplicationWindowSecondsInput").value, 10),
     errorPersistenceBehavior: form.querySelector("#errorPersistenceBehaviorInput").value,
     sdUploadBatchSize: Number.parseInt(form.querySelector("#sdUploadBatchSizeInput").value, 10),
+    sdUploadRecoveryWindowMultiplier: Number.parseInt(
+      form.querySelector("#sdUploadRecoveryWindowMultiplierInput").value,
+      10
+    ),
+    sdUploadMaxErrors: Number.parseInt(
+      form.querySelector("#sdUploadMaxErrorsInput").value,
+      10
+    ),
+    sdUploadMaxConsecutiveIdenticalResends: Number.parseInt(
+      form.querySelector("#sdUploadMaxConsecutiveIdenticalResendsInput").value,
+      10
+    ),
+    sdUploadMinPerformancePercent: Number.parseInt(
+      form.querySelector("#sdUploadMinPerformancePercentInput").value,
+      10
+    ),
     debugWireTracingEnabled: form.querySelector("#debugWireTracingEnabledInput").checked
   };
 
@@ -831,27 +846,26 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
   return Math.max(0, Math.min(100, Math.floor((uploaded * 100) / (uploaded + rejected))));
 }
 
-async function handleCloseSdUploadSession(printerId, lineNumberValue) {
+ async function handleCloseSdUploadSession(printerId) {
   if (!printerId) {
     return;
   }
 
-  const lineNumber = Number.parseInt(lineNumberValue, 10);
-
   try {
-    const response = await closePrinterSdUploadSession(
-      printerId,
-      Number.isFinite(lineNumber) ? lineNumber : 2
-    );
+    const response = await closePrinterSdUploadSession(printerId);
+
     setPrinterSdUploadStatus(printerId, {
       state: "success",
-      message: `Sent upload recovery close at line ${response.lineNumber}. Response: ${response.response || "n/a"}`
+      active: false,
+      message: `Closed upload session using line ${response.lineNumber} after ${response.attempts} attempt(s). Response: ${response.response || "n/a"}`
     });
+
     setMessage(`Closed SD upload session for ${printerId}.`);
     await refreshAllData({ silent: true });
   } catch (error) {
     setPrinterSdUploadStatus(printerId, {
       state: "error",
+      active: false,
       message: `Recovery close failed: ${error.message}`
     });
     setMessage(`Failed to close SD upload session: ${error.message}`);

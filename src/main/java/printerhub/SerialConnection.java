@@ -289,6 +289,49 @@ public final class SerialConnection implements PrinterPort {
         }
     }
 
+    @Override
+    public synchronized void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+        ensureConnected();
+
+        int effectiveQuietPeriodMs = Math.max(1, quietPeriodMs);
+        int effectiveMaxDrainMs = Math.max(effectiveQuietPeriodMs, maxDrainMs);
+
+        long start = System.currentTimeMillis();
+        long lastReadAt = start;
+
+        try {
+            while (System.currentTimeMillis() - start < effectiveMaxDrainMs) {
+                boolean drainedAny = false;
+
+                while (in.available() > 0) {
+                    int value = in.read();
+                    if (value < 0) {
+                        continue;
+                    }
+                    drainedAny = true;
+                    lastReadAt = System.currentTimeMillis();
+                }
+
+                if (!drainedAny && (System.currentTimeMillis() - lastReadAt) >= effectiveQuietPeriodMs) {
+                    return;
+                }
+
+                Thread.sleep(2L);
+            }
+        } catch (IOException exception) {
+            disconnect();
+            throw new IllegalStateException(
+                    OperationMessages.failedToSendCommand("discardPendingInput", portName),
+                    exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            disconnect();
+            throw new IllegalStateException(
+                    OperationMessages.interruptedWhileReadingResponse(portName),
+                    exception);
+        }
+    }
+
     public String portName() {
         return portName;
     }
@@ -344,6 +387,10 @@ public final class SerialConnection implements PrinterPort {
                 ? SerialDefaults.FILE_STREAMING_READ_IDLE_SLEEP_MS
                 : SerialDefaults.READ_IDLE_SLEEP_MS;
 
+        int quietPeriodMs = mode == SerialIOMode.FILE_STREAMING
+                ? SerialDefaults.FILE_STREAMING_QUIET_PERIOD_MS
+                : SerialDefaults.QUIET_PERIOD_MS;
+
         StringBuilder currentLine = new StringBuilder();
         StringBuilder responseBlock = new StringBuilder();
         long start = System.currentTimeMillis();
@@ -393,30 +440,25 @@ public final class SerialConnection implements PrinterPort {
                 continue;
             }
 
-            if (currentLine.length() > 0) {
-                String line = currentLine.toString().trim();
-                if (!line.isEmpty()) {
-                    String candidate = responseBlock.length() == 0
-                            ? line
-                            : responseBlock + "\n" + line;
+            boolean quietPeriodElapsed = System.currentTimeMillis() - lastDataTime >= quietPeriodMs;
 
-                    if (isResponseBlockTerminator(line, mode, candidate)) {
-                        if (responseBlock.length() > 0) {
-                            responseBlock.append('\n');
+            if (quietPeriodElapsed) {
+                StringBuilder candidate = new StringBuilder(responseBlock);
+
+                if (currentLine.length() > 0) {
+                    String line = currentLine.toString().trim();
+                    if (!line.isEmpty()) {
+                        if (candidate.length() > 0) {
+                            candidate.append('\n');
                         }
-                        responseBlock.append(line);
-                        currentLine.setLength(0);
-                        lastSleepCycles = sleepCycles;
-                        return responseBlock.toString();
+                        candidate.append(line);
                     }
                 }
-            }
 
-            if (responseBlock.length() > 0 && System.currentTimeMillis() - lastDataTime > idleSleepMs) {
-                String current = responseBlock.toString();
-                if (containsCompletionSignal(current, mode)) {
+                String candidateResponse = candidate.toString().trim();
+                if (!candidateResponse.isEmpty() && containsCompletionSignal(candidateResponse, mode)) {
                     lastSleepCycles = sleepCycles;
-                    return current;
+                    return candidateResponse;
                 }
             }
 

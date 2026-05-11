@@ -8,6 +8,7 @@ import printerhub.OperatorMessageReportWriter;
 import printerhub.PrinterPort;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
+import printerhub.SerialIOMode;
 import printerhub.command.PrinterCommandService;
 import printerhub.command.SdCardService;
 import printerhub.job.AsyncPrintJobExecutor;
@@ -1483,7 +1484,7 @@ class RemoteApiServerTest {
     }
 
     @Test
-    void postPrinterSdUploadRecoverySendsNumberedM29() throws Exception {
+    void postPrinterSdUploadRecoveryStartsAtLine2AndReturnsActualCloseResult() throws Exception {
         TestContext context = createContext("sd-upload-recovery-close.db");
 
         try {
@@ -1500,11 +1501,48 @@ class RemoteApiServerTest {
             HttpResponse<String> response = context.request(
                     "POST",
                     "/printers/" + printerId + "/sd-card/recovery/close-upload",
-                    "{\"lineNumber\":7}");
+                    "");
 
             assertEquals(200, response.statusCode());
-            assertTrue(response.body().contains("\"lineNumber\":7"));
-            assertTrue(printerPort.commands().stream().anyMatch(command -> command.startsWith("N7 M29*")));
+            assertTrue(response.body().contains("\"printerId\":\"" + printerId + "\""));
+            assertTrue(response.body().contains("\"lineNumber\":2"));
+            assertTrue(response.body().contains("\"attempts\":1"));
+            assertTrue(response.body().contains("\"success\":true"));
+            assertTrue(printerPort.commands().stream().anyMatch(command -> command.startsWith("N2 M29*")));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrinterSdUploadRecoveryRetriesWithRequestedResendLine() throws Exception {
+        TestContext context = createContext("sd-upload-recovery-resend.db");
+
+        try {
+            String printerId = "printer-1";
+            RecordingPrinterPort printerPort = new RecordingPrinterPort()
+                    .queueResponse("Error:No Checksum with line number, Last Line: 3182\nResend: 3183")
+                    .queueResponse("ok");
+
+            context.printerRegistry.register(new PrinterRuntimeNode(
+                    printerId,
+                    "Printer 1",
+                    "/dev/ttyUSB0",
+                    "real",
+                    printerPort,
+                    true));
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/" + printerId + "/sd-card/recovery/close-upload",
+                    "");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"lineNumber\":3183"));
+            assertTrue(response.body().contains("\"attempts\":2"));
+            assertTrue(response.body().contains("\"success\":true"));
+            assertTrue(printerPort.commands().stream().anyMatch(command -> command.startsWith("N2 M29*")));
+            assertTrue(printerPort.commands().stream().anyMatch(command -> command.startsWith("N3183 M29*")));
         } finally {
             context.close();
         }
@@ -1926,6 +1964,7 @@ class RemoteApiServerTest {
 
     private static final class RecordingPrinterPort implements PrinterPort {
         private final List<String> commands = new ArrayList<>();
+        private final List<String> queuedRawResponses = new ArrayList<>();
         private boolean connected;
 
         @Override
@@ -1945,14 +1984,110 @@ class RemoteApiServerTest {
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             ensureConnected();
+
+            if (line == null) {
+                throw new IllegalArgumentException("line must not be null");
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
             commands.add(line);
+
+            if (!queuedRawResponses.isEmpty()) {
+                return queuedRawResponses.remove(0);
+            }
+
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            if (line == null) {
+                throw new IllegalArgumentException("line must not be null");
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            commands.add(line);
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            if (!queuedRawResponses.isEmpty()) {
+                return queuedRawResponses.remove(0);
+            }
+
+            return "ok";
+        }
+
+        @Override
+        public List<String> sendRawLinesPipelined(List<String> lines, SerialIOMode mode) {
+            ensureConnected();
+
+            if (lines == null || lines.isEmpty()) {
+                return List.of();
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            List<String> responses = new ArrayList<>(lines.size());
+            for (String line : lines) {
+                if (line == null) {
+                    throw new IllegalArgumentException("line must not be null");
+                }
+                commands.add(line);
+
+                if (!queuedRawResponses.isEmpty()) {
+                    responses.add(queuedRawResponses.remove(0));
+                } else {
+                    responses.add("ok");
+                }
+            }
+
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            ensureConnected();
+            queuedRawResponses.clear();
         }
 
         @Override
         public void disconnect() {
             connected = false;
+        }
+
+        private RecordingPrinterPort queueResponse(String response) {
+            queuedRawResponses.add(response);
+            return this;
+        }
+
+        private RecordingPrinterPort queueResponses(String... responses) {
+            if (responses == null) {
+                return this;
+            }
+            for (String response : responses) {
+                queuedRawResponses.add(response);
+            }
+            return this;
         }
 
         private List<String> commands() {

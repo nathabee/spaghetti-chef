@@ -1335,13 +1335,13 @@ Expected result:
 
 </details>
 
-## 0.2.3 — Local Audit, History Views, and Controlled Job Actions
+### 0.2.3 — Local Audit, History Views, and Controlled Job Actions
 
 status: in progress
 
 * step A, B, C, D : done
 
-### step A — Audit and history visibility
+#### step A — Audit and history visibility
 
 status: done
 
@@ -1355,7 +1355,7 @@ Goals:
 * make local diagnostics easier through both API and dashboard views
 * make operator-triggered job outcomes reviewable after the fact
 
-### step B — New Dashboard UI and controlled real-printer job workflows
+#### step B — New Dashboard UI and controlled real-printer job workflows
 
 status: done
 
@@ -1391,7 +1391,7 @@ Selected Printer
 ```
 ---
 
-### step C — Correct execution diagnostics and classified outcomes
+#### step C — Correct execution diagnostics and classified outcomes
 
 status: done
 
@@ -1439,7 +1439,7 @@ Expected result:
 
 ---
 
-### step D — Asynchronous job execution
+#### step D — Asynchronous job execution
 
 status : done
 
@@ -1459,7 +1459,7 @@ That step would include:
 
 ---
 
-### step E — File-backed print jobs and richer preparation/verification workflows
+#### step E — File-backed print jobs and richer preparation/verification workflows
 
 status: done
 
@@ -1532,7 +1532,7 @@ not block the first autonomous print activation milestone.
 ---
 
 
-### step F — SD-card administration and guarded host-side G-code upload
+#### step F — SD-card administration and guarded host-side G-code upload
 
 status: done
 
@@ -1658,7 +1658,7 @@ The upload path is currently verified and adapted against the Ender 2 Neo V3 sty
 ---
 
 
-### step G — Autonomous real-printer print-start workflow and SD-card operation hardening
+#### step G — Autonomous real-printer print-start workflow and SD-card operation hardening
 
 status: done
 
@@ -1729,7 +1729,7 @@ Expected result:
 ---
 
 
-### step H — Autonomous running print supervision and operator controls
+#### step H — Autonomous running print supervision and operator controls
 
 status: done
 
@@ -1763,7 +1763,7 @@ Expected result:
 ---
 
 
-### step I — Dashboard print-job controls and recovery actions
+#### step I — Dashboard print-job controls and recovery actions
 
 status: done
 
@@ -1885,7 +1885,7 @@ Expected result for 0.2.3 overall:
 
 Purpose:
 
-Use the real-printer findings from `0.2.3` dashboard testing to close the remaining operational gaps, then package the hardened runtime as a repeatable local service.
+Use the real-printer findings from `0.2.3` to close the remaining SD-upload and runtime-behavior gaps, then prepare the local runtime for stronger adaptive transfer behavior and later service-style packaging.
 
 ---
 
@@ -1907,22 +1907,12 @@ Goals:
 * detect or conservatively represent USB-only versus mains-powered state where firmware evidence allows
 * gate or warn before dangerous movement, heating, or state-changing commands when safe printer power state is uncertain
 
-Anomaly / CR inputs:
-
-```text
-KO-3  cancel is real printer control, not only job state
-KO-4  SD upload recovery after failed file connection
-KO-5  USB-only power versus mains power
-KO-6  fan control reports success but fan does not change
-KO-7  temperature jobs need real-printer verification
-```
-
 Expected result:
 
 * real-printer dashboard behavior matches observed firmware behavior
 * stale `RUNNING` and stale busy states no longer block restart or new print attempts
 * operators can distinguish command acceptance from verified physical effect
-* remaining `0.2.3` real-printer anomalies are either corrected or documented as firmware or hardware limits
+* the major real-printer anomalies discovered during `0.2.3` are either corrected or represented honestly as firmware or hardware limits
 
 ---
 
@@ -1938,15 +1928,15 @@ Goals:
 * disable conflicting actions for the same printer while an SD upload is active, while keeping unrelated printers usable
 * differentiate serial communication behavior between command-response operations and file-streaming operations
 * reduce host-side polling overhead during SD transfer so upload throughput is not artificially limited by the runtime
-* prepare the serial layer for later streamed print execution in `0.2.8`
+* prepare the serial layer for later streamed print execution
 
 Expected result:
 
 * SD uploads are visible and reviewable during execution
 * same-printer conflicting actions are blocked while upload is active
-* command-response and file-streaming traffic are handled with different serial timing strategies
+* command-response and file-streaming traffic use different serial timing behavior
 * SD upload performance is improved where host-side wait behavior was part of the bottleneck
-* transfer behavior is instrumented well enough to compare real-printer results at different batch and timing settings
+* transfer behavior is instrumented well enough to compare real-printer results at different timing and batching settings
 
 ---
 
@@ -1962,24 +1952,17 @@ Goals:
 * parse acknowledgement blocks correctly so multiple `ok` responses are not collapsed into a single logical response
 * keep resend, upload error, and recovery-close behavior visible enough for diagnostics
 * ensure `M29` closes the upload session using the correct next protocol line number rather than reusing the failed line number
-* use the setting to monitor may amount of recovery for file upload SD_UPLOAD_MAX_RETRIES_PER_LINE
-
-Anomalies :
-Bug 1 : The parser splits a multi-line Marlin error/resend block too early.
-Bug 2 : The recovery close still uses stale nextProtocolLineNumber when a failure happens in the middle of streaming.
-Bug 3 : pipelined timeout loses the line context
-Bug 4 : file-streaming timeout disconnects too early for recovery close
+* support small in-flight upload windows on real hardware and make performance testing measurable
 
 Expected result:
 
-* `batch=1` keeps the previous safe behavior
+* `batch=1` keeps the previous conservative behavior
 * `batch>1` enables real multi-line in-flight SD transfer
-* upload sequencing is protocol-correct for numbered and checksummed lines
+* upload sequencing remains protocol-correct for numbered and checksummed lines
 * failures during pipelined upload are diagnosable and recoverable
-* the runtime can now measure whether real-printer upload speed improves with small in-flight windows
+* the runtime can now measure whether small pipelined windows improve real-printer SD upload throughput
 
-
-state machine recovery in batch :
+State-machine note:
 
 ```text
 OPEN_UPLOAD
@@ -2016,43 +1999,173 @@ After all file lines accepted:
   -> list files with M20
   -> verify uploaded file exists
   -> success
-
-``` 
-
-algo is in :
-src/main/java/printerhub/command/SdCardUploadService.java:  private void sendBatchPipelined
-
+```
 
 ---
 
+### 0.2.4 — Step D — buffered resend recovery and degraded replay stabilization
 
-## 0.2.4 — Step D — upload channel isolation and session synchronization
+status: done
+
+Goals:
+
+* keep SD upload isolated from normal monitoring activity on the selected printer
+* support pipelined SD upload with a configurable batch size
+* retain a recent sent-line recovery history sized as `sdUploadBatchSize * sdUploadRecoveryWindowMultiplier`
+* default `sdUploadRecoveryWindowMultiplier` to `2`
+* allow resend recovery not only inside the active batch but also inside recently sent buffered history
+* when resend targets a recoverable buffered line, replay line-by-line from that line through the end of buffered sent history
+* drain pending serial input before resend replay starts
+* switch the current upload into degraded single-send mode after resend instability is detected
+* keep upload progress, protocol error counts, resend evidence, drain evidence, and recovery evidence visible in printer events
+* fail only when recovery leaves the retained history window or when protocol instability exceeds configured limits
+
+Expected result:
+
+* SD upload can begin in pipelined mode for better throughput
+* resend recovery works for both the current batch and recently buffered sent lines
+* stale unread burst responses are drained before replay begins
+* after a resend event, the upload can continue safely in degraded single-send mode instead of re-entering unstable batching immediately
+* failures are diagnosable as resend outside recovery window, repeated identical resend loops, timeout, printer-side error, or cumulative protocol instability
+* correctness and channel resynchronization now take priority over peak throughput once instability has been detected
+
+Implemented behavior:
+
+```text
+OPEN_UPLOAD
+  -> stop monitoring for this printer
+  -> connect upload session
+  -> send M110 N0
+  -> send M28 target.gco
+  -> initialize recent sent-line recovery history
+
+NORMAL_UPLOAD
+  -> build next outgoing window
+  -> store window in recovery history
+  -> send window in pipelined mode
+  -> read responses one by one
+
+if all responses are ok:
+  -> continue with next unsent window
+
+if printer requests Resend: X:
+  -> if X is recoverable:
+       drain pending serial input
+       enable degraded single-send mode
+       replay line-by-line from X through newest buffered sent line
+       continue upload in single-send mode
+  -> else:
+       fail upload
+
+if unrecoverable line error / retry exhaustion / connection failure:
+  -> fail upload
+  -> optional recovery-close with M29
+
+if all file lines are accepted:
+  -> send M29
+  -> list files with M20
+  -> verify uploaded file exists
+  -> success
+```
+
+Note:
+
+```text
+Step D no longer assumes that a successful replay is enough evidence to return
+immediately to full pipelined upload. Once resend instability is detected,
+the current upload session degrades to single-send mode for safety.
+```
+
+---
+
+### 0.2.4 — Step E — adaptive throughput control and autonomous serial tuning
 
 status: planned
 
 Goals:
 
-* give SD upload exclusive ownership of the selected printer serial channel
-* ensure monitoring is fully stopped and no in-flight polling response remains pending before upload synchronization starts
-* drain stale serial input before `M110 N0`
-* reject stale status/temperature replies as valid upload-session acknowledgements
-* require command-specific confirmation for `M28` file-write open and `M29` file-write close
-* persist channel-drain, synchronization, open, close, stale-response, and failure evidence in printer events
-* keep upload performance summary visible, but treat correctness and protocol synchronization as the primary objective
+* build on Step D buffered resend recovery instead of replacing it
+* introduce a real runtime transfer controller instead of using only a fixed configured batch size plus a permanent degraded latch
+* separate:
+
+  * configured maximum batch size
+  * current runtime batch size
+  * recovery state
+  * stability evidence since the last resend
+* automatically reduce transfer aggressiveness after resend instability
+* gradually re-enable batching after a stable stretch of accepted lines
+* search for a stable high-throughput operating point instead of staying permanently in single-send mode after the first resend
+* persist adaptation decisions and stability evidence in printer events
+* expose enough metrics to compare throughput, resend density, recovery frequency, and final completion quality
+* keep the real printer as the primary validation target under aggressive and edge-case upload conditions
+
+Planned behavior:
+
+* start each upload at the configured batch size
+* if resend appears:
+
+  * drain pending input
+  * use buffered replay recovery
+  * lower the active runtime batch size
+  * reset stability counters
+* if the upload then remains stable long enough:
+
+  * increase the active runtime batch size step by step
+* never exceed the configured batch-size ceiling
+* if instability returns:
+
+  * reduce again
+* abort only when recovery leaves retained history or protocol thresholds are exceeded
+
+Planned runtime state:
+
+* configured maximum batch size
+* current active batch size
+* stable accepted lines since last resend
+* recent resend count
+* recent recovery count
+* transfer-quality indicators for the current session
+
+Planned deliverables:
+
+* adaptive batch controller inside SD upload runtime state
+* configurable thresholds for:
+
+  * batch-size increase
+  * downgrade after resend
+  * stability window length
+* event logging for:
+
+  * batch-size decrease
+  * batch-size increase
+  * resend density
+  * recovery frequency
+  * achieved throughput
+* dashboard or API visibility for:
+
+  * current transfer mode
+  * current active batch size
+  * degraded / recovered / stabilizing state
+* repeatable real-printer performance comparison between:
+
+  * fixed single-send
+  * fixed pipelined batch
+  * adaptive batch upload
 
 Expected result:
 
-* SD upload starts on a clean and exclusive serial session
-* previous `M105` monitoring replies cannot be misread as `M110` or `M28` acknowledgements
-* the first pipelined batch starts only after the printer has explicitly confirmed SD write-open
-* failures are diagnosable as stale-channel, response mismatch, resend mismatch, timeout, or printer-side error
-* the windowed resend algorithm from Step C operates on a synchronized upload channel
+* upload still begins from configured transfer settings
+* when instability appears, recovery remains safe and synchronized
+* after recovery, PrinterHub no longer has to stay permanently degraded unless instability persists
+* transfer rate can climb back progressively toward a stable practical value
+* the runtime can approximate an optimal operating point for a given printer / firmware / cable / host environment
+* the project demonstrates both protocol safety and performance-oriented adaptive behavior on real hardware
+
 
 
 ---
 
-
-## 0.2.5 — Runtime Recovery and Serial Device Robustness
+### 0.2.5 — Runtime Recovery and Serial Device Robustness
 
 status: planned
 
@@ -2092,7 +2205,7 @@ Expected result:
 
 ---
 
-## 0.2.6 — Print Asset Transfer and Printer File Handling Hardening
+### 0.2.6 — Print Asset Transfer and Printer File Handling Hardening
 
 status: planned
 
@@ -2124,7 +2237,7 @@ Expected result:
 
 ---
 
-## 0.2.7 — Post-Print Review and Operational History Hardening
+### 0.2.7 — Post-Print Review and Operational History Hardening
 
 status: planned
 
@@ -2152,7 +2265,7 @@ Expected result:
 
 ---
 
-## 0.2.8 — Streamed G-code Job Execution
+### 0.2.8 — Streamed G-code Job Execution
 
 status: planned
 
@@ -2199,7 +2312,7 @@ Expected result:
 
 ---
 
-## 0.2.9 — Local Security, Roles, and Dangerous Action Guards
+### 0.2.9 — Local Security, Roles, and Dangerous Action Guards
 
 status: planned
 

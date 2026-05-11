@@ -12,8 +12,7 @@ public final class DatabaseInitializer {
     public void initialize() {
         try (
                 Connection connection = Database.getConnection();
-                Statement statement = connection.createStatement()
-        ) {
+                Statement statement = connection.createStatement()) {
             createPrintFilesTable(statement);
             createPrinterSdFilesTable(statement);
             createPrintJobsTable(statement);
@@ -23,13 +22,26 @@ public final class DatabaseInitializer {
             createConfiguredPrintersTable(statement);
             createMonitoringRulesTable(statement);
             createPrintFileSettingsTable(statement);
+
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
             ensureColumn(connection, "print_jobs", "printer_sd_file_id", "TEXT");
             ensureColumn(connection, "printer_sd_files", "enabled", "INTEGER NOT NULL DEFAULT 1");
             ensureColumn(connection, "printer_sd_files", "deleted", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "printer_sd_files", "deleted_at", "TEXT");
+
+            ensureColumn(connection, "monitoring_rules", "poll_interval_seconds", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "monitoring_rules", "event_dedup_window_seconds", "INTEGER NOT NULL DEFAULT 60");
+            ensureColumn(connection, "monitoring_rules", "error_persistence_behavior",
+                    "TEXT NOT NULL DEFAULT 'DEDUPLICATED'");
             ensureColumn(connection, "monitoring_rules", "debug_wire_tracing_enabled", "INTEGER NOT NULL DEFAULT 0");
-            ensureColumn(connection, "monitoring_rules", "sd_upload_batch_size", "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "monitoring_rules", "sd_upload_batch_size", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "monitoring_rules", "sd_upload_recovery_window_multiplier",
+                    "INTEGER NOT NULL DEFAULT 2");
+            ensureColumn(connection, "monitoring_rules", "sd_upload_max_errors", "INTEGER NOT NULL DEFAULT 100");
+            ensureColumn(connection, "monitoring_rules", "sd_upload_max_consecutive_identical_resends",
+                    "INTEGER NOT NULL DEFAULT 10");
+            ensureColumn(connection, "monitoring_rules", "sd_upload_min_performance_percent",
+                    "INTEGER NOT NULL DEFAULT 5");
 
             System.out.println(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
         } catch (SQLException exception) {
@@ -102,8 +114,7 @@ public final class DatabaseInitializer {
             Connection connection,
             String tableName,
             String columnName,
-            String definition
-    ) throws SQLException {
+            String definition) throws SQLException {
         try (ResultSet resultSet = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
             if (resultSet.next()) {
                 return;
@@ -194,7 +205,11 @@ public final class DatabaseInitializer {
                     event_dedup_window_seconds INTEGER NOT NULL DEFAULT 60,
                     error_persistence_behavior TEXT NOT NULL DEFAULT 'DEDUPLICATED',
                     debug_wire_tracing_enabled INTEGER NOT NULL DEFAULT 0,
-                    sd_upload_batch_size INTEGER NOT NULL DEFAULT 1,
+                    sd_upload_batch_size INTEGER NOT NULL DEFAULT 5,
+                    sd_upload_recovery_window_multiplier INTEGER NOT NULL DEFAULT 2,
+                    sd_upload_max_errors INTEGER NOT NULL DEFAULT 100,
+                    sd_upload_max_consecutive_identical_resends INTEGER NOT NULL DEFAULT 10,
+                    sd_upload_min_performance_percent INTEGER NOT NULL DEFAULT 5,
                     updated_at TEXT NOT NULL
                 );
                 """;

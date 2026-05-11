@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 import printerhub.config.RuntimeDefaults;
 import printerhub.job.PrintFile;
 import printerhub.job.PrintFileService;
@@ -18,12 +19,11 @@ import printerhub.persistence.PrinterSdFileStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeStateCache;
-import printerhub.SerialIOMode;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -210,8 +210,8 @@ class SdCardUploadServiceTest {
                     IllegalStateException.class,
                     () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TEST8.GCO"));
 
-            assertTrue(exception.getMessage().contains("not present in the active pipelined window"));
-            assertTrue(exception.getMessage().contains("Printer requested resend for line 1"));
+            assertTrue(exception.getMessage().contains("outside the recoverable resend window"));
+            assertTrue(exception.getMessage().contains("line 1"));
             assertTrue(printerPort.operations().contains("raw:N1 M28 TEST8.GCO*115"));
             assertTrue(printerPort.operations().contains("raw:N2 M29*26"));
 
@@ -361,7 +361,12 @@ class SdCardUploadServiceTest {
                     new SdCardService(printerEventStore),
                     printerSdFileService,
                     printerEventStore,
-                    () -> false);
+                    () -> false,
+                    () -> 5,
+                    () -> 2,
+                    () -> 10_000,
+                    () -> 10,
+                    () -> 0);
             disabledTraceService.uploadToPrinterSd("printer-1", printFile.id(), "TEST4.GCO");
             assertFalse(output.toString().contains("SD upload wire"));
 
@@ -375,11 +380,219 @@ class SdCardUploadServiceTest {
                     new SdCardService(printerEventStore),
                     printerSdFileService,
                     printerEventStore,
-                    () -> true);
+                    () -> true,
+                    () -> 5,
+                    () -> 2,
+                    () -> 10_000,
+                    () -> 10,
+                    () -> 0);
             enabledTraceService.uploadToPrinterSd("printer-1", printFile.id(), "TEST4.GCO");
             assertTrue(output.toString().contains("SD upload wire"));
         } finally {
             System.setOut(originalOut);
+            monitoringScheduler.stop();
+        }
+    }
+
+    @Test
+    void uploadRecoversActiveBatchResendLineByLineAndSucceeds() throws Exception {
+        initializeDatabase("sd-upload-active-batch-recovery.db");
+
+        Path hostFile = tempDir.resolve("upload-active-batch-recovery.gcode");
+        Files.writeString(hostFile, "M104 S0\nM105\n");
+
+        PrinterRegistry printerRegistry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(printerRegistry, stateCache);
+        PrinterEventStore printerEventStore = new PrinterEventStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        PrintFileService printFileService = new PrintFileService(printFileStore);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
+        SdCardUploadService uploadService = new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore,
+                () -> false,
+                () -> 2,
+                () -> 2,
+                () -> 10_000,
+                () -> 10,
+                () -> 0);
+
+        PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
+        ActiveBatchRecoveryPrinterPort printerPort = new ActiveBatchRecoveryPrinterPort();
+        printerRegistry.register(new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/ttyUSB0",
+                "real",
+                printerPort,
+                true));
+
+        try {
+            SdCardUploadService.UploadResult result = uploadService.uploadToPrinterSd(
+                    "printer-1",
+                    printFile.id(),
+                    "TEST9.GCO");
+
+            assertTrue(result.success());
+            assertEquals(2L, result.uploadedLineCount());
+            assertEquals(1L, result.rejectedLineCount());
+
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N2 "));
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N3 "));
+            assertTrue(containsRawOperationStartingWith(printerPort.operations(), "raw:N4 M29"));
+            assertTrue(containsRawOperationStartingWith(printerPort.operations(), "raw:N5 M20"));
+
+            SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
+            assertFalse(progress.active());
+            assertEquals("success", progress.state());
+            assertEquals(1L, progress.rejectedLineCount());
+        } finally {
+            monitoringScheduler.stop();
+        }
+    }
+
+    @Test
+    void uploadRecoversFromRecentSentLineBufferAndSucceeds() throws Exception {
+        initializeDatabase("sd-upload-recent-buffer-recovery.db");
+
+        Path hostFile = tempDir.resolve("upload-recent-buffer-recovery.gcode");
+        Files.writeString(hostFile, """
+                M104 S0
+                M105
+                M106 S1
+                M107
+                M114
+                G92 E0
+                """);
+
+        PrinterRegistry printerRegistry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(printerRegistry, stateCache);
+        PrinterEventStore printerEventStore = new PrinterEventStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        PrintFileService printFileService = new PrintFileService(printFileStore);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
+        SdCardUploadService uploadService = new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore,
+                () -> false,
+                () -> 2,
+                () -> 2,
+                () -> 10_000,
+                () -> 10,
+                () -> 0);
+
+        PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
+        RecentBufferRecoveryPrinterPort printerPort = new RecentBufferRecoveryPrinterPort();
+        printerRegistry.register(new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/ttyUSB0",
+                "real",
+                printerPort,
+                true));
+
+        try {
+            SdCardUploadService.UploadResult result = uploadService.uploadToPrinterSd(
+                    "printer-1",
+                    printFile.id(),
+                    "TESTA.GCO");
+
+            assertTrue(result.success());
+            assertEquals(6L, result.uploadedLineCount());
+            assertEquals(1L, result.rejectedLineCount());
+
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N4 "));
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N5 "));
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N6 "));
+            assertEquals(2, countRawOperationsStartingWith(printerPort.operations(), "raw:N7 "));
+            assertTrue(containsRawOperationStartingWith(printerPort.operations(), "raw:N8 M29"));
+            assertTrue(containsRawOperationStartingWith(printerPort.operations(), "raw:N9 M20"));
+
+            assertTrue(printerEventStore.findRecentByPrinterId("printer-1", 20)
+                    .stream()
+                    .anyMatch(event -> "SD_CARD_UPLOAD_RECOVERY_STARTED".equals(event.eventType())));
+
+            assertTrue(printerEventStore.findRecentByPrinterId("printer-1", 20)
+                    .stream()
+                    .anyMatch(event -> "SD_CARD_UPLOAD_RECOVERY_COMPLETED".equals(event.eventType())));
+        } finally {
+            monitoringScheduler.stop();
+        }
+    }
+
+    @Test
+    void uploadFailsWhenResendFallsOutsideRecentSentLineBuffer() throws Exception {
+        initializeDatabase("sd-upload-recent-buffer-miss.db");
+
+        Path hostFile = tempDir.resolve("upload-recent-buffer-miss.gcode");
+        Files.writeString(hostFile, """
+                M104 S0
+                M105
+                M106 S1
+                M107
+                M114
+                G92 E0
+                M82
+                M83
+                """);
+
+        PrinterRegistry printerRegistry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(printerRegistry, stateCache);
+        PrinterEventStore printerEventStore = new PrinterEventStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        PrintFileService printFileService = new PrintFileService(printFileStore);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
+        SdCardUploadService uploadService = new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore,
+                () -> false,
+                () -> 2,
+                () -> 2,
+                () -> 10_000,
+                () -> 10,
+                () -> 0);
+
+        PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
+        RecentBufferMissPrinterPort printerPort = new RecentBufferMissPrinterPort();
+        printerRegistry.register(new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/ttyUSB0",
+                "real",
+                printerPort,
+                true));
+
+        try {
+            IllegalStateException exception = assertThrows(
+                    IllegalStateException.class,
+                    () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TESTB.GCO"));
+
+            assertTrue(exception.getMessage().contains("outside the recoverable resend window"));
+            assertTrue(exception.getMessage().contains("line 2"));
+
+            SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
+            assertFalse(progress.active());
+            assertEquals("error", progress.state());
+            assertEquals(1L, progress.rejectedLineCount());
+        } finally {
             monitoringScheduler.stop();
         }
     }
@@ -390,14 +603,131 @@ class SdCardUploadServiceTest {
         new DatabaseInitializer().initialize();
     }
 
-    private static final class RecordingUploadPrinterPort implements PrinterPort {
+    private int countRawOperationsStartingWith(List<String> operations, String prefix) {
+        int count = 0;
+
+        for (String operation : operations) {
+            if (operation.startsWith(prefix)) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private boolean containsRawOperationStartingWith(List<String> operations, String prefix) {
+        for (String operation : operations) {
+            if (operation.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private abstract static class BaseTestPrinterPort implements PrinterPort {
+
+        protected final List<String> pendingResponses = new ArrayList<>();
+        protected boolean connected;
+
+        @Override
+        public void connect() {
+            connected = true;
+        }
+
+        @Override
+        public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            if (line == null) {
+                throw new IllegalArgumentException("line must not be null");
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            return handleRawLine(line);
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            if (line == null) {
+                throw new IllegalArgumentException("line must not be null");
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            pendingResponses.add(handleRawLine(line));
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+            if (pendingResponses.isEmpty()) {
+                throw new IllegalStateException("No pending response");
+            }
+
+            return pendingResponses.remove(0);
+        }
+
+        @Override
+        public List<String> sendRawLinesPipelined(List<String> lines, SerialIOMode mode) {
+            ensureConnected();
+
+            if (lines == null || lines.isEmpty()) {
+                return List.of();
+            }
+            if (mode == null) {
+                throw new IllegalArgumentException("mode must not be null");
+            }
+
+            List<String> responses = new ArrayList<>(lines.size());
+            for (String line : lines) {
+                responses.add(sendRawLine(line, mode));
+            }
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            ensureConnected();
+            pendingResponses.clear();
+        }
+
+        @Override
+        public void disconnect() {
+            connected = false;
+            pendingResponses.clear();
+        }
+
+        protected void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
+            }
+        }
+
+        protected abstract String handleRawLine(String line);
+    }
+
+    private static final class RecordingUploadPrinterPort extends BaseTestPrinterPort {
 
         private final List<String> operations = new ArrayList<>();
-        private boolean connected;
 
         @Override
         public synchronized void connect() {
-            connected = true;
+            super.connect();
             operations.add("connect");
         }
 
@@ -413,8 +743,7 @@ class SdCardUploadServiceTest {
         }
 
         @Override
-        public synchronized String sendRawLine(String line) {
-            ensureConnected();
+        protected synchronized String handleRawLine(String line) {
             operations.add("raw:" + line);
 
             return switch (line) {
@@ -437,14 +766,8 @@ class SdCardUploadServiceTest {
 
         @Override
         public synchronized void disconnect() {
-            connected = false;
+            super.disconnect();
             operations.add("disconnect");
-        }
-
-        private void ensureConnected() {
-            if (!connected) {
-                throw new IllegalStateException("not connected");
-            }
         }
 
         private synchronized List<String> operations() {
@@ -452,16 +775,9 @@ class SdCardUploadServiceTest {
         }
     }
 
-    private static final class ResendThenOkPrinterPort implements PrinterPort {
+    private static final class ResendThenOkPrinterPort extends BaseTestPrinterPort {
 
         private final AtomicInteger payloadAttempts = new AtomicInteger();
-        private final List<String> pendingResponses = new ArrayList<>();
-        private boolean connected;
-
-        @Override
-        public void connect() {
-            connected = true;
-        }
 
         @Override
         public String sendCommand(String command) {
@@ -470,9 +786,7 @@ class SdCardUploadServiceTest {
         }
 
         @Override
-        public String sendRawLine(String line) {
-            ensureConnected();
-
+        protected String handleRawLine(String line) {
             return switch (line) {
                 case "N0 M110 N0*125", "N1 M28 TEST5.GCO*126" -> "ok";
                 case "N2 M104 S0*103" -> {
@@ -492,52 +806,14 @@ class SdCardUploadServiceTest {
             };
         }
 
-        @Override
-        public void writeRawLine(String line, SerialIOMode mode) {
-            ensureConnected();
-
-            String response = sendRawLine(line);
-            pendingResponses.add(response);
-        }
-
-        @Override
-        public String readRawResponse(SerialIOMode mode) {
-            ensureConnected();
-
-            if (pendingResponses.isEmpty()) {
-                throw new IllegalStateException("No pending response");
-            }
-
-            return pendingResponses.remove(0);
-        }
-
-        @Override
-        public void disconnect() {
-            connected = false;
-            pendingResponses.clear();
-        }
-
-        private void ensureConnected() {
-            if (!connected) {
-                throw new IllegalStateException("not connected");
-            }
-        }
-
         private int payloadAttempts() {
             return payloadAttempts.get();
         }
     }
 
-    private static final class ResendMismatchPrinterPort implements PrinterPort {
+    private static final class ResendMismatchPrinterPort extends BaseTestPrinterPort {
 
         private final List<String> operations = new ArrayList<>();
-        private final List<String> pendingResponses = new ArrayList<>();
-        private boolean connected;
-
-        @Override
-        public void connect() {
-            connected = true;
-        }
 
         @Override
         public String sendCommand(String command) {
@@ -546,8 +822,7 @@ class SdCardUploadServiceTest {
         }
 
         @Override
-        public String sendRawLine(String line) {
-            ensureConnected();
+        protected String handleRawLine(String line) {
             operations.add("raw:" + line);
 
             return switch (line) {
@@ -561,50 +836,12 @@ class SdCardUploadServiceTest {
             };
         }
 
-        @Override
-        public void writeRawLine(String line, SerialIOMode mode) {
-            ensureConnected();
-
-            String response = sendRawLine(line);
-            pendingResponses.add(response);
-        }
-
-        @Override
-        public String readRawResponse(SerialIOMode mode) {
-            ensureConnected();
-
-            if (pendingResponses.isEmpty()) {
-                throw new IllegalStateException("No pending response");
-            }
-
-            return pendingResponses.remove(0);
-        }
-
-        @Override
-        public void disconnect() {
-            connected = false;
-            pendingResponses.clear();
-        }
-
-        private void ensureConnected() {
-            if (!connected) {
-                throw new IllegalStateException("not connected");
-            }
-        }
-
         private List<String> operations() {
             return List.copyOf(operations);
         }
     }
 
-    private static final class MissingFileListingPrinterPort implements PrinterPort {
-
-        private boolean connected;
-
-        @Override
-        public void connect() {
-            connected = true;
-        }
+    private static final class MissingFileListingPrinterPort extends BaseTestPrinterPort {
 
         @Override
         public String sendCommand(String command) {
@@ -613,9 +850,7 @@ class SdCardUploadServiceTest {
         }
 
         @Override
-        public String sendRawLine(String line) {
-            ensureConnected();
-
+        protected String handleRawLine(String line) {
             return switch (line) {
                 case "N0 M110 N0*125", "N2 M104 S0*103", "N3 M29*27" -> "ok";
                 case "N1 M28 TEST6.GCO*125" -> """
@@ -632,29 +867,11 @@ class SdCardUploadServiceTest {
                 default -> throw new IllegalStateException("Unexpected raw line: " + line);
             };
         }
-
-        @Override
-        public void disconnect() {
-            connected = false;
-        }
-
-        private void ensureConnected() {
-            if (!connected) {
-                throw new IllegalStateException("not connected");
-            }
-        }
     }
 
-    private static final class CommentAwarePrinterPort implements PrinterPort {
+    private static final class CommentAwarePrinterPort extends BaseTestPrinterPort {
 
         private final List<String> operations = new ArrayList<>();
-        private final List<String> pendingResponses = new ArrayList<>();
-        private boolean connected;
-
-        @Override
-        public void connect() {
-            connected = true;
-        }
 
         @Override
         public String sendCommand(String command) {
@@ -663,8 +880,7 @@ class SdCardUploadServiceTest {
         }
 
         @Override
-        public String sendRawLine(String line) {
-            ensureConnected();
+        protected String handleRawLine(String line) {
             operations.add("raw:" + line);
 
             return switch (line) {
@@ -684,35 +900,175 @@ class SdCardUploadServiceTest {
             };
         }
 
-        @Override
-        public void writeRawLine(String line, SerialIOMode mode) {
-            ensureConnected();
+        private List<String> operations() {
+            return List.copyOf(operations);
+        }
+    }
 
-            String response = sendRawLine(line);
-            pendingResponses.add(response);
+    private static final class ActiveBatchRecoveryPrinterPort extends BaseTestPrinterPort {
+
+        private final List<String> operations = new ArrayList<>();
+        private final AtomicInteger line2Attempts = new AtomicInteger();
+
+        @Override
+        public String sendCommand(String command) {
+            ensureConnected();
+            return "ok";
         }
 
         @Override
-        public String readRawResponse(SerialIOMode mode) {
-            ensureConnected();
+        protected String handleRawLine(String line) {
+            operations.add("raw:" + line);
 
-            if (pendingResponses.isEmpty()) {
-                throw new IllegalStateException("No pending response");
+            if (line.startsWith("N0 M110 N0*")) {
+                return "ok";
+            }
+            if (line.startsWith("N1 M28 TEST9.GCO*")) {
+                return """
+                        echo:Now fresh file: TEST9.GCO
+                        Writing to file: TEST9.GCO
+                        ok
+                        """;
+            }
+            if (line.startsWith("N2 ")) {
+                if (line2Attempts.incrementAndGet() == 1) {
+                    return """
+                            Error:checksum mismatch
+                            Resend: 2
+                            ok
+                            """;
+                }
+                return "ok";
+            }
+            if (line.startsWith("N3 ")) {
+                return "ok";
+            }
+            if (line.startsWith("N4 M29*")) {
+                return "ok";
+            }
+            if (line.startsWith("N5 M20*")) {
+                return """
+                        Begin file list
+                        TEST9.GCO 14
+                        End file list
+                        ok
+                        """;
             }
 
-            return pendingResponses.remove(0);
+            throw new IllegalStateException("Unexpected raw line: " + line);
+        }
+
+        private List<String> operations() {
+            return List.copyOf(operations);
+        }
+    }
+
+    private static final class RecentBufferRecoveryPrinterPort extends BaseTestPrinterPort {
+
+        private final List<String> operations = new ArrayList<>();
+        private final AtomicInteger line6Attempts = new AtomicInteger();
+
+        @Override
+        public String sendCommand(String command) {
+            ensureConnected();
+            return "ok";
         }
 
         @Override
-        public void disconnect() {
-            connected = false;
-            pendingResponses.clear();
+        protected String handleRawLine(String line) {
+            operations.add("raw:" + line);
+
+            if (line.startsWith("N0 M110 N0*")) {
+                return "ok";
+            }
+            if (line.startsWith("N1 M28 TESTA.GCO*")) {
+                return """
+                        echo:Now fresh file: TESTA.GCO
+                        Writing to file: TESTA.GCO
+                        ok
+                        """;
+            }
+            if (line.startsWith("N2 ") || line.startsWith("N3 ")
+                    || line.startsWith("N4 ") || line.startsWith("N5 ")
+                    || line.startsWith("N7 ")) {
+                return "ok";
+            }
+            if (line.startsWith("N6 ")) {
+                if (line6Attempts.incrementAndGet() == 1) {
+                    return """
+                            Error:Line Number is not Last Line Number+1, Last Line: 3
+                            Resend: 4
+                            ok
+                            """;
+                }
+                return "ok";
+            }
+            if (line.startsWith("N8 M29*")) {
+                return "ok";
+            }
+            if (line.startsWith("N9 M20*")) {
+                return """
+                        Begin file list
+                        TESTA.GCO 36
+                        End file list
+                        ok
+                        """;
+            }
+
+            throw new IllegalStateException("Unexpected raw line: " + line);
         }
 
-        private void ensureConnected() {
-            if (!connected) {
-                throw new IllegalStateException("not connected");
+        private List<String> operations() {
+            return List.copyOf(operations);
+        }
+    }
+
+    private static final class RecentBufferMissPrinterPort extends BaseTestPrinterPort {
+
+        private final List<String> operations = new ArrayList<>();
+        private final AtomicInteger line8Attempts = new AtomicInteger();
+
+        @Override
+        public String sendCommand(String command) {
+            ensureConnected();
+            return "ok";
+        }
+
+        @Override
+        protected String handleRawLine(String line) {
+            operations.add("raw:" + line);
+
+            if (line.startsWith("N0 M110 N0*")) {
+                return "ok";
             }
+            if (line.startsWith("N1 M28 TESTB.GCO*")) {
+                return """
+                        echo:Now fresh file: TESTB.GCO
+                        Writing to file: TESTB.GCO
+                        ok
+                        """;
+            }
+            if (line.startsWith("N2 ") || line.startsWith("N3 ")
+                    || line.startsWith("N4 ") || line.startsWith("N5 ")
+                    || line.startsWith("N6 ") || line.startsWith("N7 ")
+                    || line.startsWith("N9 ")) {
+                return "ok";
+            }
+            if (line.startsWith("N8 ")) {
+                if (line8Attempts.incrementAndGet() == 1) {
+                    return """
+                            Error:Line Number is not Last Line Number+1, Last Line: 7
+                            Resend: 2
+                            ok
+                            """;
+                }
+                return "ok";
+            }
+            if (line.startsWith("N2 M29*")) {
+                return "ok";
+            }
+
+            throw new IllegalStateException("Unexpected raw line: " + line);
         }
 
         private List<String> operations() {
