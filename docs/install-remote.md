@@ -44,7 +44,7 @@ printer-hub/
 │   └── install-remote.md
 ├── tools/
 │   └── win/
-│       ├── i.ps1
+│       ├── run.env.example
 │       ├── u.ps1
 │       ├── r.ps1
 │       ├── s.ps1
@@ -77,14 +77,6 @@ launch remote PowerShell scripts on the Windows host.
 
 ### Windows scripts
 
-* `i.ps1`
-
-  * one-time bootstrap
-  * verify Java 21
-  * create `C:\ph\...`
-  * copy scripts to `C:\ph\bin`
-  * create initial `run.env` if missing
-
 * `u.ps1`
 
   * remote update entrypoint
@@ -105,6 +97,11 @@ launch remote PowerShell scripts on the Windows host.
 * `v.ps1`
 
   * status and health check
+
+* `run.env.example`
+
+  * example local runtime configuration file
+  * copied once to `C:\ph\data\run.env`
 
 ### Linux helper commands
 
@@ -129,11 +126,23 @@ printer-hub-<version>-windows.zip
 Example:
 
 ```text
-printer-hub-0.2.4.STEP_C_TEST-windows.zip
+printer-hub-0.2.4-windows.zip
 ```
 
 The Git tag and release name are expected to match the version string used by
 the updater.
+
+The admin bootstrap package uses:
+
+```text
+printer-hub-<version>-admin.zip
+```
+
+Example:
+
+```text
+printer-hub-0.2.4-admin.zip
+```
 
 ---
 
@@ -243,62 +252,56 @@ New-Item -ItemType Directory -Force -Path C:\ph\bin
 
 ---
 
-### 5. Copy the PowerShell scripts to the Windows laptop
-
-
-### 5. Install the admin bootstrap scripts on the Windows laptop
+### 5. Install the admin bootstrap files on the Windows laptop
 
 Download:
 
 ```text
 printer-hub-<version>-admin.zip
-````
+```
 
 Extract the zip on the Windows laptop.
 
-Create the target folder if needed:
-
-```powershell
-New-Item -ItemType Directory -Force -Path C:\ph\bin
-```
-
-Then copy the extracted `.ps1` files into:
+Copy the extracted PowerShell scripts into:
 
 ```text
 C:\ph\bin\
 ```
 
-After that, run:
-
-```powershell
-C:\ph\bin\i.ps1
-```
-
-
----
-
-### 6. Run the bootstrap script once
-
-Open PowerShell as Administrator:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-C:\ph\bin\i.ps1
-```
-
-This creates the final folder structure, copies the scripts again into
-`C:\ph\bin`, and creates:
+Copy the extracted example environment file to:
 
 ```text
 C:\ph\data\run.env
 ```
 
-Initial content:
+If the admin package contains `run.env.example`, copy it as:
+
+```text
+C:\ph\data\run.env
+```
+
+You do not need to open or download files one by one from GitHub.
+
+---
+
+### 6. Review local runtime configuration
+
+Open:
+
+```text
+C:\ph\data\run.env
+```
+
+Initial example content:
 
 ```text
 PRINTERHUB_DATABASE_FILE=printerhub.db
 PRINTERHUB_API_PORT=18080
+PRINTERHUB_SERIAL_PORT=COM3
+PRINTERHUB_MODE=real
 ```
+
+Adjust values if needed for the target Windows laptop.
 
 ---
 
@@ -472,7 +475,6 @@ This first emergency solution has known limits:
 
 * no automatic rollback yet
 * no service wrapper yet
-* no packaged admin zip yet
 * no latest-release auto-discovery yet
 * no dynamic host discovery yet
 * launcher parameters are still basic and should later move fully into `run.env`
@@ -485,11 +487,9 @@ This is acceptable for the current pre-`1.0.0` scope.
 
 Planned later hardening:
 
-* move serial port and mode into `run.env`
+* move serial port and mode fully into `run.env`
 * add rollback-safe update behavior
 * add optional latest-release mode
-* add first-install bootstrap zip
-* add Jenkins packaging for `printerhub-admin.zip`
 * integrate remote administration into the future admin dashboard
 
 ---
@@ -499,7 +499,7 @@ Planned later hardening:
 ### Repo files
 
 * `docs/install-remote.md`
-* `tools/win/i.ps1`
+* `tools/win/run.env.example`
 * `tools/win/u.ps1`
 * `tools/win/r.ps1`
 * `tools/win/s.ps1`
@@ -517,7 +517,6 @@ Planned later hardening:
 * `C:\ph\log\update.log`
 * `C:\ph\log\printerhub-out.log`
 * `C:\ph\log\printerhub-err.log`
-* `C:\ph\bin\i.ps1`
 * `C:\ph\bin\u.ps1`
 * `C:\ph\bin\r.ps1`
 * `C:\ph\bin\s.ps1`
@@ -530,42 +529,33 @@ Planned later hardening:
 
 ---
 
-````
-
----
-
-## Additional repo to-do change
-
-You also asked to “change to do list all the file(s) in remote and local”.
-
-So yes, I would also add a short section in your existing roadmap or ops notes.
-
-You can add this small block somewhere appropriate:
-
-```md
 ## Remote Windows emergency administration bootstrap
 
 Files introduced for the temporary pre-1.0.0 remote administration flow:
 
 ### Repo
-- `docs/install-remote.md`
-- `tools/win/i.ps1`
-- `tools/win/u.ps1`
-- `tools/win/r.ps1`
-- `tools/win/s.ps1`
-- `tools/win/v.ps1`
-- `ops/phu`
-- `ops/phv`
+
+* `docs/install-remote.md`
+* `tools/win/run.env.example`
+* `tools/win/u.ps1`
+* `tools/win/r.ps1`
+* `tools/win/s.ps1`
+* `tools/win/v.ps1`
+* `ops/phu`
+* `ops/phv`
 
 ### Remote Windows host
-- `C:\ph\app\`
-- `C:\ph\data\`
-- `C:\ph\log\`
-- `C:\ph\rel\`
-- `C:\ph\tmp\`
-- `C:\ph\bin\`
+
+* `C:\ph\app\`
+* `C:\ph\data\`
+* `C:\ph\log\`
+* `C:\ph\rel\`
+* `C:\ph\tmp\`
+* `C:\ph\bin\`
 
 ### Local Linux admin machine
-- `ops/phu`
-- `ops/phv`
-```
+
+* `ops/phu`
+* `ops/phv`
+
+ 
