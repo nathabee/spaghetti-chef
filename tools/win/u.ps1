@@ -139,8 +139,9 @@ if ($javaMajor -ne 21) {
 
 $assetName = "printer-hub-$Version-windows.zip"
 $zipPath = Join-Path $relDir $assetName
-$extractDir = Join-Path $tmpDir ("extract-" + $Version)
-$downloadUrl = "https://github.com/$Owner/$Repo/releases/download/$Version/$assetName"
+$extractDir = Join-Path $tmpDir ("extract-" + $Version) 
+$tagName = "v$Version"
+$downloadUrl = "https://github.com/$Owner/$Repo/releases/download/$tagName/$assetName"
 $updateLog = Join-Path $logDir 'update.log'
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
