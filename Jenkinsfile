@@ -890,25 +890,26 @@ if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
 java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
 EOF
 
-            cp tools/win/i.ps1 package/admin/
-            cp tools/win/u.ps1 package/admin/
-            cp tools/win/r.ps1 package/admin/
-            cp tools/win/s.ps1 package/admin/
-            cp tools/win/v.ps1 package/admin/
-            cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
+cp tools/win/run.env.example package/admin/
+cp tools/win/u.ps1 package/admin/
+cp tools/win/r.ps1 package/admin/
+cp tools/win/s.ps1 package/admin/
+cp tools/win/v.ps1 package/admin/
+cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
 
-            cat > package/admin/README.txt <<'EOF'
+cat > package/admin/README.txt <<'EOF'
 PrinterHub Windows remote administration bootstrap package.
 
 Contents:
-- i.ps1 : first bootstrap on Windows host
+- run.env.example : example local runtime configuration
 - u.ps1 : remote update script
 - r.ps1 : start PrinterHub
 - s.ps1 : stop PrinterHub
 - v.ps1 : status and health check
 - INSTALL-REMOTE.md : setup instructions
 
-Copy these PowerShell scripts to C:\\ph\\bin on the Windows host and run i.ps1 once as Administrator.
+Copy the PowerShell scripts to C:\\ph\\bin on the Windows host.
+Copy run.env.example to C:\\ph\\data\\run.env and adjust values if needed.
 EOF
 
             tar -C package -czf "dist/${LINUX_PACKAGE}" linux

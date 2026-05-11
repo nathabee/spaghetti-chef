@@ -42,33 +42,60 @@ $stdoutLog = Join-Path $logDir 'printerhub-out.log'
 $stderrLog = Join-Path $logDir 'printerhub-err.log'
 $startLog = Join-Path $logDir 'start.log'
 
+if (-not (Test-Path -LiteralPath $appDir)) {
+    Fail "App directory not found: $appDir"
+}
 if (-not (Test-Path -LiteralPath $launcher)) {
     Fail "Launcher not found: $launcher"
 }
 
-$envMap = Read-RunEnv -Path $runEnvPath
-
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $env:PRINTERHUB_DATABASE_FILE = $envMap['PRINTERHUB_DATABASE_FILE']
+if (-not (Test-Path -LiteralPath $logDir)) {
+    New-Item -ItemType Directory -Path $logDir | Out-Null
 }
 
-$apiPort = $null
+$envMap = Read-RunEnv -Path $runEnvPath
+
+$databaseFile = 'printerhub.db'
+$apiPort = '18080'
+$serialPort = 'COM3'
+$mode = 'real'
+
+if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
+    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+}
 if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
     $apiPort = $envMap['PRINTERHUB_API_PORT']
 }
-
-$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-"$stamp starting PrinterHub from $launcher" | Add-Content -LiteralPath $startLog
-
-$argumentList = @('/c', "`"$launcher`"")
-if ($apiPort) {
-    $argumentList += @('COM3', 'real', $apiPort)
+if ($envMap.ContainsKey('PRINTERHUB_SERIAL_PORT')) {
+    $serialPort = $envMap['PRINTERHUB_SERIAL_PORT']
+}
+if ($envMap.ContainsKey('PRINTERHUB_MODE')) {
+    $mode = $envMap['PRINTERHUB_MODE']
 }
 
-Start-Process -FilePath 'cmd.exe' `
-    -ArgumentList $argumentList `
+$env:PRINTERHUB_DATABASE_FILE = $databaseFile
+
+$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+"[$stamp] launcher=$launcher" | Add-Content -LiteralPath $startLog
+"[$stamp] serialPort=$serialPort mode=$mode apiPort=$apiPort databaseFile=$databaseFile" | Add-Content -LiteralPath $startLog
+
+$process = Start-Process -FilePath $launcher `
+    -ArgumentList @($serialPort, $mode, $apiPort) `
     -WorkingDirectory $appDir `
     -RedirectStandardOutput $stdoutLog `
-    -RedirectStandardError $stderrLog
+    -RedirectStandardError $stderrLog `
+    -PassThru
 
-Write-Host "PrinterHub start command launched."
+Start-Sleep -Seconds 3
+
+if ($process.HasExited) {
+    "[$stamp] process exited early with code $($process.ExitCode)" | Add-Content -LiteralPath $startLog
+    Fail "PrinterHub exited immediately. Check C:\ph\log\printerhub-out.log and C:\ph\log\printerhub-err.log"
+}
+
+"[$stamp] started PID=$($process.Id)" | Add-Content -LiteralPath $startLog
+Write-Host "PrinterHub started. PID=$($process.Id)"
+Write-Host "Serial port: $serialPort"
+Write-Host "Mode: $mode"
+Write-Host "API port: $apiPort"
+Write-Host "Database file: $databaseFile"
