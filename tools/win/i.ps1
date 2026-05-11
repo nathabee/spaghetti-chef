@@ -6,11 +6,7 @@ function Fail {
     exit 1
 }
 
-function Test-Admin {
-    $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentIdentity)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
+ 
 
 function Get-JavaMajorVersion {
     try {
@@ -31,9 +27,7 @@ function Get-JavaMajorVersion {
     }
 }
 
-if (-not (Test-Admin)) {
-    Fail "i.ps1 must be run as Administrator."
-}
+
 
 $javaMajor = Get-JavaMajorVersion
 if ($null -eq $javaMajor) {

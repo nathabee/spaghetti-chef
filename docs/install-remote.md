@@ -245,22 +245,35 @@ New-Item -ItemType Directory -Force -Path C:\ph\bin
 
 ### 5. Copy the PowerShell scripts to the Windows laptop
 
-Copy these files from the repo to:
+
+### 5. Install the admin bootstrap scripts on the Windows laptop
+
+Download:
+
+```text
+printer-hub-<version>-admin.zip
+````
+
+Extract the zip on the Windows laptop.
+
+Create the target folder if needed:
+
+```powershell
+New-Item -ItemType Directory -Force -Path C:\ph\bin
+```
+
+Then copy the extracted `.ps1` files into:
 
 ```text
 C:\ph\bin\
 ```
 
-Files to copy:
+After that, run:
 
-* `tools/win/i.ps1`
-* `tools/win/u.ps1`
-* `tools/win/r.ps1`
-* `tools/win/s.ps1`
-* `tools/win/v.ps1`
+```powershell
+C:\ph\bin\i.ps1
+```
 
-This can be done manually for the first bootstrap by USB key, network share,
-WinSCP, or `scp` once SSH is working.
 
 ---
 
