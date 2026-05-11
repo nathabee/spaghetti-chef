@@ -887,7 +887,10 @@ if "%API_PORT%"=="" set API_PORT=18080
 
 if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
 
-java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
+set JAVA_CMD=%PRINTERHUB_JAVA%
+if "%JAVA_CMD%"=="" set JAVA_CMD=java
+
+"%JAVA_CMD%" -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
 EOF
 
 cp tools/win/run.env.example package/admin/
