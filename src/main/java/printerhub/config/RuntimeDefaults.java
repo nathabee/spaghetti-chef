@@ -1,5 +1,4 @@
 package printerhub.config;
- 
 
 public final class RuntimeDefaults {
 
@@ -35,5 +34,32 @@ public final class RuntimeDefaults {
     public static final long DEFAULT_MONITORING_EVENT_DEDUP_WINDOW_SECONDS = 60L;
     public static final String DEFAULT_ERROR_PERSISTENCE_BEHAVIOR = "DEDUPLICATED";
     public static final boolean DEFAULT_TRACE = false;
-    public static final int DEFAULT_MONITORING_UPLOAD_BATCH_SIZE = 5;
+
+    /* SD upload */
+    public static final int DEFAULT_SD_UPLOAD_BATCH_SIZE = 5;
+
+    /**
+     * Retained resend-history window multiplier for SD upload recovery.
+     * Effective retained history = sdUploadBatchSize *
+     * sdUploadRecoveryWindowMultiplier.
+     */
+    public static final int DEFAULT_SD_UPLOAD_RECOVERY_WINDOW_MULTIPLIER = 2;
+
+    /**
+     * Hard stop for cumulative SD-upload protocol problems
+     * such as resend requests, recovery jumps, or unexpected error responses.
+     */
+    public static final int DEFAULT_SD_UPLOAD_MAX_ERRORS = 100;
+
+    /**
+     * Hard stop for pathological loops where the printer repeatedly asks
+     * for the same resend line and forward progress is not achieved.
+     */
+    public static final int DEFAULT_SD_UPLOAD_MAX_CONSECUTIVE_IDENTICAL_RESENDS = 10;
+
+    /**
+     * Minimum acceptable effective upload performance as percent of
+     * theoretical maximum, evaluated only after enough runtime/progress.
+     */
+    public static final int DEFAULT_SD_UPLOAD_MIN_PERFORMANCE_PERCENT = 5;
 }

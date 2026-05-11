@@ -2,6 +2,7 @@ package printerhub.runtime;
 
 import org.junit.jupiter.api.Test;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -66,7 +67,38 @@ class PrinterRuntimeNodeTest {
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> responses = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                responses.add("ok");
+            }
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
         }
 
         @Override

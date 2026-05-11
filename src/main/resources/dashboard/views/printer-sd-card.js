@@ -59,7 +59,6 @@ export function renderPrinterSdCard(printer) {
           class="secondary-button"
           data-close-sd-upload-session
           data-printer-id="${escapeHtml(printer.id)}"
-          data-line-number="2"
           ${uploadActive ? "disabled" : ""}
         >Close upload session</button>
       </div>
@@ -238,7 +237,7 @@ function renderSdUploadStatus(uploadStatus) {
       <progress max="100" value="${escapeHtml(String(percent))}"></progress>
     `
     : "";
-  
+
   // Performance metrics
   const performanceHtml = uploadStatus.active && uploadStatus.bytesPerSecond
     ? `
@@ -260,7 +259,7 @@ function renderSdUploadStatus(uploadStatus) {
       </div>` : ''}
     `
     : "";
-    
+
   const rejectedLineCount = Number(uploadStatus.rejectedLineCount || 0);
   const qualityPercent = Number(uploadStatus.qualityPercent ?? calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount));
   const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);

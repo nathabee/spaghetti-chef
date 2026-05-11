@@ -289,7 +289,23 @@ public final class RemoteApiServer {
                     optionalJsonInteger(
                             body,
                             "sdUploadBatchSize",
-                            currentRules.sdUploadBatchSize()));
+                            currentRules.sdUploadBatchSize()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadRecoveryWindowMultiplier",
+                            currentRules.sdUploadRecoveryWindowMultiplier()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMaxErrors",
+                            currentRules.sdUploadMaxErrors()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMaxConsecutiveIdenticalResends",
+                            currentRules.sdUploadMaxConsecutiveIdenticalResends()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMinPerformancePercent",
+                            currentRules.sdUploadMinPerformancePercent()));
 
             monitoringRulesStore.save(updatedRules);
             monitoringScheduler.updateMonitoringRules(updatedRules);
@@ -490,8 +506,8 @@ public final class RemoteApiServer {
                 }
 
                 String response = sdCardService.deleteFile(node, file.firmwarePath());
-                PrinterResponseClassifier.ResponseClassification classification =
-                        printerResponseClassifier.classifyResponse("M30 " + file.firmwarePath(), response);
+                PrinterResponseClassifier.ResponseClassification classification = printerResponseClassifier
+                        .classifyResponse("M30 " + file.firmwarePath(), response);
                 if (!classification.success()) {
                     sendJson(exchange, 400, errorJson(OperationMessages.safeDetail(
                             classification.detail(),
@@ -830,8 +846,8 @@ public final class RemoteApiServer {
 
         if (sourceJob.type() != JobType.PRINT_FILE
                 || (sourceJob.state() != JobState.COMPLETED
-                && sourceJob.state() != JobState.FAILED
-                && sourceJob.state() != JobState.CANCELLED)) {
+                        && sourceJob.state() != JobState.FAILED
+                        && sourceJob.state() != JobState.CANCELLED)) {
             sendJson(exchange, 400, errorJson(OperationMessages.INVALID_JOB_STATE));
             return;
         }
@@ -1253,13 +1269,8 @@ public final class RemoteApiServer {
             return;
         }
 
-        String body = readBody(exchange);
-        Integer requestedLineNumber = optionalJsonIntegerObject(body, "lineNumber");
-        int lineNumber = requestedLineNumber == null ? 2 : requestedLineNumber;
-        String response = sdCardUploadService.closeOpenUploadSession(printerId, lineNumber);
-        sendJson(exchange, 200, "{\"printerId\":\"" + escapeJson(printerId)
-                + "\",\"lineNumber\":" + lineNumber
-                + ",\"response\":\"" + escapeJson(response) + "\"}");
+        SdCardUploadService.CloseUploadSessionResult result = sdCardUploadService.closeOpenUploadSession(printerId);
+        sendJson(exchange, 200, closeUploadSessionResultJson(result));
     }
 
     private void handlePrinterSdCardFiles(HttpExchange exchange, String printerId) throws IOException {
@@ -1312,9 +1323,15 @@ public final class RemoteApiServer {
                 + "\"snapshotMinimumIntervalSeconds\":" + monitoringRules.snapshotMinimumIntervalSeconds() + ","
                 + "\"temperatureDeltaThreshold\":" + formatDouble(monitoringRules.temperatureDeltaThreshold()) + ","
                 + "\"eventDeduplicationWindowSeconds\":" + monitoringRules.eventDeduplicationWindowSeconds() + ","
-                + "\"errorPersistenceBehavior\":\"" + escapeJson(monitoringRules.errorPersistenceBehavior().name()) + "\","
+                + "\"errorPersistenceBehavior\":\"" + escapeJson(monitoringRules.errorPersistenceBehavior().name())
+                + "\","
                 + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled() + ","
-                + "\"sdUploadBatchSize\":" + monitoringRules.sdUploadBatchSize()
+                + "\"sdUploadBatchSize\":" + monitoringRules.sdUploadBatchSize() + ","
+                + "\"sdUploadRecoveryWindowMultiplier\":" + monitoringRules.sdUploadRecoveryWindowMultiplier() + ","
+                + "\"sdUploadMaxErrors\":" + monitoringRules.sdUploadMaxErrors() + ","
+                + "\"sdUploadMaxConsecutiveIdenticalResends\":"
+                + monitoringRules.sdUploadMaxConsecutiveIdenticalResends() + ","
+                + "\"sdUploadMinPerformancePercent\":" + monitoringRules.sdUploadMinPerformancePercent()
                 + "}";
     }
 
@@ -1963,19 +1980,21 @@ public final class RemoteApiServer {
                 + "\"rejectedLineCount\":" + progress.rejectedLineCount() + ","
                 + "\"percent\":" + percent + ","
                 + "\"qualityPercent\":" + qualityPercent + ","
-                + "\"startedAt\":" + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
-                + "\"updatedAt\":" + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
+                + "\"startedAt\":"
+                + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
+                + "\"updatedAt\":"
+                + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
                 + "\"detail\":" + nullableString(progress.detail()) + ","
                 // Performance metrics
                 + "\"bytesPerSecond\":" + String.format("%.1f", progress.bytesPerSecond()) + ","
                 + "\"linesPerSecond\":" + String.format("%.2f", progress.linesPerSecond()) + ","
                 + "\"elapsedSeconds\":" + progress.elapsedSeconds() + ","
                 + "\"estimatedSecondsRemaining\":" + progress.estimatedSecondsRemaining() + ","
-                + "\"theoreticalMaxBytesPerSecond\":" + String.format("%.0f", progress.theoreticalMaxBytesPerSecond()) + ","
+                + "\"theoreticalMaxBytesPerSecond\":" + String.format("%.0f", progress.theoreticalMaxBytesPerSecond())
+                + ","
                 + "\"efficiencyPercent\":" + String.format("%.1f", progress.efficiencyPercent())
                 + "}";
     }
-
 
     private String printJobExecutionStepJson(PrintJobExecutionStep step) {
         return "{"
@@ -2003,6 +2022,17 @@ public final class RemoteApiServer {
                     printerId,
                     safeMessage(exception)));
         }
+    }
+
+    private String closeUploadSessionResultJson(SdCardUploadService.CloseUploadSessionResult result) {
+        return "{"
+                + "\"printerId\":\"" + escapeJson(result.printerId()) + "\","
+                + "\"lineNumber\":" + result.lineNumber() + ","
+                + "\"attempts\":" + result.attempts() + ","
+                + "\"success\":" + result.success() + ","
+                + "\"response\":" + nullableString(result.response()) + ","
+                + "\"detail\":" + nullableString(result.detail())
+                + "}";
     }
 
     private String safeMessage(Exception exception) {

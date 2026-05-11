@@ -14,6 +14,16 @@ Roadmap:
 
 * [`docs/roadmap.md`](docs/roadmap.md)
 
+
+> 
+> ## NOTE : Real printer. Real serial link. Real recovery work.
+> PrinterHub is currently being tested against a physical USB-connected 3D printer, with active work focused on high-speed SD upload over a constrained serial channel.
+>
+> Recent work adds pipelined transfer, buffered resend recovery, degraded safe replay after instability, and detailed upload diagnostics visible in the runtime.
+>
+> Current testing pushes aggressive batch settings on purpose, so protocol edge cases appear early and can be corrected on real hardware instead of staying hidden in simulation.
+>
+> The next target is an adaptive transfer controller that can recover safely, observe stability, and climb back toward a fast runtime batch size automatically. (version 0.2.4 STEP E)
 ---
 
 ## Current scope

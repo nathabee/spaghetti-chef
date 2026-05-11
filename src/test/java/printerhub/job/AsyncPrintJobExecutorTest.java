@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.OperationMessages;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 import printerhub.config.RuntimeDefaults;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
@@ -20,6 +21,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -194,22 +196,21 @@ class AsyncPrintJobExecutorTest {
         private final String response;
         private final CountDownLatch commandStarted = new CountDownLatch(1);
         private final CountDownLatch releaseCommand = new CountDownLatch(1);
+        private final List<String> pendingRawResponses = new ArrayList<>();
+        private boolean connected;
 
         private BlockingPrinterPort(String response) {
             this.response = response;
         }
 
         @Override
-        public String sendRawLine(String line) {
-            return "ok";
-        }
-
-        @Override
         public void connect() {
+            connected = true;
         }
 
         @Override
         public String sendCommand(String command) {
+            ensureConnected();
             commandStarted.countDown();
 
             try {
@@ -222,7 +223,67 @@ class AsyncPrintJobExecutorTest {
         }
 
         @Override
+        public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+
+            if (!pendingRawResponses.isEmpty()) {
+                return pendingRawResponses.remove(0);
+            }
+
+            return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            ensureConnected();
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            ensureConnected();
+
+            if (!pendingRawResponses.isEmpty()) {
+                return pendingRawResponses.remove(0);
+            }
+
+            return "ok";
+        }
+
+        @Override
+        public List<String> sendRawLinesPipelined(List<String> lines, SerialIOMode mode) {
+            ensureConnected();
+
+            if (lines == null || lines.isEmpty()) {
+                return List.of();
+            }
+
+            List<String> responses = new ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                if (!pendingRawResponses.isEmpty()) {
+                    responses.add(pendingRawResponses.remove(0));
+                } else {
+                    responses.add("ok");
+                }
+            }
+
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            ensureConnected();
+            pendingRawResponses.clear();
+        }
+
+        @Override
         public void disconnect() {
+            connected = false;
+            pendingRawResponses.clear();
         }
 
         private boolean awaitCommandStarted() throws InterruptedException {
@@ -231,6 +292,12 @@ class AsyncPrintJobExecutorTest {
 
         private void release() {
             releaseCommand.countDown();
+        }
+
+        private void ensureConnected() {
+            if (!connected) {
+                throw new IllegalStateException("not connected");
+            }
         }
     }
 }

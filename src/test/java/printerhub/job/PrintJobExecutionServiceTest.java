@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.OperationMessages;
 import printerhub.PrinterPort;
+import printerhub.SerialIOMode;
 import printerhub.config.RuntimeDefaults;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
@@ -338,12 +339,12 @@ class PrintJobExecutionServiceTest {
             assertEquals(JobState.COMPLETED, loaded.state());
 
             List<PrinterEvent> events = eventStore.findRecentByJobId(job.id(), 20);
-            assertTrue(events.stream().anyMatch(event ->
-                    OperationMessages.EVENT_JOB_EXECUTION_IN_PROGRESS.equals(event.eventType())
+            assertTrue(events.stream()
+                    .anyMatch(event -> OperationMessages.EVENT_JOB_EXECUTION_IN_PROGRESS.equals(event.eventType())
                             && event.message() != null
                             && event.message().contains("echo:busy: processing")));
-            assertTrue(events.stream().anyMatch(event ->
-                    OperationMessages.EVENT_JOB_EXECUTION_SUCCEEDED.equals(event.eventType())
+            assertTrue(events.stream()
+                    .anyMatch(event -> OperationMessages.EVENT_JOB_EXECUTION_SUCCEEDED.equals(event.eventType())
                             && event.message() != null
                             && event.message().contains("Job execution completed: G28")));
         } finally {
@@ -424,7 +425,8 @@ class PrintJobExecutionServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-04T08:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -507,7 +509,8 @@ class PrintJobExecutionServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-05-04T08:00:00Z"), ZoneOffset.UTC);
 
         PrintJobService jobService = new PrintJobService(store, eventStore, clock);
-        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore, clock);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore,
+                clock);
 
         PrinterRegistry registry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
@@ -658,10 +661,40 @@ class PrintJobExecutionServiceTest {
         public void connect() {
         }
 
-
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> responses = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                responses.add("ok");
+            }
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
         }
 
         @Override
@@ -683,10 +716,40 @@ class PrintJobExecutionServiceTest {
             this.responses = responses;
         }
 
-
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> results = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                results.add("ok");
+            }
+            return results;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
         }
 
         @Override
@@ -727,7 +790,38 @@ class PrintJobExecutionServiceTest {
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> results = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                results.add("ok");
+            }
+            return results;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
         }
 
         @Override
@@ -760,12 +854,41 @@ class PrintJobExecutionServiceTest {
         public void connect() {
         }
 
-
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
         }
 
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> results = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                results.add("ok");
+            }
+            return results;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+        }
 
         @Override
         public String sendCommand(String command) {

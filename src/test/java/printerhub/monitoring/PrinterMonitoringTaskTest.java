@@ -6,6 +6,7 @@ import org.junit.jupiter.api.io.TempDir;
 import printerhub.PrinterPort;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
+import printerhub.SerialIOMode;
 import printerhub.job.JobState;
 import printerhub.job.JobType;
 import printerhub.job.PrintJob;
@@ -410,9 +411,7 @@ class PrinterMonitoringTaskTest {
                         21.0,
                         21.0,
                         "busy",
-                        clock.instant().minusSeconds(5)
-                )
-        );
+                        clock.instant().minusSeconds(5)));
 
         PrintJobStore jobStore = new PrintJobStore();
         PrinterEventStore eventStore = new PrinterEventStore();
@@ -424,8 +423,7 @@ class PrinterMonitoringTaskTest {
                 null,
                 "printer-sd-file-1",
                 null,
-                null
-        );
+                null);
         jobService.markRunning(job.id());
 
         StubPrinterPort port = new StubPrinterPort();
@@ -474,8 +472,7 @@ class PrinterMonitoringTaskTest {
                 null,
                 "printer-sd-file-1",
                 null,
-                null
-        );
+                null);
         jobService.markRunning(job.id());
 
         StubPrinterPort port = new StubPrinterPort();
@@ -534,8 +531,7 @@ class PrinterMonitoringTaskTest {
                 null,
                 "printer-sd-file-1",
                 null,
-                null
-        );
+                null);
         jobService.markRunning(job.id());
         clock.setInstant(clock.instant().plusSeconds(6));
 
@@ -624,7 +620,40 @@ class PrinterMonitoringTaskTest {
 
         @Override
         public String sendRawLine(String line) {
+            return sendRawLine(line, SerialIOMode.COMMAND_RESPONSE);
+        }
+
+        @Override
+        public String sendRawLine(String line, SerialIOMode mode) {
             return "ok";
+        }
+
+        @Override
+        public void writeRawLine(String line, SerialIOMode mode) {
+            // not needed here
+        }
+
+        @Override
+        public String readRawResponse(SerialIOMode mode) {
+            return "ok";
+        }
+
+        @Override
+        public java.util.List<String> sendRawLinesPipelined(java.util.List<String> lines, SerialIOMode mode) {
+            if (lines == null || lines.isEmpty()) {
+                return java.util.List.of();
+            }
+
+            java.util.List<String> responses = new java.util.ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                responses.add("ok");
+            }
+            return responses;
+        }
+
+        @Override
+        public void discardPendingInput(int quietPeriodMs, int maxDrainMs) {
+            // not needed here
         }
 
         @Override
