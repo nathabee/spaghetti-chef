@@ -6,11 +6,15 @@ function Fail {
     exit 1
 }
 
- 
-
 function Get-JavaMajorVersion {
     try {
-        $out = & java -version 2>&1
+        $javaCommand = Get-Command java -ErrorAction Stop
+        $javaPath = $javaCommand.Source
+        if (-not $javaPath) {
+            $javaPath = $javaCommand.Path
+        }
+
+        $out = & $javaPath -version 2>&1
         if (-not $out) {
             return $null
         }
@@ -27,11 +31,9 @@ function Get-JavaMajorVersion {
     }
 }
 
-
-
 $javaMajor = Get-JavaMajorVersion
 if ($null -eq $javaMajor) {
-    Fail "Java was not found in PATH. Install Java 21 first."
+    Fail "Java was not found for this PowerShell process."
 }
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. Detected Java major version: $javaMajor"
