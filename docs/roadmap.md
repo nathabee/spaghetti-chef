@@ -2078,90 +2078,132 @@ the current upload session degrades to single-send mode for safety.
 
 ---
 
-### 0.2.4 — Step E — adaptive throughput control and autonomous serial tuning
+ 
+### 0.2.4 — Step E — transfer settings administration foundation
+
+status: planned
+
+Goals:
+
+* stop hardcoding SD upload transfer defaults as compile-time-only constants
+* introduce persistent runtime-configurable serial transfer settings
+* initialize defaults from `SerialDefaults` / protocol defaults only once
+* allow editing these settings through dashboard settings
+* expose transfer settings through API
+* make later upload/runtime steps consume persisted settings instead of raw constants
+
+Deliverables:
+
+* transfer settings model and persistence store
+* API endpoints to read and update transfer settings
+* dashboard settings page support for transfer tuning
+* runtime wiring so upload services read persisted settings
+
+Expected result:
+
+* monitoring-style settings management exists for serial/upload behavior too
+* later adaptive logic can build on persisted operator-defined limits
+* no need to change code just to tune upload behavior
+
+---
+
+### 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning
 
 status: planned
 
 Goals:
 
 * build on Step D buffered resend recovery instead of replacing it
-* introduce a real runtime transfer controller instead of using only a fixed configured batch size plus a permanent degraded latch
+* introduce a real runtime transfer controller instead of a fixed batch size plus permanent degraded latch
 * separate:
 
   * configured maximum batch size
   * current runtime batch size
   * recovery state
-  * stability evidence since the last resend
+  * stability evidence since last resend
+  * recent resend density
 * automatically reduce transfer aggressiveness after resend instability
 * gradually re-enable batching after a stable stretch of accepted lines
 * search for a stable high-throughput operating point instead of staying permanently in single-send mode after the first resend
 * persist adaptation decisions and stability evidence in printer events
-* expose enough metrics to compare throughput, resend density, recovery frequency, and final completion quality
-* keep the real printer as the primary validation target under aggressive and edge-case upload conditions
+* keep real printer validation as the primary target
 
 Planned behavior:
 
-* start each upload at the configured batch size
+* start each upload at operator-configured transfer settings
 * if resend appears:
 
   * drain pending input
   * use buffered replay recovery
   * lower the active runtime batch size
   * reset stability counters
-* if the upload then remains stable long enough:
+* if upload remains stable long enough:
 
-  * increase the active runtime batch size step by step
-* never exceed the configured batch-size ceiling
+  * increase active runtime batch size step by step
+* never exceed configured ceilings
 * if instability returns:
 
   * reduce again
-* abort only when recovery leaves retained history or protocol thresholds are exceeded
+* abort only when recovery leaves retained-history or protocol thresholds are exceeded
 
 Planned runtime state:
 
 * configured maximum batch size
+* configured minimum batch size
 * current active batch size
-* stable accepted lines since last resend
+* accepted lines since last resend
 * recent resend count
 * recent recovery count
-* transfer-quality indicators for the current session
+* recent mode transitions
+* throughput indicators for current session
 
-Planned deliverables:
+Deliverables:
 
 * adaptive batch controller inside SD upload runtime state
-* configurable thresholds for:
-
-  * batch-size increase
-  * downgrade after resend
-  * stability window length
-* event logging for:
-
-  * batch-size decrease
-  * batch-size increase
-  * resend density
-  * recovery frequency
-  * achieved throughput
-* dashboard or API visibility for:
-
-  * current transfer mode
-  * current active batch size
-  * degraded / recovered / stabilizing state
-* repeatable real-printer performance comparison between:
-
-  * fixed single-send
-  * fixed pipelined batch
-  * adaptive batch upload
+* configurable thresholds for increase / decrease / stability windows
+* event logging for mode transitions and adaptation evidence
+* API exposure for upload runtime metrics
 
 Expected result:
 
-* upload still begins from configured transfer settings
-* when instability appears, recovery remains safe and synchronized
-* after recovery, PrinterHub no longer has to stay permanently degraded unless instability persists
-* transfer rate can climb back progressively toward a stable practical value
-* the runtime can approximate an optimal operating point for a given printer / firmware / cable / host environment
-* the project demonstrates both protocol safety and performance-oriented adaptive behavior on real hardware
+* PrinterHub behaves safely under resend instability
+* upload can recover upward instead of remaining permanently degraded
+* runtime approximates a practical stable operating point per printer/firmware/host path
 
+---
 
+### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
+
+status: planned
+
+Goals:
+
+* make upload progress visible as a modern operator card instead of only raw text/log style state
+* expose real-time session telemetry for active SD uploads
+* show transfer progress, timing, recovery pressure, and active tuned parameters clearly
+* make adaptive behavior understandable to the operator
+
+Dashboard targets:
+
+* current upload phase
+* elapsed time
+* estimated remaining time
+* completed lines / total lines
+* completed bytes / total bytes if available
+* current active batch size
+* configured maximum batch size
+* current transfer mode
+* resend count / resend threshold
+* recovery count / recovery threshold
+* stability streak
+* transfer health indicator
+* optional tiny trend bars / meter / progress segments
+
+Expected result:
+
+* operator can see not only that an upload is running, but how well it is running
+* adaptive runtime decisions become auditable and understandable
+* project demonstrates both protocol resilience and operator-grade monitoring UX
 
 ---
 

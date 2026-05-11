@@ -786,6 +786,11 @@ EOF
                       cp docs/industrial-bio-printer-simulation.md release/
                     fi
 
+                    if [ -f docs/install-remote.md ]; then
+                      cp docs/install-remote.md release/
+                    fi
+
+
                     if [ -d target ]; then
                       mkdir -p release/smoke
                       cp target/runtime-smoke.log release/smoke/ 2>/dev/null || true
@@ -820,40 +825,41 @@ EOF
             }
         }
 
-        stage('Package Expert Distributions') {
-            when {
-                expression {
-                    return params.RELEASE_VERSION?.trim()
-                }
-            }
-            steps {
-                script {
-                    def versionName = params.RELEASE_VERSION.trim()
-                    env.RELEASE_ARCHIVE = "printer-hub-${versionName}-release.tar.gz"
-                    env.LINUX_PACKAGE = "printer-hub-${versionName}-linux.tar.gz"
-                    env.WINDOWS_PACKAGE = "printer-hub-${versionName}-windows.zip"
-                }
+stage('Package Expert Distributions') {
+    when {
+        expression {
+            return params.RELEASE_VERSION?.trim()
+        }
+    }
+    steps {
+        script {
+            def versionName = params.RELEASE_VERSION.trim()
+            env.RELEASE_ARCHIVE = "printer-hub-${versionName}-release.tar.gz"
+            env.LINUX_PACKAGE = "printer-hub-${versionName}-linux.tar.gz"
+            env.WINDOWS_PACKAGE = "printer-hub-${versionName}-windows.zip"
+            env.ADMIN_PACKAGE = "printer-hub-${versionName}-admin.zip"
+        }
 
-                sh '''
-                    set -eu
+        sh '''
+            set -eu
 
-                    rm -rf dist package
-                    mkdir -p dist package/linux package/windows
+            rm -rf dist package
+            mkdir -p dist package/linux package/windows package/admin
 
-                    JAR_FILE=$(find target -maxdepth 1 -name 'printer-hub-*-all.jar' | sort | tail -n 1)
-                    test -n "${JAR_FILE}"
+            JAR_FILE=$(find target -maxdepth 1 -name 'printer-hub-*-all.jar' | sort | tail -n 1)
+            test -n "${JAR_FILE}"
 
-                    cp "${JAR_FILE}" package/linux/printer-hub.jar
-                    cp "${JAR_FILE}" package/windows/printer-hub.jar
+            cp "${JAR_FILE}" package/linux/printer-hub.jar
+            cp "${JAR_FILE}" package/windows/printer-hub.jar
 
-                    cp README.md package/linux/README.md
-                    cp README.md package/windows/README.md
-                    cp docs/install.md package/linux/INSTALL.md
-                    cp docs/install.md package/windows/INSTALL.md
-                    cp docs/quickstart.md package/linux/QUICKSTART.md
-                    cp docs/quickstart.md package/windows/QUICKSTART.md
+            cp README.md package/linux/README.md
+            cp README.md package/windows/README.md
+            cp docs/install.md package/linux/INSTALL.md
+            cp docs/install.md package/windows/INSTALL.md
+            cp docs/quickstart.md package/linux/QUICKSTART.md
+            cp docs/quickstart.md package/windows/QUICKSTART.md
 
-                    cat > package/linux/printerhub.sh <<'EOF'
+            cat > package/linux/printerhub.sh <<'EOF'
 #!/usr/bin/env sh
 set -eu
 
@@ -864,9 +870,9 @@ DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
 
 exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
 EOF
-                    chmod +x package/linux/printerhub.sh
+            chmod +x package/linux/printerhub.sh
 
-                    cat > package/windows/printerhub.bat <<'EOF'
+            cat > package/windows/printerhub.bat <<'EOF'
 @echo off
 setlocal
 
@@ -884,15 +890,38 @@ if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
 java -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
 EOF
 
-                    tar -C package -czf "dist/${LINUX_PACKAGE}" linux
-                    (cd package/windows && jar --create --file "../../dist/${WINDOWS_PACKAGE}" .)
-                    tar -czf "${RELEASE_ARCHIVE}" release
+cp tools/win/run.env.example package/admin/
+cp tools/win/u.ps1 package/admin/
+cp tools/win/r.ps1 package/admin/
+cp tools/win/s.ps1 package/admin/
+cp tools/win/v.ps1 package/admin/
+cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
 
-                    ls -lh dist
-                    ls -lh "${RELEASE_ARCHIVE}"
-                '''
-            }
-        }
+cat > package/admin/README.txt <<'EOF'
+PrinterHub Windows remote administration bootstrap package.
+
+Contents:
+- run.env.example : example local runtime configuration
+- u.ps1 : remote update script
+- r.ps1 : start PrinterHub
+- s.ps1 : stop PrinterHub
+- v.ps1 : status and health check
+- INSTALL-REMOTE.md : setup instructions
+
+Copy the PowerShell scripts to C:\\ph\\bin on the Windows host.
+Copy run.env.example to C:\\ph\\data\\run.env and adjust values if needed.
+EOF
+
+            tar -C package -czf "dist/${LINUX_PACKAGE}" linux
+            (cd package/windows && jar --create --file "../../dist/${WINDOWS_PACKAGE}" .)
+            (cd package/admin && jar --create --file "../../dist/${ADMIN_PACKAGE}" .)
+            tar -czf "${RELEASE_ARCHIVE}" release
+
+            ls -lh dist
+            ls -lh "${RELEASE_ARCHIVE}"
+        '''
+    }
+}
 
         stage('Publish GitHub Release') {
             when {

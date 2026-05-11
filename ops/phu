@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${PH_HOST:-printerhub-win}"
+USER_NAME="${PH_USER:-admin}"
+
+if [ $# -ne 1 ]; then
+  echo "usage: phu <version>"
+  exit 1
+fi
+
+VERSION="$1"
+
+ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\ph\\bin\\u.ps1 -Version '${VERSION}'"

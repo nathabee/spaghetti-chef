@@ -8,7 +8,7 @@
 
 It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and is evolving into a **local multi-printer runtime architecture** with background monitoring, persistence, REST API access, dashboard administration, audit visibility, asynchronous job execution, and controlled operator actions.
 
-PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference is a **Creality Ender-3 V2 Neo**, but the runtime is intended to generalize to other Marlin-compatible printers rather than being tied to that one model.
+PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference is a **Creality Ender-3 V2 Neo**.
 
 Roadmap:
 
@@ -23,7 +23,9 @@ Roadmap:
 >
 > Current testing pushes aggressive batch settings on purpose, so protocol edge cases appear early and can be corrected on real hardware instead of staying hidden in simulation.
 >
-> The next target is an adaptive transfer controller that can recover safely, observe stability, and climb back toward a fast runtime batch size automatically. (version 0.2.4 STEP E)
+> The next target is an adaptive transfer controller that can recover safely, observe stability, and climb back toward a fast runtime batch size automatically. 
+>
+> Remote Windows bootstrap and update via OpenSSH is now available as an emergency pre-1.0.0 administration path.
 ---
 
 ## Current scope
@@ -50,6 +52,7 @@ The current implementation provides:
 * guarded host-to-printer SD-card `.gcode` upload for the verified real-printer Marlin path
 * simulation modes for normal and failing printer behavior
 * Jenkins CI verification and runtime smoke tests
+* emergency remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
 
 The implementation is intentionally still focused on the **local runtime** and its operational visibility.
 
@@ -488,6 +491,9 @@ printer-hub/
 │   └── test/
 │       └── java/printerhub/
 │           └── ...
+├── ops/ 
+├── tools/
+│   └── win/
 └── pom.xml
 ```
 

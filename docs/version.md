@@ -9,12 +9,14 @@ see ROADMAP.md
 next:
 
 - 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
+- 0.2.4 — Step E — transfer settings administration foundation
 
 ## Version (done)
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
-- 0.2.4 — Step D — upload channel isolation and session synchronization
+- 0.2.4 — Remote —  Operational bootstrap solution before the `1.0.0` remote farm management
+- 0.2.4 — Step D — buffered resend recovery and degraded replay stabilization
 - 0.2.4 — Step C — Windowed SD upload
 - 0.2.4 — Step B — SD upload observability and transfer performance
 - 0.2.4 — step A — Real-Printer Correction, SD Upload Hardening, and Local Packaging
