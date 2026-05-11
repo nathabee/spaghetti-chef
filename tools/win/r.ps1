@@ -72,12 +72,16 @@ if ($envMap.ContainsKey('PRINTERHUB_SERIAL_PORT')) {
 if ($envMap.ContainsKey('PRINTERHUB_MODE')) {
     $mode = $envMap['PRINTERHUB_MODE']
 }
+if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
+    $env:PRINTERHUB_JAVA = $envMap['PRINTERHUB_JAVA']
+}
 
 $env:PRINTERHUB_DATABASE_FILE = $databaseFile
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 "[$stamp] launcher=$launcher" | Add-Content -LiteralPath $startLog
 "[$stamp] serialPort=$serialPort mode=$mode apiPort=$apiPort databaseFile=$databaseFile" | Add-Content -LiteralPath $startLog
+"[$stamp] javaOverride=$($env:PRINTERHUB_JAVA)" | Add-Content -LiteralPath $startLog
 
 $process = Start-Process -FilePath $launcher `
     -ArgumentList @($serialPort, $mode, $apiPort) `

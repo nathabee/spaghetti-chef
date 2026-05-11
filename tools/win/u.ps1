@@ -14,9 +14,66 @@ function Fail {
     exit 1
 }
 
+function Read-RunEnv {
+    param([string]$Path)
+
+    $map = @{}
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $map
+    }
+
+    $lines = Get-Content -LiteralPath $Path
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+        if ($trimmed.StartsWith('#')) {
+            continue
+        }
+
+        $parts = $trimmed -split '=', 2
+        if ($parts.Count -eq 2) {
+            $map[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+
+    return $map
+}
+
+function Get-JavaCommand {
+    param([hashtable]$EnvMap)
+
+    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
+        $configured = $EnvMap['PRINTERHUB_JAVA']
+        if (-not [string]::IsNullOrWhiteSpace($configured) -and (Test-Path -LiteralPath $configured)) {
+            return $configured
+        }
+    }
+
+    $cmd = Get-Command java -ErrorAction SilentlyContinue
+    if ($null -ne $cmd) {
+        if ($cmd.Source) {
+            return $cmd.Source
+        }
+        if ($cmd.Path) {
+            return $cmd.Path
+        }
+    }
+
+    return $null
+}
+
 function Get-JavaMajorVersion {
+    param([string]$JavaCommand)
+
+    if ([string]::IsNullOrWhiteSpace($JavaCommand)) {
+        return $null
+    }
+
     try {
-        $out = & java -version 2>&1
+        $out = & $JavaCommand -version 2>&1
         if (-not $out) {
             return $null
         }
@@ -33,19 +90,23 @@ function Get-JavaMajorVersion {
     }
 }
 
-$javaMajor = Get-JavaMajorVersion
-if ($null -eq $javaMajor) {
-    Fail "Java was not found in PATH. Install Java 21 first."
-}
-if ($javaMajor -ne 21) {
-    Fail "Java 21 is required. Detected Java major version: $javaMajor"
-}
-
 $root = 'C:\ph'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
 $relDir = "$root\rel"
 $logDir = "$root\log"
+$runEnvPath = "$root\data\run.env"
+
+$envMap = Read-RunEnv -Path $runEnvPath
+$javaCommand = Get-JavaCommand -EnvMap $envMap
+$javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
+
+if ($null -eq $javaCommand) {
+    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
+}
+if ($javaMajor -ne 21) {
+    Fail "Java 21 is required. Detected Java major version: $javaMajor"
+}
 
 $assetName = "printer-hub-$Version-windows.zip"
 $zipPath = Join-Path $relDir $assetName
@@ -54,7 +115,7 @@ $downloadUrl = "https://github.com/$Owner/$Repo/releases/download/$Version/$asse
 $updateLog = Join-Path $logDir 'update.log'
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-"$stamp update start version=$Version url=$downloadUrl" | Add-Content -LiteralPath $updateLog
+"$stamp update start version=$Version url=$downloadUrl java=$javaCommand" | Add-Content -LiteralPath $updateLog
 
 if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force
@@ -73,8 +134,7 @@ Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
 $entries = Get-ChildItem -LiteralPath $extractDir
 if ($entries.Count -eq 1 -and $entries[0].PSIsContainer) {
     $sourceDir = $entries[0].FullName
-}
-else {
+} else {
     $sourceDir = $extractDir
 }
 
