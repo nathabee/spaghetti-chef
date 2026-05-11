@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = 'u.ps1 remote-java-debug-v2'
+$ScriptVersion = 'u.ps1 remote-java-debug-v3'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
@@ -44,36 +44,32 @@ function Read-RunEnv {
     return $map
 }
 
-function Get-JavaCommand {
-    param([hashtable]$EnvMap)
+function Get-JavaMajorVersion {
+    param([string]$JavaCommand)
 
-    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
-        $configured = $EnvMap['PRINTERHUB_JAVA']
-        if (-not [string]::IsNullOrWhiteSpace($configured)) {
-            Write-Host "Configured PRINTERHUB_JAVA: $configured"
-            if (Test-Path -LiteralPath $configured) {
-                return $configured
-            }
-
-            Write-Host "Configured PRINTERHUB_JAVA path does not exist."
-        }
-    } else {
-        Write-Host "PRINTERHUB_JAVA is not set in run.env"
+    if ([string]::IsNullOrWhiteSpace($JavaCommand)) {
+        return $null
     }
 
-    $cmd = Get-Command java -ErrorAction SilentlyContinue
-    if ($null -ne $cmd) {
-        if ($cmd.Source) {
-            Write-Host "Resolved java from Get-Command: $($cmd.Source)"
-            return $cmd.Source
-        }
-        if ($cmd.Path) {
-            Write-Host "Resolved java from Get-Command: $($cmd.Path)"
-            return $cmd.Path
-        }
+    $quotedJava = '"' + $JavaCommand + '"'
+    $cmdLine = "$quotedJava -version 2>&1"
+
+    Write-Host "Executing: cmd /c $cmdLine"
+
+    $out = cmd /c $cmdLine
+    if (-not $out) {
+        return $null
     }
 
-    Write-Host "Get-Command java returned nothing."
+    $lines = @($out | ForEach-Object { "$_" })
+    $firstLine = $lines | Select-Object -First 1
+
+    Write-Host "java -version first line: $firstLine"
+
+    if ($firstLine -match '"(?<version>\d+)(\.\d+)?(\.\d+)?.*"') {
+        return [int]$Matches.version
+    }
+
     return $null
 }
 
