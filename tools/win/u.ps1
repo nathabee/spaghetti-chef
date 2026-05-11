@@ -190,8 +190,11 @@ if (Test-Path -LiteralPath $appDir) {
     Move-Item -LiteralPath $appDir -Destination $backupDir
 }
 
-New-Item -ItemType Directory -Path $appDir | Out-Null
-Copy-Item -LiteralPath (Join-Path $sourceDir '*') -Destination $appDir -Recurse -Force
+New-Item -ItemType Directory -Path $appDir | Out-Null 
+Copy-Item -Path (Join-Path $sourceDir '*') -Destination $appDir -Recurse -Force
+Write-Host "App directory content after copy:"
+Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
+
 
 Write-Host "Starting updated PrinterHub"
 & "C:\ph\bin\r.ps1"

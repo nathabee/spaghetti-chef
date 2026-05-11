@@ -331,6 +331,11 @@ Then test status:
 C:\ph\bin\v.ps1
 ```
 
+Later the Windows application launcher `printerhub.bat` is provided by the versioned Windows application package:
+
+```text
+printer-hub-<version>-windows.zip
+
 ---
 
 ## Linux admin machine setup
