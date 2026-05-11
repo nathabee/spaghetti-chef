@@ -7,10 +7,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ScriptVersion = 'u.ps1 remote-java-debug-v2'
+Write-Host "Running $ScriptVersion"
 
 function Fail {
     param([string]$Message)
-    Write-Error $Message
+    Write-Error "[$ScriptVersion] $Message"
     exit 1
 }
 
@@ -121,10 +123,10 @@ Write-Host "Detected Java command: $javaCommand"
 Write-Host "Detected Java major version: $javaMajor"
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
+    Fail "Java was not found. run.env=$runEnvPath PRINTERHUB_JAVA='$($envMap['PRINTERHUB_JAVA'])'"
 }
 if ($javaMajor -ne 21) {
-    Fail "Java 21 is required. Detected Java major version: $javaMajor"
+    Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor' run.env=$runEnvPath"
 }
 
 $assetName = "printer-hub-$Version-windows.zip"
