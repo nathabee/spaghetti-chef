@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = 'u.ps1 remote-java-debug-v3'
+$ScriptVersion = 'u.ps1 remote-java-debug-v4'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
@@ -37,11 +37,47 @@ function Read-RunEnv {
 
         $parts = $trimmed -split '=', 2
         if ($parts.Count -eq 2) {
-            $map[$parts[0].Trim()] = $parts[1].Trim()
+            $key = $parts[0].Trim()
+            $value = $parts[1].Trim()
+            $value = $value.Trim('"')
+            $map[$key] = $value
         }
     }
 
     return $map
+}
+
+function Get-JavaCommand {
+    param([hashtable]$EnvMap)
+
+    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
+        $configured = $EnvMap['PRINTERHUB_JAVA']
+        if (-not [string]::IsNullOrWhiteSpace($configured)) {
+            Write-Host "Configured PRINTERHUB_JAVA: $configured"
+            if (Test-Path -LiteralPath $configured) {
+                return $configured
+            }
+
+            Write-Host "Configured PRINTERHUB_JAVA path does not exist."
+        }
+    } else {
+        Write-Host "PRINTERHUB_JAVA is not set in run.env"
+    }
+
+    $cmd = Get-Command java -ErrorAction SilentlyContinue
+    if ($null -ne $cmd) {
+        if ($cmd.Source) {
+            Write-Host "Resolved java from Get-Command: $($cmd.Source)"
+            return $cmd.Source
+        }
+        if ($cmd.Path) {
+            Write-Host "Resolved java from Get-Command: $($cmd.Path)"
+            return $cmd.Path
+        }
+    }
+
+    Write-Host "Get-Command java returned nothing."
+    return $null
 }
 
 function Get-JavaMajorVersion {
@@ -73,35 +109,6 @@ function Get-JavaMajorVersion {
     return $null
 }
 
-function Get-JavaMajorVersion {
-    param([string]$JavaCommand)
-
-    if ([string]::IsNullOrWhiteSpace($JavaCommand)) {
-        return $null
-    }
-
-    try {
-        $out = & $JavaCommand -version 2>&1
-        if (-not $out) {
-            return $null
-        }
-
-        $firstLine = $out | Select-Object -First 1
-        Write-Host "java -version first line: $firstLine"
-
-        if ($firstLine -match '"(?<version>\d+)(\.\d+)?(\.\d+)?.*"') {
-            return [int]$Matches.version
-        }
-
-        return $null
-    }
-    catch {
-        Write-Host "Failed to execute Java command: $JavaCommand"
-        Write-Host $_.Exception.Message
-        return $null
-    }
-}
-
 $root = 'C:\ph'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
@@ -119,8 +126,13 @@ Write-Host "Detected Java command: $javaCommand"
 Write-Host "Detected Java major version: $javaMajor"
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. run.env=$runEnvPath PRINTERHUB_JAVA='$($envMap['PRINTERHUB_JAVA'])'"
+    $configuredJava = $null
+    if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
+        $configuredJava = $envMap['PRINTERHUB_JAVA']
+    }
+    Fail "Java was not found. run.env=$runEnvPath PRINTERHUB_JAVA='$configuredJava'"
 }
+
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor' run.env=$runEnvPath"
 }
@@ -133,6 +145,16 @@ $updateLog = Join-Path $logDir 'update.log'
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 "$stamp update start version=$Version url=$downloadUrl java=$javaCommand" | Add-Content -LiteralPath $updateLog
+
+if (-not (Test-Path -LiteralPath $relDir)) {
+    New-Item -ItemType Directory -Path $relDir | Out-Null
+}
+if (-not (Test-Path -LiteralPath $tmpDir)) {
+    New-Item -ItemType Directory -Path $tmpDir | Out-Null
+}
+if (-not (Test-Path -LiteralPath $logDir)) {
+    New-Item -ItemType Directory -Path $logDir | Out-Null
+}
 
 if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force
