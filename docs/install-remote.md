@@ -159,8 +159,13 @@ Current launcher behavior:
 
 * Java command: `PRINTERHUB_JAVA` from `C:\ph\data\run.env`, otherwise `java`
 * API port: `PRINTERHUB_API_PORT` from `C:\ph\data\run.env`, otherwise `18080`
-* database file: `PRINTERHUB_DATABASE_FILE` from `C:\ph\data\run.env`, otherwise `printerhub.db`
+* database file: `PRINTERHUB_DATABASE_FILE` from `C:\ph\data\run.env`, otherwise `printerhub.db`. 
 
+Use full path for PRINTERHUB_DATABASE_FILE : 
+
+```text
+PRINTERHUB_DATABASE_FILE=C:\ph\data\printerhub.db
+```
 
 Current dashboard URL:
 
@@ -286,7 +291,7 @@ Initial example content:
 
 ```text
 PRINTERHUB_JAVA=
-PRINTERHUB_DATABASE_FILE=printerhub.db
+PRINTERHUB_DATABASE_FILE=C:\ph\data\printerhub.db
 PRINTERHUB_API_PORT=18080
 ```
 

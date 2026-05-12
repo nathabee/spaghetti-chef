@@ -10,35 +10,16 @@ Linux or Windows package without recompiling the project.
 
 ## Requirements
 
-Required on every runtime machine:
+ 
+* Required on runtime machine: Java 21
+* Required only for build machine / source build: Maven
+* Optional diagnostics: curl, sqlite3, minicom
 
-```text
-Java 21
-```
 
-Check:
 
-```bash
-java -version
-```
-
-Expected:
-
-```text
-version 21
-```
-
-Optional developer/diagnostic tools:
-
-```text
-Maven
-curl
-sqlite3
-minicom or another serial console
-```
 
 Maven is only needed when building from source. It is not needed when running the
-Jenkins package.
+Jenkins packages.
 
 ---
 
@@ -76,9 +57,8 @@ Run with explicit values:
 ./printerhub.sh 18080
 ```
 
-The launcher currently uses the port value and database file. Printer
-configuration is managed in the dashboard or persisted database, not created
-from the launcher arguments.
+The launcher currently controls only the API port and database file.
+Printer connection details and mode are configured later in the application and persisted in the database.
 
 Use a custom database file:
 
@@ -186,7 +166,8 @@ Windows example:
 java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
 ```
 
-If `-Dprinterhub.api.port` is omitted, PrinterHub uses its backend default:
+If `-Dprinterhub.api.port` is omitted, PrinterHub uses its default API port `8080`.
+The dashboard will then be available at: 
 
 ```text
 http://localhost:8080/dashboard
