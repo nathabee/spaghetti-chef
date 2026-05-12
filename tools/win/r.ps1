@@ -1,8 +1,11 @@
 $ErrorActionPreference = 'Stop'
 
+$ScriptVersion = 'r.ps1 runtime-env-v1'
+Write-Host "Running $ScriptVersion"
+
 function Fail {
     param([string]$Message)
-    Write-Error $Message
+    Write-Error "[$ScriptVersion] $Message"
     exit 1
 }
 
@@ -48,8 +51,12 @@ function Get-JavaCommand {
 
     $cmd = Get-Command java -ErrorAction SilentlyContinue
     if ($null -ne $cmd) {
-        if ($cmd.Source) { return $cmd.Source }
-        if ($cmd.Path) { return $cmd.Path }
+        if ($cmd.Source) {
+            return $cmd.Source
+        }
+        if ($cmd.Path) {
+            return $cmd.Path
+        }
     }
 
     return $null
@@ -81,7 +88,19 @@ function Get-JavaMajorVersion {
 
 $taskName = 'PrinterHub'
 $runEnvPath = 'C:\ph\data\run.env'
+$startLog = 'C:\ph\log\start.log'
 $envMap = Read-RunEnv -Path $runEnvPath
+
+$apiPort = '18080'
+if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
+    $apiPort = $envMap['PRINTERHUB_API_PORT']
+}
+
+$databaseFile = 'printerhub.db'
+if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
+    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+}
+
 $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
@@ -92,14 +111,26 @@ if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
 }
 
-& "C:\ph\bin\t.ps1"
-
-schtasks /Run /TN $taskName | Out-Null
-
-$apiPort = '18080'
-if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
-    $apiPort = $envMap['PRINTERHUB_API_PORT']
+if (-not (Test-Path -LiteralPath 'C:\ph\app\printerhub.bat')) {
+    Fail "Launcher not found: C:\ph\app\printerhub.bat"
 }
+
+if (-not (Test-Path -LiteralPath 'C:\ph\bin\t.ps1')) {
+    Fail "Task registration script not found: C:\ph\bin\t.ps1"
+}
+
+if (-not (Test-Path -LiteralPath 'C:\ph\log')) {
+    New-Item -ItemType Directory -Force -Path 'C:\ph\log' | Out-Null
+}
+
+$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+"[$stamp] start requested task=$taskName apiPort=$apiPort databaseFile=$databaseFile java=$javaCommand" | Add-Content -LiteralPath $startLog
+
+Write-Host "Refreshing scheduled task from run.env"
+& 'C:\ph\bin\t.ps1'
+
+Write-Host "Starting scheduled task '$taskName'"
+schtasks /Run /TN $taskName | Out-Null
 
 $healthy = $false
 for ($i = 0; $i -lt 30; $i++) {
@@ -116,7 +147,31 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 
 if (-not $healthy) {
+    "[$stamp] health endpoint never became reachable on port $apiPort" | Add-Content -LiteralPath $startLog
     Fail "PrinterHub start failed. Health endpoint not reachable on port $apiPort"
 }
 
+$stableChecks = 0
+for ($i = 0; $i -lt 10; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+        $resp = Invoke-WebRequest -Uri "http://localhost:$apiPort/health" -UseBasicParsing -TimeoutSec 2
+        if ($resp.StatusCode -eq 200) {
+            $stableChecks++
+        }
+    }
+    catch {
+    }
+}
+
+if ($stableChecks -lt 8) {
+    "[$stamp] health endpoint was transient stableChecks=$stableChecks/10 port=$apiPort" | Add-Content -LiteralPath $startLog
+    Fail "PrinterHub start was not stable. Health endpoint did not remain reachable long enough on port $apiPort"
+}
+
+"[$stamp] health endpoint stable stableChecks=$stableChecks/10 port=$apiPort" | Add-Content -LiteralPath $startLog
+
 Write-Host "PrinterHub started successfully through Task Scheduler."
+Write-Host "API port: $apiPort"
+Write-Host "Database file: $databaseFile"
+Write-Host "Java command: $javaCommand"

@@ -1,7 +1,7 @@
 ## Test steps
 
 
-mvn exec:java   -Dprinterhub.databaseFile="printerhub-real.db"   -Dprinterhub.api.port=18080   -Dexec.mainClass="printerhub.Main"
+mvn exec:java   -Dprinterhub.databaseFile="printerhub.db"   -Dprinterhub.api.port=18080   -Dexec.mainClass="printerhub.Main"
 http://localhost:18080/dashboard
 
 

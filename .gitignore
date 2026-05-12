@@ -23,4 +23,5 @@ scripts/**
 printerhub-print-files/**
 
 # AI
-.codex.codex/
+.codex
+

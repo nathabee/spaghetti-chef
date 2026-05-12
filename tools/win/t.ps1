@@ -1,39 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
+$ScriptVersion = 't.ps1 task-runtime-env-v1'
+Write-Host "Running $ScriptVersion"
+
 function Fail {
     param([string]$Message)
-    Write-Error $Message
+    Write-Error "[$ScriptVersion] $Message"
     exit 1
-}
-
-function Read-RunEnv {
-    param([string]$Path)
-
-    $map = @{}
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $map
-    }
-
-    $lines = Get-Content -LiteralPath $Path
-    foreach ($line in $lines) {
-        $trimmed = $line.Trim()
-        if ([string]::IsNullOrWhiteSpace($trimmed)) {
-            continue
-        }
-        if ($trimmed.StartsWith('#')) {
-            continue
-        }
-
-        $parts = $trimmed -split '=', 2
-        if ($parts.Count -eq 2) {
-            $key = $parts[0].Trim()
-            $value = $parts[1].Trim().Trim('"')
-            $map[$key] = $value
-        }
-    }
-
-    return $map
 }
 
 $taskName = 'PrinterHub'
@@ -51,40 +24,36 @@ if (-not (Test-Path -LiteralPath $logDir)) {
     New-Item -ItemType Directory -Path $logDir | Out-Null
 }
 
-$envMap = Read-RunEnv -Path $runEnvPath
-
-$databaseFile = 'printerhub.db'
-$apiPort = '18080'
-$serialPort = 'COM3'
-$mode = 'real'
-$javaCommand = ''
-
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
-}
-if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
-    $apiPort = $envMap['PRINTERHUB_API_PORT']
-}
-if ($envMap.ContainsKey('PRINTERHUB_SERIAL_PORT')) {
-    $serialPort = $envMap['PRINTERHUB_SERIAL_PORT']
-}
-if ($envMap.ContainsKey('PRINTERHUB_MODE')) {
-    $mode = $envMap['PRINTERHUB_MODE']
-}
-if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
-    $javaCommand = $envMap['PRINTERHUB_JAVA']
-}
-
 @"
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
+
+if not exist C:\ph\data\run.env (
+  echo run.env not found: C:\ph\data\run.env >> C:\ph\log\printerhub-err.log
+  exit /b 1
+)
+
+for /f "usebackq tokens=1,* delims==" %%A in ("C:\ph\data\run.env") do (
+  set "K=%%A"
+  set "V=%%B"
+  if not "!K!"=="" (
+    if /i not "!K:~0,1!"=="#" (
+      set "!K!=!V!"
+    )
+  )
+)
+
 cd /d C:\ph\app
-set PRINTERHUB_DATABASE_FILE=$databaseFile
-set PRINTERHUB_JAVA=$javaCommand
-call C:\ph\app\printerhub.bat $serialPort $mode $apiPort >> C:\ph\log\printerhub-out.log 2>> C:\ph\log\printerhub-err.log
+call C:\ph\app\printerhub.bat >> C:\ph\log\printerhub-out.log 2>> C:\ph\log\printerhub-err.log
 "@ | Set-Content -LiteralPath $taskCmd -Encoding ASCII
 
-schtasks /Create /F /TN $taskName /SC ONCE /ST 00:00 /RL HIGHEST /TR $taskCmd | Out-Null
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$startTime = (Get-Date).AddMinutes(5).ToString('HH:mm')
 
-Write-Host "Scheduled task '$taskName' is registered."
-Write-Host "Task command: $taskCmd"
+Write-Host "Registering scheduled task '$taskName' for user $currentUser at dummy time $startTime"
+Write-Host "Using runtime config from: $runEnvPath"
+Write-Host "Generated task wrapper: $taskCmd"
+
+schtasks /Create /F /TN $taskName /SC ONCE /ST $startTime /TR $taskCmd /RU $currentUser | Out-Null
+
+Write-Host "Scheduled task '$taskName' registered successfully."
