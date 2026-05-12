@@ -16,33 +16,6 @@ detail version 0.2.4 STEP E,F,G
 
 ## roadmap
  
-### 0.2.4 — Step E — transfer settings administration foundation
-
-status: planned
-
-Goals:
-
-* stop hardcoding SD upload transfer defaults as compile-time-only constants
-* introduce persistent runtime-configurable serial transfer settings
-* initialize defaults from `SerialDefaults` / protocol defaults only once
-* allow editing these settings through dashboard settings
-* expose transfer settings through API
-* make later upload/runtime steps consume persisted settings instead of raw constants
-
-Deliverables:
-
-* transfer settings model and persistence store
-* API endpoints to read and update transfer settings
-* dashboard settings page support for transfer tuning
-* runtime wiring so upload services read persisted settings
-
-Expected result:
-
-* monitoring-style settings management exists for serial/upload behavior too
-* later adaptive logic can build on persisted operator-defined limits
-* no need to change code just to tune upload behavior
-
----
 
 ### 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning
 
@@ -312,74 +285,6 @@ You asked specifically to regroup by theme so you do not scatter changes everywh
 
 ---
 
-## Theme 1 — transfer settings foundation
-
-These are the most likely files for **Step E**.
-
-### Config defaults
-
-* `src/main/java/printerhub/config/SerialDefaults.java`
-* possibly `src/main/java/printerhub/config/RuntimeDefaults.java`
-
-Role:
-
-* keep built-in initial values
-* stop using them as the only source of truth after DB initialization
-
-### Persistence
-
-* likely new store and model, similar to monitoring settings
-* possible candidates:
-
-  * new `src/main/java/printerhub/persistence/SerialTransferSettings.java`
-  * new `src/main/java/printerhub/persistence/SerialTransferSettingsStore.java`
-  * `src/main/java/printerhub/persistence/DatabaseInitializer.java`
-  * maybe `src/main/java/printerhub/persistence/Database.java`
-
-Role:
-
-* table creation
-* default initialization
-* read/update persisted settings
-
-### API
-
-* `src/main/java/printerhub/api/RemoteApiServer.java`
-
-Role:
-
-* GET/PUT endpoints for transfer settings
-* JSON serialization / parsing
-
-### Runtime/service consumers
-
-* `src/main/java/printerhub/command/SdCardUploadService.java`
-* maybe `src/main/java/printerhub/runtime/PrinterHubRuntime.java`
-* maybe `src/main/java/printerhub/job/AutonomousPrintControlService.java`
-
-Role:
-
-* load persisted settings instead of compile-time constants
-
-### Dashboard settings
-
-* `src/main/resources/dashboard/views/settings.js`
-* `src/main/resources/dashboard/api.js`
-* `src/main/resources/dashboard/state.js`
-* maybe `src/main/resources/dashboard/dashboard.js`
-* `src/main/resources/dashboard/dashboard.css`
-
-Role:
-
-* settings form
-* fetch/update transfer settings
-* visual integration with existing settings page
-
-### Tests
-
-* `src/test/java/printerhub/api/RemoteApiServerTest.java`
-* new store tests in `src/test/java/printerhub/persistence/`
-* `src/test/java/printerhub/command/SdCardUploadServiceTest.java`
 
 ---
 
@@ -563,36 +468,165 @@ This is the clean shape.
 That four-part split is much healthier than dumping everything in the service.
 
 ---
+##########################################################
 
-# Practical implementation order
+ 
+## The right Step F direction
 
-This is the safest order.
+You do **not** want a complicated “AI” controller first.
+You want a **safe hill-climbing controller with hysteresis**.
 
-## first
+That means:
 
-settings persistence and API
+* start from configured ceiling
+* reduce quickly on instability
+* increase slowly on proven stability
+* never jump wildly
+* never oscillate too fast
 
-## second
+## The algorithm for STEP F
 
-dashboard settings page
+Use 5 runtime concepts:
 
-## third
+* `configuredMaxBatchSize`
+* `configuredMinBatchSize`
+* `activeBatchSize`
+* `acceptedLinesSinceLastResend`
+* `recentResendCount`
 
-upload service reads persisted settings
+And 3 tuning thresholds:
 
-## fourth
+* `stableLinesForUpgrade`
+* `resendsBeforeDowngrade`
+* `recoveryEventsBeforeSingleSend`
 
-adaptive controller helper introduced
+### Runtime behavior
 
-## fifth
+At upload start:
 
-live telemetry model exposed through API
+* `activeBatchSize = configuredMaxBatchSize`
+* `acceptedLinesSinceLastResend = 0`
+* `recentResendCount = 0`
+* mode = `PIPELINED`
 
-## sixth
+When a batch succeeds cleanly:
 
-rich upload card UI
+* add accepted line count to `acceptedLinesSinceLastResend`
 
-That way each step leaves the codebase in a working state.
+If `acceptedLinesSinceLastResend >= stableLinesForUpgrade`:
 
+* if `activeBatchSize < configuredMaxBatchSize`
+
+  * increase by `1`
+* reset `acceptedLinesSinceLastResend = 0`
+* record event like:
+
+  * `SD upload adaptation: increased active batch size from 2 to 3 after 300 stable lines`
+
+When a resend happens:
+
+* run buffered recovery as you already do
+* increment resend/recovery counters
+* reset `acceptedLinesSinceLastResend = 0`
+
+Then downgrade:
+
+* if `activeBatchSize > configuredMinBatchSize`
+
+  * reduce by `1`
+* else stay at min
+* if repeated recovery still happens at min batch:
+
+  * enter `singleSendMode`
+
+This is much better than immediate permanent collapse.
+
+## Why this works better
+
+Because it behaves like this:
+
+* printer is stable at 5 -> stays at 5
+* printer unstable at 5 but stable at 3 -> naturally settles near 3
+* printer unstable everywhere -> degrades to 1 safely
+* printer becomes stable again later -> climbs back slowly
+
+So the controller searches for a practical working point instead of behaving like a panic switch.
+
+## The important design rule
+
+Do **not** use `singleSendMode` as the primary state anymore.
+
+Use `activeBatchSize` as the main authority.
+
+Then:
+
+* `activeBatchSize == 1` means effectively single-send
+* `singleSendMode()` can just be derived from that
+
+That makes the model cleaner.
+
+## Concrete plan for Step F
+
+### 1. Expand `SdUploadRuntimeState`
+
+Add fields like:
+
+* `configuredMinBatchSize`
+* `stableLinesForUpgrade`
+* `resendsBeforeDowngrade`
+* `recoveryCount`
+* `acceptedLinesSinceLastResend`
+* `successfulBatchCount`
+* `lastResendLine`
+* `modeTransitionCount`
+
+Add methods like:
+
+* `registerAcceptedLines(int count)`
+* `registerRecovery()`
+* `registerResend(int resendLine)`
+* `shouldUpgradeBatch()`
+* `upgradeBatchIfEligible()`
+* `downgradeAfterRecovery()`
+* `currentModeLabel()`
+
+### 2. Let `SdCardUploadService` stop deciding policy itself
+
+It should only:
+
+* stream
+* detect resend
+* call recovery
+* tell runtime state what happened
+* ask runtime state what batch size to use next
+
+### 3. Persist adaptation events
+
+Very important for diagnostics.
+
+Examples:
+
+* upload entered recovery
+* batch size reduced from 5 to 4
+* batch size reduced from 2 to 1
+* batch size increased from 1 to 2 after 250 stable lines
+
+### 4. Only after backend behavior is stable, do Step G dashboard polish
+
+Because fancy UI before solid adaptive metrics is backward.
+
+## My recommended first thresholds
+
+Keep them simple first:
+
+* `configuredMinBatchSize = 1`
+* `stableLinesForUpgrade = 200`
+* `resendsBeforeDowngrade = 1`
+* downgrade step = `1`
+* upgrade step = `1`
+
+That is conservative and testable.
+
+## So, 
 ---
  

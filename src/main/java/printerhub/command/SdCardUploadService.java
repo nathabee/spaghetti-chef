@@ -2,7 +2,7 @@ package printerhub.command;
 
 import printerhub.OperationMessages;
 import printerhub.SerialConnection;
-import printerhub.SerialIOMode; 
+import printerhub.SerialIOMode;
 import printerhub.config.PrinterProtocolDefaults;
 import printerhub.config.SerialDefaults;
 import printerhub.job.JobFailureReason;
@@ -34,8 +34,7 @@ import java.util.function.IntSupplier;
 
 public final class SdCardUploadService {
 
-    private static final String RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL =
-            "Printer requested resend for line %d but that line was outside the recoverable resend window.";
+    private static final String RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL = "Printer requested resend for line %d but that line was outside the recoverable resend window.";
 
     private final PrinterRegistry printerRegistry;
     private final PrinterMonitoringScheduler monitoringScheduler;
@@ -175,7 +174,8 @@ public final class SdCardUploadService {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("serialTransferSettingsStore"));
         }
         if (debugWireTracingEnabledSupplier == null) {
-            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
+            throw new IllegalArgumentException(
+                    OperationMessages.fieldMustNotBeBlank("debugWireTracingEnabledSupplier"));
         }
         if (sdUploadBatchSizeSupplier == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("sdUploadBatchSizeSupplier"));
@@ -280,15 +280,26 @@ public final class SdCardUploadService {
         boolean writeOpened = false;
         int nextProtocolLineNumber = 2;
         UploadGuardState guardState = new UploadGuardState();
+        SdUploadRuntimeState runtimeState = SdUploadRuntimeState.from(
+                monitoringRulesStore.load().debugWireTracingEnabled(),
+                serialTransferSettingsStore.load());
 
         try {
-            updateUploadProgress(UploadProgress.running(
+
+            updateUploadProgress(createUploadProgress(
+                    "running",
+                    true,
                     node.id(),
                     printFile.id(),
                     printFile.originalFilename(),
                     targetFilename,
                     uploadPlan.totalLineCount(),
-                    uploadPlan.totalByteCount()));
+                    uploadPlan.totalByteCount(),
+                    0L,
+                    0L,
+                    Instant.now(),
+                    "Upload started.",
+                    runtimeState));
 
             printerEventStore.record(
                     node.id(),
@@ -345,7 +356,8 @@ public final class SdCardUploadService {
                     uploadPlan,
                     printFile,
                     targetFilename,
-                    guardState);
+                    guardState,
+                    runtimeState);
 
             long uploadedLineCount = streamResult.uploadedLineCount();
             nextProtocolLineNumber = streamResult.nextLineNumber();
@@ -392,7 +404,9 @@ public final class SdCardUploadService {
                             + " -> "
                             + linkedFile.firmwarePath());
 
-            updateUploadProgress(UploadProgress.finished(
+            updateUploadProgress(createUploadProgress(
+                    "success",
+                    false,
                     node.id(),
                     printFile.id(),
                     printFile.originalFilename(),
@@ -401,7 +415,11 @@ public final class SdCardUploadService {
                     uploadPlan.totalByteCount(),
                     uploadedLineCount,
                     rejectedLineCountFromProgress(node.id()),
-                    "Uploaded as " + linkedFile.firmwarePath()));
+                    uploadProgressByPrinterId.get(node.id()) == null
+                            ? Instant.now()
+                            : uploadProgressByPrinterId.get(node.id()).startedAt(),
+                    "Uploaded as " + linkedFile.firmwarePath(),
+                    runtimeState));
 
             return new UploadResult(
                     node.id(),
@@ -431,7 +449,9 @@ public final class SdCardUploadService {
                     exception.getMessage(),
                     JobFailureReason.UNKNOWN.name());
 
-            updateUploadProgress(UploadProgress.failed(
+            updateUploadProgress(createUploadProgress(
+                    "error",
+                    false,
                     node.id(),
                     printFile.id(),
                     printFile.originalFilename(),
@@ -440,7 +460,11 @@ public final class SdCardUploadService {
                     uploadPlan.totalByteCount(),
                     uploadedLineCountFromProgress(node.id()),
                     rejectedLineCountFromProgress(node.id()),
-                    detail));
+                    uploadProgressByPrinterId.get(node.id()) == null
+                            ? Instant.now()
+                            : uploadProgressByPrinterId.get(node.id()).startedAt(),
+                    detail,
+                    runtimeState));
 
             try {
                 printerEventStore.record(
@@ -622,13 +646,14 @@ public final class SdCardUploadService {
             UploadPlan uploadPlan,
             PrintFile printFile,
             String targetFilename,
-            UploadGuardState guardState) {
+            UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState) {
         long uploadedLineCount = 0;
         long nextProgressEventPercent = 10;
-        int configuredBatchSize = Math.max(1, sdUploadBatchSizeSupplier.getAsInt());
-        int recoveryWindowMultiplier = Math.max(1, sdUploadRecoveryWindowMultiplierSupplier.getAsInt());
 
-        RecentWindowHistory windowHistory = new RecentWindowHistory(configuredBatchSize, recoveryWindowMultiplier);
+        RecentWindowHistory windowHistory = new RecentWindowHistory(
+                runtimeState.configuredMaxBatchSize(),
+                runtimeState.recoveryWindowMultiplier());
 
         try (BufferedReader reader = Files.newBufferedReader(hostPath)) {
             String rawLine;
@@ -647,7 +672,7 @@ public final class SdCardUploadService {
                 batchLines.add(payload);
                 batchLineNumbers.add(lineNumber);
 
-                int effectiveBatchSize = guardState.forceSingleSendMode() ? 1 : configuredBatchSize;
+                int effectiveBatchSize = runtimeState.activeBatchSize();
 
                 if (batchLines.size() >= effectiveBatchSize) {
                     sendBatchWithChecksum(
@@ -656,6 +681,7 @@ public final class SdCardUploadService {
                             batchLineNumbers,
                             windowHistory,
                             guardState,
+                            runtimeState,
                             printFile,
                             targetFilename);
                     batchLines.clear();
@@ -665,7 +691,9 @@ public final class SdCardUploadService {
                 UploadProgress currentProgress = uploadProgressByPrinterId.get(node.id());
                 Instant startedAt = currentProgress == null ? Instant.now() : currentProgress.startedAt();
 
-                updateUploadProgress(UploadProgress.progress(
+                updateUploadProgress(createUploadProgress(
+                        "running",
+                        true,
                         node.id(),
                         printFile.id(),
                         printFile.originalFilename(),
@@ -674,7 +702,9 @@ public final class SdCardUploadService {
                         uploadPlan.totalByteCount(),
                         uploadedLineCount,
                         rejectedLineCountFromProgress(node.id()),
-                        startedAt));
+                        startedAt,
+                        "Upload in progress.",
+                        runtimeState));
 
                 enforceMinPerformanceThreshold(node, printFile, targetFilename);
 
@@ -691,7 +721,9 @@ public final class SdCardUploadService {
                                         + uploadPlan.totalLineCount()
                                         + " lines ("
                                         + percent
-                                        + "%)");
+                                        + "%)"
+                                        + " | activeBatchSize="
+                                        + runtimeState.activeBatchSize());
 
                         while (nextProgressEventPercent <= percent) {
                             nextProgressEventPercent += 10;
@@ -707,6 +739,7 @@ public final class SdCardUploadService {
                         batchLineNumbers,
                         windowHistory,
                         guardState,
+                        runtimeState,
                         printFile,
                         targetFilename);
             }
@@ -724,6 +757,7 @@ public final class SdCardUploadService {
             List<Integer> lineNumbers,
             RecentWindowHistory windowHistory,
             UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState,
             PrintFile printFile,
             String targetFilename) {
         if (payloads.size() != lineNumbers.size()) {
@@ -738,8 +772,11 @@ public final class SdCardUploadService {
         if (guardState == null) {
             throw new IllegalArgumentException("guardState must not be null");
         }
+        if (runtimeState == null) {
+            throw new IllegalArgumentException("runtimeState must not be null");
+        }
 
-        if (guardState.forceSingleSendMode() || payloads.size() == 1) {
+        if (runtimeState.singleSendMode() || payloads.size() == 1) {
             for (int i = 0; i < payloads.size(); i++) {
                 int lineNumber = lineNumbers.get(i);
                 String payload = payloads.get(i);
@@ -752,13 +789,15 @@ public final class SdCardUploadService {
                         payload,
                         printFile,
                         targetFilename);
-                Integer requestedResendLine = requestedResendLine(response);
 
+                Integer requestedResendLine = requestedResendLine(response);
                 if (requestedResendLine != null) {
                     incrementRejectedLineCount(node.id());
+                    runtimeState.recordRejectedLine();
+                    runtimeState.recordResend();
+                    runtimeState.recordRecovery();
 
                     int resendLine = requestedResendLine < 0 ? lineNumber : requestedResendLine;
-                    guardState.enableSingleSendMode();
 
                     registerIdenticalResendAndEnforceThreshold(
                             node,
@@ -767,6 +806,8 @@ public final class SdCardUploadService {
                             printFile,
                             targetFilename);
                     enforceMaxErrorThreshold(node, printFile, targetFilename);
+
+                    maybeDowngradeBatch(node, runtimeState, resendLine);
 
                     if (!windowHistory.isRecoverable(resendLine)) {
                         throw new SdUploadLineException(
@@ -779,9 +820,15 @@ public final class SdCardUploadService {
                             windowHistory,
                             resendLine,
                             guardState,
+                            runtimeState,
                             printFile,
                             targetFilename);
+                    continue;
                 }
+
+                runtimeState.recordAcceptedLine();
+                maybeUpgradeBatch(node, runtimeState);
+
             }
 
             return;
@@ -793,6 +840,7 @@ public final class SdCardUploadService {
                 lineNumbers,
                 windowHistory,
                 guardState,
+                runtimeState,
                 printFile,
                 targetFilename);
     }
@@ -803,6 +851,7 @@ public final class SdCardUploadService {
             List<Integer> lineNumbers,
             RecentWindowHistory windowHistory,
             UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState,
             PrintFile printFile,
             String targetFilename) {
         if (payloads.size() != lineNumbers.size()) {
@@ -816,6 +865,9 @@ public final class SdCardUploadService {
         }
         if (guardState == null) {
             throw new IllegalArgumentException("guardState must not be null");
+        }
+        if (runtimeState == null) {
+            throw new IllegalArgumentException("runtimeState must not be null");
         }
 
         windowHistory.storeWindow(lineNumbers, payloads);
@@ -830,6 +882,7 @@ public final class SdCardUploadService {
                 checksummedLines,
                 lineNumbers,
                 guardState,
+                runtimeState,
                 printFile,
                 targetFilename);
         if (resendLine < 0) {
@@ -851,13 +904,16 @@ public final class SdCardUploadService {
                         + " | oldestRecoverable="
                         + windowHistory.oldestRecoverableLineNumber()
                         + " | newestSent="
-                        + windowHistory.newestSentLineNumber());
+                        + windowHistory.newestSentLineNumber()
+                        + " | activeBatchSize="
+                        + runtimeState.activeBatchSize());
 
         replayRecoveryStateMachine(
                 node,
                 windowHistory,
                 resendLine,
                 guardState,
+                runtimeState,
                 printFile,
                 targetFilename);
     }
@@ -867,6 +923,7 @@ public final class SdCardUploadService {
             List<String> checksummedLines,
             List<Integer> lineNumbers,
             UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState,
             PrintFile printFile,
             String targetFilename) {
         for (String checksummedLine : checksummedLines) {
@@ -883,9 +940,11 @@ public final class SdCardUploadService {
             Integer requestedResendLine = requestedResendLine(response);
             if (requestedResendLine != null) {
                 incrementRejectedLineCount(node.id());
+                runtimeState.recordRejectedLine();
+                runtimeState.recordResend();
+                runtimeState.recordRecovery();
 
                 int resendLine = requestedResendLine < 0 ? lineNumber : requestedResendLine;
-                guardState.enableSingleSendMode();
 
                 registerIdenticalResendAndEnforceThreshold(
                         node,
@@ -904,6 +963,8 @@ public final class SdCardUploadService {
                                 + " | response="
                                 + OperationMessages.safeDetail(response, "no response"));
 
+                maybeDowngradeBatch(node, runtimeState, resendLine);
+
                 discardPendingUploadInput(node);
 
                 printerEventStore.record(
@@ -918,6 +979,7 @@ public final class SdCardUploadService {
 
             if (responseContainsUploadError(response)) {
                 incrementRejectedLineCount(node.id());
+                runtimeState.recordRejectedLine();
                 enforceMaxErrorThreshold(node, printFile, targetFilename);
 
                 throw new SdUploadLineException(
@@ -936,6 +998,9 @@ public final class SdCardUploadService {
                                 + ": "
                                 + OperationMessages.safeDetail(response, "no response"));
             }
+
+            runtimeState.recordAcceptedLine();
+            maybeUpgradeBatch(node, runtimeState);
         }
 
         return -1;
@@ -1067,7 +1132,7 @@ public final class SdCardUploadService {
                         + ": "
                         + OperationMessages.safeDetail(response, "no response"));
     }
- 
+
     private String sendChecksummedLineWithRetry(
             PrinterRuntimeNode node,
             int lineNumber,
@@ -1207,10 +1272,9 @@ public final class SdCardUploadService {
             RecentWindowHistory windowHistory,
             int resendLine,
             UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState,
             PrintFile printFile,
             String targetFilename) {
-        guardState.enableSingleSendMode();
-
         int replayCursor = resendLine;
 
         while (replayCursor <= windowHistory.newestSentLineNumber()) {
@@ -1231,6 +1295,9 @@ public final class SdCardUploadService {
             Integer requestedResendLine = requestedResendLine(response);
             if (requestedResendLine != null) {
                 incrementRejectedLineCount(node.id());
+                runtimeState.recordRejectedLine();
+                runtimeState.recordResend();
+                runtimeState.recordRecovery();
 
                 int resendTarget = requestedResendLine < 0 ? replayCursor : requestedResendLine;
 
@@ -1248,6 +1315,8 @@ public final class SdCardUploadService {
                             String.format(Locale.ROOT, RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL, resendTarget));
                 }
 
+                maybeDowngradeBatch(node, runtimeState, resendTarget);
+
                 printerEventStore.record(
                         node.id(),
                         null,
@@ -1255,22 +1324,83 @@ public final class SdCardUploadService {
                         "SD upload recovery jump: currentLine="
                                 + replayCursor
                                 + " -> resendLine="
-                                + resendTarget);
+                                + resendTarget
+                                + " | activeBatchSize="
+                                + runtimeState.activeBatchSize());
 
                 sleepRecoveryReplayDelay();
                 replayCursor = resendTarget;
                 continue;
             }
 
+            runtimeState.recordAcceptedLine();
+            maybeUpgradeBatch(node, runtimeState);
+
             sleepRecoveryReplayDelay();
             replayCursor++;
         }
+
+        runtimeState.resetRecentRecoveryCount();
 
         printerEventStore.record(
                 node.id(),
                 null,
                 "SD_CARD_UPLOAD_RECOVERY_COMPLETED",
-                "SD upload recovery completed up to line " + windowHistory.newestSentLineNumber());
+                "SD upload recovery completed up to line "
+                        + windowHistory.newestSentLineNumber()
+                        + " | activeBatchSize="
+                        + runtimeState.activeBatchSize());
+    }
+
+    private void maybeDowngradeBatch(
+            PrinterRuntimeNode node,
+            SdUploadRuntimeState runtimeState,
+            int resendLine) {
+        int previousBatchSize = runtimeState.activeBatchSize();
+
+        if (runtimeState.shouldForceMinBatch()) {
+            runtimeState.forceMinBatch();
+        } else if (runtimeState.shouldDowngradeBatch()) {
+            runtimeState.downgradeBatch();
+        }
+
+        if (runtimeState.activeBatchSize() != previousBatchSize) {
+            printerEventStore.record(
+                    node.id(),
+                    null,
+                    "SD_CARD_UPLOAD_BATCH_DEGRADED",
+                    "SD upload batch size changed after resend: resendLine="
+                            + resendLine
+                            + " | previousBatchSize="
+                            + previousBatchSize
+                            + " | activeBatchSize="
+                            + runtimeState.activeBatchSize());
+        }
+    }
+
+    private void maybeUpgradeBatch(
+            PrinterRuntimeNode node,
+            SdUploadRuntimeState runtimeState) {
+        int previousBatchSize = runtimeState.activeBatchSize();
+
+        if (!runtimeState.shouldUpgradeBatch()) {
+            return;
+        }
+
+        runtimeState.upgradeBatch();
+
+        if (runtimeState.activeBatchSize() != previousBatchSize) {
+            printerEventStore.record(
+                    node.id(),
+                    null,
+                    "SD_CARD_UPLOAD_BATCH_UPGRADED",
+                    "SD upload batch size increased after stable stretch: previousBatchSize="
+                            + previousBatchSize
+                            + " | activeBatchSize="
+                            + runtimeState.activeBatchSize()
+                            + " | acceptedLinesSinceLastResend="
+                            + runtimeState.acceptedLinesSinceLastResend());
+        }
     }
 
     private String normalizeUploadPayload(String rawLine) {
@@ -1677,6 +1807,13 @@ public final class SdCardUploadService {
             long totalLineCount,
             long totalByteCount,
             long rejectedLineCount,
+            int activeBatchSize,
+            int configuredMaxBatchSize,
+            int configuredMinBatchSize,
+            long acceptedLinesSinceLastResend,
+            int recentResendCount,
+            int recentRecoveryCount,
+            boolean singleSendMode,
             Instant startedAt,
             Instant updatedAt,
             String detail) {
@@ -1745,111 +1882,6 @@ public final class SdCardUploadService {
             return Math.min(100.0, (actual * 100.0) / theoretical);
         }
 
-        public static UploadProgress running(
-                String printerId,
-                String printFileId,
-                String originalFilename,
-                String requestedTargetFilename,
-                long totalLineCount,
-                long totalByteCount) {
-            Instant now = Instant.now();
-            return new UploadProgress(
-                    printerId,
-                    printFileId,
-                    originalFilename,
-                    requestedTargetFilename,
-                    "running",
-                    true,
-                    0L,
-                    totalLineCount,
-                    totalByteCount,
-                    0L,
-                    now,
-                    now,
-                    "Upload started.");
-        }
-
-        public static UploadProgress progress(
-                String printerId,
-                String printFileId,
-                String originalFilename,
-                String requestedTargetFilename,
-                long totalLineCount,
-                long totalByteCount,
-                long uploadedLineCount,
-                long rejectedLineCount,
-                Instant startedAt) {
-            Instant now = Instant.now();
-            return new UploadProgress(
-                    printerId,
-                    printFileId,
-                    originalFilename,
-                    requestedTargetFilename,
-                    "running",
-                    true,
-                    uploadedLineCount,
-                    totalLineCount,
-                    totalByteCount,
-                    rejectedLineCount,
-                    startedAt == null ? now : startedAt,
-                    now,
-                    "Upload in progress.");
-        }
-
-        public static UploadProgress finished(
-                String printerId,
-                String printFileId,
-                String originalFilename,
-                String requestedTargetFilename,
-                long totalLineCount,
-                long totalByteCount,
-                long uploadedLineCount,
-                long rejectedLineCount,
-                String detail) {
-            Instant now = Instant.now();
-            return new UploadProgress(
-                    printerId,
-                    printFileId,
-                    originalFilename,
-                    requestedTargetFilename,
-                    "success",
-                    false,
-                    uploadedLineCount,
-                    totalLineCount,
-                    totalByteCount,
-                    rejectedLineCount,
-                    now,
-                    now,
-                    detail);
-        }
-
-        public static UploadProgress failed(
-                String printerId,
-                String printFileId,
-                String originalFilename,
-                String requestedTargetFilename,
-                long totalLineCount,
-                long totalByteCount,
-                long uploadedLineCount,
-                long rejectedLineCount,
-                String detail) {
-            Instant now = Instant.now();
-            return new UploadProgress(
-                    printerId,
-                    printFileId,
-                    originalFilename,
-                    requestedTargetFilename,
-                    "error",
-                    false,
-                    uploadedLineCount,
-                    totalLineCount,
-                    totalByteCount,
-                    rejectedLineCount,
-                    now,
-                    now,
-                    detail);
-        }
-
         private UploadProgress withRejectedLineCount(long newRejectedLineCount) {
             return new UploadProgress(
                     printerId,
@@ -1862,10 +1894,74 @@ public final class SdCardUploadService {
                     totalLineCount,
                     totalByteCount,
                     newRejectedLineCount,
+                    activeBatchSize,
+                    configuredMaxBatchSize,
+                    configuredMinBatchSize,
+                    acceptedLinesSinceLastResend,
+                    recentResendCount,
+                    recentRecoveryCount,
+                    singleSendMode,
                     startedAt,
                     Instant.now(),
                     detail);
         }
+    }
+
+    private UploadProgress createUploadProgress(
+            String state,
+            boolean active,
+            String printerId,
+            String printFileId,
+            String originalFilename,
+            String requestedTargetFilename,
+            long totalLineCount,
+            long totalByteCount,
+            long uploadedLineCount,
+            long rejectedLineCount,
+            Instant startedAt,
+            String detail,
+            SdUploadRuntimeState runtimeState) {
+        Instant now = Instant.now();
+
+        int activeBatchSize = 1;
+        int configuredMaxBatchSize = 1;
+        int configuredMinBatchSize = 1;
+        long acceptedLinesSinceLastResend = 0L;
+        int recentResendCount = 0;
+        int recentRecoveryCount = 0;
+        boolean singleSendMode = true;
+
+        if (runtimeState != null) {
+            activeBatchSize = runtimeState.activeBatchSize();
+            configuredMaxBatchSize = runtimeState.configuredMaxBatchSize();
+            configuredMinBatchSize = runtimeState.configuredMinBatchSize();
+            acceptedLinesSinceLastResend = runtimeState.acceptedLinesSinceLastResend();
+            recentResendCount = runtimeState.recentResendCount();
+            recentRecoveryCount = runtimeState.recentRecoveryCount();
+            singleSendMode = runtimeState.singleSendMode();
+        }
+
+        return new UploadProgress(
+                printerId,
+                printFileId,
+                originalFilename,
+                requestedTargetFilename,
+                state,
+                active,
+                uploadedLineCount,
+                totalLineCount,
+                totalByteCount,
+                rejectedLineCount,
+                activeBatchSize,
+                configuredMaxBatchSize,
+                configuredMinBatchSize,
+                acceptedLinesSinceLastResend,
+                recentResendCount,
+                recentRecoveryCount,
+                singleSendMode,
+                startedAt == null ? now : startedAt,
+                now,
+                detail);
     }
 
     public record CloseUploadSessionResult(
@@ -2019,7 +2115,6 @@ public final class SdCardUploadService {
     private static final class UploadGuardState {
         private Integer lastRequestedResendLine;
         private int consecutiveIdenticalResends;
-        private boolean forceSingleSendMode;
 
         private int registerResend(int resendLine) {
             if (lastRequestedResendLine != null && lastRequestedResendLine == resendLine) {
@@ -2030,14 +2125,6 @@ public final class SdCardUploadService {
             }
 
             return consecutiveIdenticalResends;
-        }
-
-        private void enableSingleSendMode() {
-            this.forceSingleSendMode = true;
-        }
-
-        private boolean forceSingleSendMode() {
-            return forceSingleSendMode;
         }
     }
 

@@ -2113,6 +2113,7 @@ status: planned
 
 Goals:
 
+* introduce an AIMD-inspired adaptive serial upload window controller that reduces batch aggressiveness on resend instability and gradually restores throughput after a stable acceptance window
 * build on Step D buffered resend recovery instead of replacing it
 * introduce a real runtime transfer controller instead of a fixed batch size plus permanent degraded latch
 * separate:
@@ -2171,6 +2172,78 @@ Expected result:
 * runtime approximates a practical stable operating point per printer/firmware/host path
 
 ---
+
+
+
+## The right Step F direction
+
+You do **not** want a complicated “AI” controller first.
+You want a **safe hill-climbing controller with hysteresis**.
+
+That means:
+
+* start from configured ceiling
+* reduce quickly on instability
+* increase slowly on proven stability
+* never jump wildly
+* never oscillate too fast
+
+## The algorithm for STEP F
+
+Use 5 runtime concepts:
+
+* `configuredMaxBatchSize`
+* `configuredMinBatchSize`
+* `activeBatchSize`
+* `acceptedLinesSinceLastResend`
+* `recentResendCount`
+
+And 3 tuning thresholds:
+
+* `stableLinesForUpgrade`
+* `resendsBeforeDowngrade`
+* `recoveryEventsBeforeSingleSend`
+
+### Runtime behavior
+
+At upload start:
+
+* `activeBatchSize = configuredMaxBatchSize`
+* `acceptedLinesSinceLastResend = 0`
+* `recentResendCount = 0`
+* mode = `PIPELINED`
+
+When a batch succeeds cleanly:
+
+* add accepted line count to `acceptedLinesSinceLastResend`
+
+If `acceptedLinesSinceLastResend >= stableLinesForUpgrade`:
+
+* if `activeBatchSize < configuredMaxBatchSize`
+
+  * increase by `1`
+* reset `acceptedLinesSinceLastResend = 0`
+* record event like:
+
+  * `SD upload adaptation: increased active batch size from 2 to 3 after 300 stable lines`
+
+When a resend happens:
+
+* run buffered recovery as you already do
+* increment resend/recovery counters
+* reset `acceptedLinesSinceLastResend = 0`
+
+Then downgrade:
+
+* if `activeBatchSize > configuredMinBatchSize`
+
+  * reduce by `1`
+* else stay at min
+* if repeated recovery still happens at min batch:
+
+  * enter `singleSendMode`
+
+
 
 #### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
 

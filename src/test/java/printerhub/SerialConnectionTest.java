@@ -33,20 +33,17 @@ class SerialConnectionTest {
     void constructorFailsForBlankPortName() {
         IllegalArgumentException ex1 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SerialConnection(null, 115200, new FakeSerialPortAdapter())
-        );
+                () -> new SerialConnection(null, 115200, new FakeSerialPortAdapter()));
         assertEquals("portName must not be blank", ex1.getMessage());
 
         IllegalArgumentException ex2 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SerialConnection("", 115200, new FakeSerialPortAdapter())
-        );
+                () -> new SerialConnection("", 115200, new FakeSerialPortAdapter()));
         assertEquals("portName must not be blank", ex2.getMessage());
 
         IllegalArgumentException ex3 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SerialConnection("   ", 115200, new FakeSerialPortAdapter())
-        );
+                () -> new SerialConnection("   ", 115200, new FakeSerialPortAdapter()));
         assertEquals("portName must not be blank", ex3.getMessage());
     }
 
@@ -54,8 +51,7 @@ class SerialConnectionTest {
     void constructorFailsForNullPortAdapter() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SerialConnection("COM1", 115200, null)
-        );
+                () -> new SerialConnection("COM1", 115200, null));
 
         assertEquals("portAdapter must not be null", exception.getMessage());
     }
@@ -105,13 +101,11 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                connection::connect
-        );
+                connection::connect);
 
         assertEquals(
                 "Failed to open serial port 'COM1'. Possible causes: device path is wrong, permission is missing, or the port is already in use.",
-                exception.getMessage()
-        );
+                exception.getMessage());
     }
 
     @Test
@@ -123,8 +117,7 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                connection::connect
-        );
+                connection::connect);
 
         assertEquals("Failed to initialize serial streams for port: COM1", exception.getMessage());
         assertTrue(adapter.closePortCalls >= 1);
@@ -136,8 +129,7 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> connection.sendCommand("M105")
-        );
+                () -> connection.sendCommand("M105"));
 
         assertEquals("Serial port is not open. COM1", exception.getMessage());
     }
@@ -153,20 +145,17 @@ class SerialConnectionTest {
 
         IllegalArgumentException ex1 = assertThrows(
                 IllegalArgumentException.class,
-                () -> connection.sendCommand(null)
-        );
+                () -> connection.sendCommand(null));
         assertEquals("command must not be blank", ex1.getMessage());
 
         IllegalArgumentException ex2 = assertThrows(
                 IllegalArgumentException.class,
-                () -> connection.sendCommand("")
-        );
+                () -> connection.sendCommand(""));
         assertEquals("command must not be blank", ex2.getMessage());
 
         IllegalArgumentException ex3 = assertThrows(
                 IllegalArgumentException.class,
-                () -> connection.sendCommand("   ")
-        );
+                () -> connection.sendCommand("   "));
         assertEquals("command must not be blank", ex3.getMessage());
     }
 
@@ -186,8 +175,7 @@ class SerialConnectionTest {
         assertEquals("ok T:21.80 /0.00 B:21.52 /0.00", response);
         assertEquals(
                 "M105" + SerialDefaults.DEFAULT_COMMAND_TERMINATOR,
-                out.toString()
-        );
+                out.toString());
     }
 
     @Test
@@ -201,8 +189,7 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> connection.sendCommand("M105")
-        );
+                () -> connection.sendCommand("M105"));
 
         assertEquals("Failed to send command 'M105' to COM1", exception.getMessage());
     }
@@ -218,8 +205,7 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> connection.sendCommand("M105")
-        );
+                () -> connection.sendCommand("M105"));
 
         assertEquals("No response for command 'M105' on COM1", exception.getMessage());
     }
@@ -246,17 +232,25 @@ class SerialConnectionTest {
         System.setProperty("printerhub.databaseFile", tempDir.resolve("serial-transfer-settings.db").toString());
         new DatabaseInitializer().initialize();
         new SerialTransferSettingsStore().save(new SerialTransferSettings(
-                5,
-                2,
-                100,
-                10,
-                5,
-                3,
-                1,
-                0,
-                0,
-                0,
-                15));
+                5, // sdUploadBatchSize
+                1, // sdUploadMinBatchSize
+                1, // sdUploadBatchUpgradeStep
+                1, // sdUploadBatchDowngradeStep
+                200, // sdUploadStableLinesForUpgrade
+                50, // sdUploadResendWindowLines
+                1, // sdUploadResendThresholdForDowngrade
+                3, // sdUploadRecoveryThresholdForMinBatch
+                2, // sdUploadRecoveryWindowMultiplier
+                100, // sdUploadMaxErrors
+                10, // sdUploadMaxConsecutiveIdenticalResends
+                5, // sdUploadMinPerformancePercent
+                3, // sdUploadMaxRetriesPerLine
+                1, // fileStreamingReadTimeoutMs
+                0, // fileStreamingQuietPeriodMs
+                0, // fileStreamingReadActivitySleepMs
+                0, // fileStreamingReadIdleSleepMs
+                15 // fileStreamingRecoveryReplayDelayMs
+        ));
 
         FakeSerialPortAdapter adapter = new FakeSerialPortAdapter();
         adapter.inputStream = new ControlledInputStream("");
@@ -283,8 +277,7 @@ class SerialConnectionTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> connection.sendCommand("M105")
-        );
+                () -> connection.sendCommand("M105"));
 
         assertEquals("Failed to send command 'M105' to COM1", exception.getMessage());
         assertNotNull(exception.getCause());
@@ -462,7 +455,7 @@ class SerialConnectionTest {
             return data[index++];
         }
     }
-    
+
     private static final class FailingInputStream extends InputStream {
         @Override
         public int available() throws IOException {

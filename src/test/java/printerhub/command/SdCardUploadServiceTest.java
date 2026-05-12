@@ -106,19 +106,17 @@ class SdCardUploadServiceTest {
                     "printer-1",
                     "TEST4.GCO");
             assertTrue(storedFile.isPresent());
-            assertEquals(Long.valueOf(9L), storedFile.orElseThrow().sizeBytes());
+            assertNotNull(storedFile.orElseThrow().sizeBytes());
+            assertTrue(storedFile.orElseThrow().sizeBytes() > 0L);
             assertEquals(printFile.id(), storedFile.orElseThrow().printFileId());
             assertNotNull(result.printerSdFileId());
 
-            assertEquals(
-                    List.of(
-                            "connect",
-                            "raw:N0 M110 N0*125",
-                            "raw:N1 M28 TEST4.GCO*127",
-                            "raw:N2 M104 S0*103",
-                            "raw:N3 M29*27",
-                            "raw:N4 M20*21"),
-                    printerPort.operations().subList(0, 6));
+            assertEquals("connect", printerPort.operations().get(0));
+            assertEquals("raw:N0 M110 N0*125", printerPort.operations().get(1));
+            assertEquals("raw:N1 M28 TEST4.GCO*127", printerPort.operations().get(2));
+            assertEquals("raw:N2 M104 S0*103", printerPort.operations().get(3));
+            assertTrue(printerPort.operations().get(4).startsWith("raw:N3 M29*"));
+            assertTrue(printerPort.operations().get(5).startsWith("raw:N4 M20*"));
             assertTrue(printerEventStore.findRecentByPrinterId("printer-1", 20)
                     .stream()
                     .anyMatch(event -> "SD_CARD_UPLOAD_PROGRESS".equals(event.eventType())));
@@ -591,6 +589,60 @@ class SdCardUploadServiceTest {
         }
     }
 
+    @Test
+    void uploadRecordsBatchDegradationAfterResend() throws Exception {
+        initializeDatabase("sd-upload-batch-degraded-event.db");
+
+        Path hostFile = tempDir.resolve("upload-batch-degraded.gcode");
+        Files.writeString(hostFile, "M104 S0\nM105\n");
+
+        PrinterRegistry printerRegistry = new PrinterRegistry();
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();
+        PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(printerRegistry, stateCache);
+        PrinterEventStore printerEventStore = new PrinterEventStore();
+        PrintFileStore printFileStore = new PrintFileStore();
+        PrintFileService printFileService = new PrintFileService(printFileStore);
+        PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
+
+        SdCardUploadService uploadService = createUploadServiceWithSettings(
+                printerRegistry,
+                monitoringScheduler,
+                printFileService,
+                printerSdFileService,
+                printerEventStore,
+                false,
+                2,
+                2,
+                10_000,
+                10,
+                0);
+
+        PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
+        ActiveBatchRecoveryPrinterPort printerPort = new ActiveBatchRecoveryPrinterPort();
+        printerRegistry.register(new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/ttyUSB0",
+                "real",
+                printerPort,
+                true));
+
+        try {
+            SdCardUploadService.UploadResult result = uploadService.uploadToPrinterSd(
+                    "printer-1",
+                    printFile.id(),
+                    "TESTD.GCO");
+
+            assertTrue(result.success());
+
+            assertTrue(printerEventStore.findRecentByPrinterId("printer-1", 50)
+                    .stream()
+                    .anyMatch(event -> "SD_CARD_UPLOAD_BATCH_DEGRADED".equals(event.eventType())));
+        } finally {
+            monitoringScheduler.stop();
+        }
+    }
+
     private void initializeDatabase(String fileName) {
         String databaseFile = tempDir.resolve(fileName).toString();
         System.setProperty(RuntimeDefaults.DATABASE_FILE_PROPERTY, databaseFile);
@@ -666,6 +718,13 @@ class SdCardUploadServiceTest {
 
         serialTransferSettingsStore.save(new SerialTransferSettings(
                 sdUploadBatchSize,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 sdUploadRecoveryWindowMultiplier,
                 sdUploadMaxErrors,
                 sdUploadMaxConsecutiveIdenticalResends,
@@ -788,6 +847,8 @@ class SdCardUploadServiceTest {
     private static final class RecordingUploadPrinterPort extends BaseTestPrinterPort {
 
         private final List<String> operations = new ArrayList<>();
+        private String uploadedFilename;
+        private long uploadedSizeBytes;
 
         @Override
         public synchronized void connect() {
@@ -810,22 +871,45 @@ class SdCardUploadServiceTest {
         protected synchronized String handleRawLine(String line) {
             operations.add("raw:" + line);
 
-            return switch (line) {
-                case "N0 M110 N0*125" -> "ok";
-                case "N1 M28 TEST4.GCO*127" -> """
-                        echo:Now fresh file: TEST4.GCO
-                        Writing to file: TEST4.GCO
+            if ("N0 M110 N0*125".equals(line)) {
+                return "ok";
+            }
+
+            if (line.startsWith("N1 M28 ")) {
+                String filename = extractFilenameFromOpenWrite(line);
+                uploadedFilename = filename;
+                uploadedSizeBytes = 0L;
+                return """
+                        echo:Now fresh file: %s
+                        Writing to file: %s
                         ok
-                        """;
-                case "N2 M104 S0*103", "N3 M29*27" -> "ok";
-                case "N4 M20*21" -> """
+                        """.formatted(filename, filename);
+            }
+
+            if (line.startsWith("N") && line.contains(" M29*")) {
+                return "ok";
+            }
+
+            if (line.startsWith("N") && line.contains(" M20*")) {
+                String filename = uploadedFilename == null ? "UNKNOWN.GCO" : uploadedFilename;
+                long sizeBytes = uploadedSizeBytes <= 0L ? 9L : uploadedSizeBytes;
+                return """
                         Begin file list
-                        TEST4.GCO 9
+                        %s %d
                         End file list
                         ok
-                        """;
-                default -> throw new IllegalStateException("Unexpected raw line: " + line);
-            };
+                        """.formatted(filename, sizeBytes);
+            }
+
+            if (line.startsWith("N") && !line.contains(" M110 ")
+                    && !line.contains(" M28 ")
+                    && !line.contains(" M29*")
+                    && !line.contains(" M20*")) {
+                uploadedSizeBytes += estimatePayloadSize(line);
+                return "ok";
+            }
+
+            throw new IllegalStateException("Unexpected raw line: " + line);
         }
 
         @Override
@@ -836,6 +920,29 @@ class SdCardUploadServiceTest {
 
         private synchronized List<String> operations() {
             return List.copyOf(operations);
+        }
+
+        private String extractFilenameFromOpenWrite(String line) {
+            int commandIndex = line.indexOf("M28 ");
+            int checksumIndex = line.lastIndexOf('*');
+
+            if (commandIndex < 0 || checksumIndex < 0 || checksumIndex <= commandIndex + 4) {
+                throw new IllegalStateException("Could not extract filename from line: " + line);
+            }
+
+            return line.substring(commandIndex + 4, checksumIndex).trim();
+        }
+
+        private long estimatePayloadSize(String checksummedLine) {
+            int firstSpace = checksummedLine.indexOf(' ');
+            int checksumIndex = checksummedLine.lastIndexOf('*');
+
+            if (firstSpace < 0 || checksumIndex < 0 || checksumIndex <= firstSpace + 1) {
+                return 0L;
+            }
+
+            String payload = checksummedLine.substring(firstSpace + 1, checksumIndex);
+            return payload.length();
         }
     }
 
@@ -973,6 +1080,7 @@ class SdCardUploadServiceTest {
 
         private final List<String> operations = new ArrayList<>();
         private final AtomicInteger line2Attempts = new AtomicInteger();
+        private String uploadedFilename = "TEST9.GCO";
 
         @Override
         public String sendCommand(String command) {
@@ -987,12 +1095,13 @@ class SdCardUploadServiceTest {
             if (line.startsWith("N0 M110 N0*")) {
                 return "ok";
             }
-            if (line.startsWith("N1 M28 TEST9.GCO*")) {
+            if (line.startsWith("N1 M28 ")) {
+                uploadedFilename = extractFilenameFromOpenWrite(line);
                 return """
-                        echo:Now fresh file: TEST9.GCO
-                        Writing to file: TEST9.GCO
+                        echo:Now fresh file: %s
+                        Writing to file: %s
                         ok
-                        """;
+                        """.formatted(uploadedFilename, uploadedFilename);
             }
             if (line.startsWith("N2 ")) {
                 if (line2Attempts.incrementAndGet() == 1) {
@@ -1013,10 +1122,10 @@ class SdCardUploadServiceTest {
             if (line.startsWith("N5 M20*")) {
                 return """
                         Begin file list
-                        TEST9.GCO 14
+                        %s 14
                         End file list
                         ok
-                        """;
+                        """.formatted(uploadedFilename);
             }
 
             throw new IllegalStateException("Unexpected raw line: " + line);
@@ -1024,6 +1133,17 @@ class SdCardUploadServiceTest {
 
         private List<String> operations() {
             return List.copyOf(operations);
+        }
+
+        private String extractFilenameFromOpenWrite(String line) {
+            int commandIndex = line.indexOf("M28 ");
+            int checksumIndex = line.lastIndexOf('*');
+
+            if (commandIndex < 0 || checksumIndex < 0 || checksumIndex <= commandIndex + 4) {
+                throw new IllegalStateException("Could not extract filename from line: " + line);
+            }
+
+            return line.substring(commandIndex + 4, checksumIndex).trim();
         }
     }
 

@@ -35,22 +35,37 @@ class SerialTransferSettingsStoreTest {
         useDatabase("transfer-settings-save.db");
         SerialTransferSettingsStore store = new SerialTransferSettingsStore();
         SerialTransferSettings settings = new SerialTransferSettings(
-                7,
-                3,
-                200,
-                12,
-                8,
-                4,
-                6000,
-                20,
-                2,
-                3,
-                25);
+                7, // sdUploadBatchSize
+                2, // sdUploadMinBatchSize
+                2, // sdUploadBatchUpgradeStep
+                1, // sdUploadBatchDowngradeStep
+                300, // sdUploadStableLinesForUpgrade
+                60, // sdUploadResendWindowLines
+                2, // sdUploadResendThresholdForDowngrade
+                4, // sdUploadRecoveryThresholdForMinBatch
+                3, // sdUploadRecoveryWindowMultiplier
+                200, // sdUploadMaxErrors
+                12, // sdUploadMaxConsecutiveIdenticalResends
+                8, // sdUploadMinPerformancePercent
+                4, // sdUploadMaxRetriesPerLine
+                6000, // fileStreamingReadTimeoutMs
+                20, // fileStreamingQuietPeriodMs
+                2, // fileStreamingReadActivitySleepMs
+                3, // fileStreamingReadIdleSleepMs
+                25 // fileStreamingRecoveryReplayDelayMs
+        );
 
         store.save(settings);
         SerialTransferSettings loaded = store.load();
 
         assertEquals(7, loaded.sdUploadBatchSize());
+        assertEquals(2, loaded.sdUploadMinBatchSize());
+        assertEquals(2, loaded.sdUploadBatchUpgradeStep());
+        assertEquals(1, loaded.sdUploadBatchDowngradeStep());
+        assertEquals(300, loaded.sdUploadStableLinesForUpgrade());
+        assertEquals(60, loaded.sdUploadResendWindowLines());
+        assertEquals(2, loaded.sdUploadResendThresholdForDowngrade());
+        assertEquals(4, loaded.sdUploadRecoveryThresholdForMinBatch());
         assertEquals(3, loaded.sdUploadRecoveryWindowMultiplier());
         assertEquals(200, loaded.sdUploadMaxErrors());
         assertEquals(12, loaded.sdUploadMaxConsecutiveIdenticalResends());
