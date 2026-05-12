@@ -2207,7 +2207,129 @@ Expected result:
 
 ---
 
-### 0.2.5 — Runtime Recovery and Serial Device Robustness
+
+### 0.2.5 — Simulation upload more realistic
+
+status: planned
+
+Goals:
+
+* make simulated SD-card upload behavior correct enough for normal Step E validation
+* ensure default simulated upload always succeeds end-to-end when no error mode is requested
+* improve simulator credibility for checksum, resend, timeout, and SD-card file-list workflows
+* separate deterministic simulation from fault-injection simulation
+* make upload and recovery scenarios testable without real hardware
+
+Scope:
+
+This step strengthens the simulated printer behavior around SD-card upload and related serial protocol flows.
+
+It does not try to emulate full firmware complexity.
+It focuses on the parts needed to validate PrinterHub upload, recovery, and dashboard behavior with confidence.
+
+#### Step A — make baseline simulated SD upload correct
+
+Goals:
+
+* support `M28` upload-open behavior in the simulator
+* accept uploaded checksummed payload lines during an active simulated write session
+* support `M29` upload-close behavior
+* make `M20` list the uploaded file after a successful simulated upload
+* keep the baseline `sim` mode deterministic and stable
+
+Expected result:
+
+* uploading to a normal simulated printer works from dashboard and API
+* uploaded file appears in simulated SD listing
+* Step E upload flow can be validated without a real printer
+
+#### Step B — model simulated SD-card state explicitly
+
+Goals:
+
+* introduce an internal simulated SD-card file registry
+* persist uploaded simulated files in memory for the runtime session
+* allow delete/list/read-style workflows to operate on the same simulated state
+* keep simulator behavior consistent across repeated commands in one session
+
+Expected result:
+
+* simulator behaves like a coherent fake firmware target instead of isolated command stubs
+* SD upload, file listing, and deletion share the same internal model
+
+#### Step C — separate success simulation from fault simulation
+
+Goals:
+
+* keep `sim` as the reliable happy-path mode
+* introduce dedicated fault-oriented simulation modes for upload stress testing
+* avoid mixing normal development simulation with random failure behavior
+
+Planned modes:
+
+* `sim` or equivalent baseline success mode
+* `sim-random-good` for mostly recoverable disturbances
+* `sim-random-bad` for heavy disturbance and likely upload failure
+
+Expected result:
+
+* developers can choose between stable validation and protocol stress testing
+* upload regressions are easier to classify
+
+#### Step D — add realistic protocol disturbance profiles
+
+Goals:
+
+* simulate resend requests during upload
+* simulate occasional checksum or line-order errors
+* simulate timeout-style degraded responses where appropriate
+* keep fault probabilities bounded by the selected simulation mode
+
+Expected result:
+
+* Step E recovery logic can be exercised against believable simulated failures
+* upload controller behavior can be validated before real-printer testing
+
+#### Step E — harden tests around simulation-specific upload behavior
+
+Goals:
+
+* add focused tests for simulated `M28` / payload / `M29` / `M20`
+* add tests proving uploaded simulated files appear in SD listing
+* add tests for deterministic success mode
+* add tests for recoverable and non-recoverable simulated upload faults
+* keep simulator changes covered at both unit and integration level
+
+Expected result:
+
+* simulated upload behavior is no longer accidental or under-tested
+* future protocol refactors are less likely to break simulation silently
+
+
+#### Out of scope
+
+Not part of this step:
+
+* full Marlin emulation
+* exact firmware-specific timing reproduction
+* persistent simulated SD storage across application restarts
+* complete simulation of all printer commands
+
+#### Likely impacted areas
+
+Main code:
+
+* `src/main/java/printerhub/serial/SimulatedPrinterPort.java`
+* `src/main/java/printerhub/runtime/PrinterRuntimeNodeFactory.java`
+
+Tests:
+
+* `src/test/java/printerhub/serial/SimulatedPrinterPortTest.java`
+* `src/test/java/printerhub/command/SdCardUploadServiceTest.java`
+* `src/test/java/printerhub/api/RemoteApiServerTest.java`
+
+
+### 0.2.6 — Runtime Recovery and Serial Device Robustness
 
 status: planned
 
@@ -2247,7 +2369,7 @@ Expected result:
 
 ---
 
-### 0.2.6 — Print Asset Transfer and Printer File Handling Hardening
+### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
 
 status: planned
 
@@ -2279,7 +2401,7 @@ Expected result:
 
 ---
 
-### 0.2.7 — Post-Print Review and Operational History Hardening
+### 0.2.8 — Post-Print Review and Operational History Hardening
 
 status: planned
 
@@ -2307,7 +2429,7 @@ Expected result:
 
 ---
 
-### 0.2.8 — Streamed G-code Job Execution
+### 0.3.0 — Streamed G-code Job Execution
 
 status: planned
 
@@ -2354,7 +2476,7 @@ Expected result:
 
 ---
 
-### 0.2.9 — Local Security, Roles, and Dangerous Action Guards
+### 0.4.0 — Local Security, Roles, and Dangerous Action Guards
 
 status: planned
 
