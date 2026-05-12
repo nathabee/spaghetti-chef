@@ -15,6 +15,8 @@ Roadmap:
 * [`docs/roadmap.md`](docs/roadmap.md)
 
 
+## Current scope
+
 > 
 > ## NOTE : Real printer. Real serial link. Real recovery work.
 > PrinterHub is currently being tested against a physical USB-connected 3D printer, with active work focused on high-speed SD upload over a constrained serial channel.
@@ -26,9 +28,8 @@ Roadmap:
 > The next target is an adaptive transfer controller that can recover safely, observe stability, and climb back toward a fast runtime batch size automatically. 
 >
 > Remote Windows bootstrap and update via OpenSSH is now available as an emergency pre-1.0.0 administration path.
----
+>
 
-## Current scope
 
 Current focus:
 
@@ -52,7 +53,7 @@ The current implementation provides:
 * guarded host-to-printer SD-card `.gcode` upload for the verified real-printer Marlin path
 * simulation modes for normal and failing printer behavior
 * Jenkins CI verification and runtime smoke tests
-* emergency remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
+* remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
 
 The implementation is intentionally still focused on the **local runtime** and its operational visibility.
 
