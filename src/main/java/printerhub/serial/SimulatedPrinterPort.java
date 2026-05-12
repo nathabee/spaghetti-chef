@@ -6,15 +6,22 @@ import printerhub.SerialIOMode;
 import printerhub.config.PrinterProtocolDefaults;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public final class SimulatedPrinterPort implements PrinterPort {
 
     private final String portName;
     private final String mode;
     private final List<String> pendingRawResponses = new ArrayList<>();
+    private final Map<String, Long> simulatedSdFiles = new LinkedHashMap<>();
+
     private boolean connected;
+    private boolean sdWriteSessionOpen;
+    private String currentSdWriteFilename;
+    private long currentSdWriteByteCount;
 
     public SimulatedPrinterPort(String portName) {
         this(portName, PrinterProtocolDefaults.SIM_MODE);
@@ -176,6 +183,9 @@ public final class SimulatedPrinterPort implements PrinterPort {
     public void disconnect() {
         connected = false;
         pendingRawResponses.clear();
+        sdWriteSessionOpen = false;
+        currentSdWriteFilename = null;
+        currentSdWriteByteCount = 0L;
     }
 
     private String defaultResponseFor(String command) {
@@ -185,24 +195,117 @@ public final class SimulatedPrinterPort implements PrinterPort {
             case "M105" -> PrinterProtocolDefaults.SIMULATED_RESPONSE_M105;
             case "M114" -> PrinterProtocolDefaults.SIMULATED_RESPONSE_M114;
             case "M115" -> PrinterProtocolDefaults.SIMULATED_RESPONSE_M115;
-            case "M20" -> PrinterProtocolDefaults.SIMULATED_RESPONSE_M20;
+            case "M20" -> buildSimulatedSdCardListing();
             case "M27" -> PrinterProtocolDefaults.SIMULATED_RESPONSE_M27;
             default -> PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
         };
     }
 
     private String defaultRawResponseFor(String line, SerialIOMode mode) {
-        String normalized = line.trim().toUpperCase(Locale.ROOT);
+        String trimmed = line.trim();
+        String normalized = trimmed.toUpperCase(Locale.ROOT);
 
-        if (normalized.contains("M20")) {
-            return PrinterProtocolDefaults.SIMULATED_RESPONSE_M20;
+        if (normalized.startsWith("N0 M110")) {
+            return PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
         }
 
-        if (normalized.contains("M27")) {
+        if (normalized.contains(" M28 ")) {
+            String filename = extractSdWriteFilename(trimmed);
+            openSimulatedSdWriteSession(filename);
+            return "echo:Now fresh file: " + filename + "\n"
+                    + "Writing to file: " + filename + "\n"
+                    + "ok";
+        }
+
+        if (normalized.contains(" M29")) {
+            closeSimulatedSdWriteSession();
+            return PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
+        }
+
+        if (normalized.contains(" M20")) {
+            return buildSimulatedSdCardListing();
+        }
+
+        if (normalized.contains(" M27")) {
             return PrinterProtocolDefaults.SIMULATED_RESPONSE_M27;
         }
 
+        if (sdWriteSessionOpen && looksLikeChecksummedProtocolLine(trimmed)) {
+            currentSdWriteByteCount += estimatePayloadByteCount(trimmed);
+            return PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
+        }
+
         return PrinterProtocolDefaults.SIMULATED_RESPONSE_DEFAULT_OK;
+    }
+
+    private void openSimulatedSdWriteSession(String filename) {
+        sdWriteSessionOpen = true;
+        currentSdWriteFilename = filename;
+        currentSdWriteByteCount = 0L;
+    }
+
+    private void closeSimulatedSdWriteSession() {
+        if (sdWriteSessionOpen && currentSdWriteFilename != null && !currentSdWriteFilename.isBlank()) {
+            simulatedSdFiles.put(currentSdWriteFilename, currentSdWriteByteCount);
+        }
+
+        sdWriteSessionOpen = false;
+        currentSdWriteFilename = null;
+        currentSdWriteByteCount = 0L;
+    }
+
+    private String buildSimulatedSdCardListing() {
+        if (simulatedSdFiles.isEmpty()) {
+            return PrinterProtocolDefaults.SIMULATED_RESPONSE_M20;
+        }
+
+        StringBuilder response = new StringBuilder();
+        response.append("Begin file list\n");
+
+        for (Map.Entry<String, Long> entry : simulatedSdFiles.entrySet()) {
+            response.append(entry.getKey())
+                    .append(" ")
+                    .append(entry.getValue())
+                    .append("\n");
+        }
+
+        response.append("End file list\nok");
+        return response.toString();
+    }
+
+    private String extractSdWriteFilename(String line) {
+        int commandIndex = line.toUpperCase(Locale.ROOT).indexOf("M28 ");
+        if (commandIndex < 0) {
+            return "SIMULATED.GCO";
+        }
+
+        String filename = line.substring(commandIndex + 4).trim();
+        int checksumIndex = filename.indexOf('*');
+        if (checksumIndex >= 0) {
+            filename = filename.substring(0, checksumIndex).trim();
+        }
+
+        if (filename.isBlank()) {
+            return "SIMULATED.GCO";
+        }
+
+        return filename;
+    }
+
+    private boolean looksLikeChecksummedProtocolLine(String line) {
+        return line.startsWith("N") && line.contains("*");
+    }
+
+    private long estimatePayloadByteCount(String line) {
+        int firstSpace = line.indexOf(' ');
+        int checksumIndex = line.lastIndexOf('*');
+
+        if (firstSpace < 0 || checksumIndex <= firstSpace) {
+            return 0L;
+        }
+
+        String payload = line.substring(firstSpace + 1, checksumIndex).trim();
+        return payload.length() + 1L;
     }
 
     private void ensureConnected() {

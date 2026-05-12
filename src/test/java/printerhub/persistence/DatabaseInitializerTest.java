@@ -35,6 +35,7 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("printer_events"));
         assertTrue(tableExists("configured_printers"));
         assertTrue(tableExists("monitoring_rules"));
+        assertTrue(tableExists("serial_transfer_settings"));
     }
 
     @Test
@@ -52,6 +53,7 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("printer_events"));
         assertTrue(tableExists("configured_printers"));
         assertTrue(tableExists("monitoring_rules"));
+        assertTrue(tableExists("serial_transfer_settings"));
     }
 
     @Test

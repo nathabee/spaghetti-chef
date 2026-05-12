@@ -22,6 +22,7 @@ public final class DatabaseInitializer {
             createConfiguredPrintersTable(statement);
             createMonitoringRulesTable(statement);
             createPrintFileSettingsTable(statement);
+            createSerialTransferSettingsTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
             ensureColumn(connection, "print_jobs", "printer_sd_file_id", "TEXT");
@@ -42,6 +43,28 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT 10");
             ensureColumn(connection, "monitoring_rules", "sd_upload_min_performance_percent",
                     "INTEGER NOT NULL DEFAULT 5");
+
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_batch_size", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_recovery_window_multiplier",
+                    "INTEGER NOT NULL DEFAULT 2");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_max_errors",
+                    "INTEGER NOT NULL DEFAULT 100");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_max_consecutive_identical_resends",
+                    "INTEGER NOT NULL DEFAULT 10");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_min_performance_percent",
+                    "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_max_retries_per_line",
+                    "INTEGER NOT NULL DEFAULT 3");
+            ensureColumn(connection, "serial_transfer_settings", "file_streaming_read_timeout_ms",
+                    "INTEGER NOT NULL DEFAULT 5000");
+            ensureColumn(connection, "serial_transfer_settings", "file_streaming_quiet_period_ms",
+                    "INTEGER NOT NULL DEFAULT 10");
+            ensureColumn(connection, "serial_transfer_settings", "file_streaming_read_activity_sleep_ms",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "file_streaming_read_idle_sleep_ms",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "file_streaming_recovery_replay_delay_ms",
+                    "INTEGER NOT NULL DEFAULT 15");
 
             System.out.println(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
         } catch (SQLException exception) {
@@ -222,6 +245,28 @@ public final class DatabaseInitializer {
                 CREATE TABLE IF NOT EXISTS print_file_settings (
                     id TEXT PRIMARY KEY,
                     storage_directory TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createSerialTransferSettingsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS serial_transfer_settings (
+                    id TEXT PRIMARY KEY,
+                    sd_upload_batch_size INTEGER NOT NULL DEFAULT 5,
+                    sd_upload_recovery_window_multiplier INTEGER NOT NULL DEFAULT 2,
+                    sd_upload_max_errors INTEGER NOT NULL DEFAULT 100,
+                    sd_upload_max_consecutive_identical_resends INTEGER NOT NULL DEFAULT 10,
+                    sd_upload_min_performance_percent INTEGER NOT NULL DEFAULT 5,
+                    sd_upload_max_retries_per_line INTEGER NOT NULL DEFAULT 3,
+                    file_streaming_read_timeout_ms INTEGER NOT NULL DEFAULT 5000,
+                    file_streaming_quiet_period_ms INTEGER NOT NULL DEFAULT 10,
+                    file_streaming_read_activity_sleep_ms INTEGER NOT NULL DEFAULT 1,
+                    file_streaming_read_idle_sleep_ms INTEGER NOT NULL DEFAULT 1,
+                    file_streaming_recovery_replay_delay_ms INTEGER NOT NULL DEFAULT 15,
                     updated_at TEXT NOT NULL
                 );
                 """;

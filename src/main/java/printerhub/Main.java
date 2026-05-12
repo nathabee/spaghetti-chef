@@ -26,6 +26,7 @@ import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeStateCache;
 import printerhub.command.SdCardUploadService;
 import java.util.concurrent.CountDownLatch;
+import printerhub.persistence.SerialTransferSettingsStore;
 
 public final class Main {
 
@@ -43,6 +44,7 @@ public final class Main {
                         DatabaseInitializer databaseInitializer = new DatabaseInitializer();
                         PrinterConfigurationStore printerConfigurationStore = new PrinterConfigurationStore();
                         MonitoringRulesStore monitoringRulesStore = new MonitoringRulesStore();
+                        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
                         PrintFileSettingsStore printFileSettingsStore = new PrintFileSettingsStore();
                         PrinterEventStore printerEventStore = new PrinterEventStore();
                         PrintFileStore printFileStore = new PrintFileStore();
@@ -76,7 +78,9 @@ public final class Main {
                                         printFileService,
                                         sdCardService,
                                         printerSdFileService,
-                                        printerEventStore);
+                                        printerEventStore,
+                                        monitoringRulesStore,
+                                        serialTransferSettingsStore);
 
                         PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                                         printJobService,
@@ -100,6 +104,7 @@ public final class Main {
                                         printerConfigurationStore,
                                         monitoringRulesStore,
                                         printFileSettingsStore,
+                                        serialTransferSettingsStore,
                                         printerEventStore,
                                         printerCommandService,
                                         sdCardService,
@@ -114,6 +119,7 @@ public final class Main {
                                         databaseInitializer,
                                         printerConfigurationStore,
                                         monitoringRulesStore,
+                                        serialTransferSettingsStore,
                                         printerRegistry,
                                         stateCache,
                                         monitoringScheduler,

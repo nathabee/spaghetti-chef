@@ -11,20 +11,17 @@ class SimulatedPrinterPortTest {
     void constructorFailsForBlankPortName() {
         IllegalArgumentException ex1 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SimulatedPrinterPort(null)
-        );
+                () -> new SimulatedPrinterPort(null));
         assertEquals("portName must not be blank", ex1.getMessage());
 
         IllegalArgumentException ex2 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SimulatedPrinterPort("")
-        );
+                () -> new SimulatedPrinterPort(""));
         assertEquals("portName must not be blank", ex2.getMessage());
 
         IllegalArgumentException ex3 = assertThrows(
                 IllegalArgumentException.class,
-                () -> new SimulatedPrinterPort("   ")
-        );
+                () -> new SimulatedPrinterPort("   "));
         assertEquals("portName must not be blank", ex3.getMessage());
     }
 
@@ -35,8 +32,7 @@ class SimulatedPrinterPortTest {
         assertDoesNotThrow(port::connect);
         assertEquals(
                 PrinterProtocolDefaults.SIMULATED_RESPONSE_M105,
-                port.sendCommand("M105")
-        );
+                port.sendCommand("M105"));
     }
 
     @Test
@@ -50,13 +46,11 @@ class SimulatedPrinterPortTest {
     void connectFailsInSimDisconnectedMode() {
         SimulatedPrinterPort port = new SimulatedPrinterPort(
                 "SIM_PORT",
-                PrinterProtocolDefaults.SIM_DISCONNECTED_MODE
-        );
+                PrinterProtocolDefaults.SIM_DISCONNECTED_MODE);
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                port::connect
-        );
+                port::connect);
 
         assertEquals("Simulated printer is disconnected: SIM_PORT", exception.getMessage());
     }
@@ -67,8 +61,7 @@ class SimulatedPrinterPortTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> port.sendCommand("M105")
-        );
+                () -> port.sendCommand("M105"));
 
         assertEquals("Simulated printer is not connected: SIM_PORT", exception.getMessage());
     }
@@ -80,20 +73,17 @@ class SimulatedPrinterPortTest {
 
         IllegalArgumentException ex1 = assertThrows(
                 IllegalArgumentException.class,
-                () -> port.sendCommand(null)
-        );
+                () -> port.sendCommand(null));
         assertEquals("command must not be blank", ex1.getMessage());
 
         IllegalArgumentException ex2 = assertThrows(
                 IllegalArgumentException.class,
-                () -> port.sendCommand("")
-        );
+                () -> port.sendCommand(""));
         assertEquals("command must not be blank", ex2.getMessage());
 
         IllegalArgumentException ex3 = assertThrows(
                 IllegalArgumentException.class,
-                () -> port.sendCommand("   ")
-        );
+                () -> port.sendCommand("   "));
         assertEquals("command must not be blank", ex3.getMessage());
     }
 
@@ -151,8 +141,7 @@ class SimulatedPrinterPortTest {
     void simErrorModeReturnsSimulatedFailureResponse() {
         SimulatedPrinterPort port = new SimulatedPrinterPort(
                 "SIM_PORT",
-                PrinterProtocolDefaults.SIM_ERROR_MODE
-        );
+                PrinterProtocolDefaults.SIM_ERROR_MODE);
         port.connect();
 
         String response = port.sendCommand("M105");
@@ -164,8 +153,7 @@ class SimulatedPrinterPortTest {
     void simTimeoutModeReturnsBlankResponse() {
         SimulatedPrinterPort port = new SimulatedPrinterPort(
                 "SIM_PORT",
-                PrinterProtocolDefaults.SIM_TIMEOUT_MODE
-        );
+                PrinterProtocolDefaults.SIM_TIMEOUT_MODE);
         port.connect();
 
         String response = port.sendCommand("M105");
@@ -181,8 +169,7 @@ class SimulatedPrinterPortTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> port.sendCommand("M105")
-        );
+                () -> port.sendCommand("M105"));
 
         assertEquals("Simulated printer is not connected: SIM_PORT", exception.getMessage());
     }
@@ -195,5 +182,25 @@ class SimulatedPrinterPortTest {
         String response = port.sendCommand("M105");
 
         assertEquals(PrinterProtocolDefaults.SIMULATED_RESPONSE_M105, response);
+    }
+
+    @Test
+    void rawSdUploadSessionMakesUploadedFileVisibleInM20Listing() {
+        SimulatedPrinterPort port = new SimulatedPrinterPort("SIM_PORT");
+
+        port.connect();
+
+        assertEquals("ok", port.sendRawLine("N0 M110 N0*125"));
+        String openResponse = port.sendRawLine("N1 M28 TESTHEXA.GCO*0");
+        assertTrue(openResponse.contains("Writing to file: TESTHEXA.GCO"));
+
+        assertEquals("ok", port.sendRawLine("N2 M104 S0*0"));
+        assertEquals("ok", port.sendRawLine("N3 M105*0"));
+        assertEquals("ok", port.sendRawLine("N4 M29*0"));
+
+        String listing = port.sendRawLine("N5 M20*0");
+        assertTrue(listing.contains("Begin file list"));
+        assertTrue(listing.contains("TESTHEXA.GCO"));
+        assertTrue(listing.contains("End file list"));
     }
 }

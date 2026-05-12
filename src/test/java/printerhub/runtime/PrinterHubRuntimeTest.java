@@ -24,6 +24,7 @@ import printerhub.job.PrinterActionMapper;
 import printerhub.job.PrinterSdFileService;
 import printerhub.persistence.PrintJobStore;
 import printerhub.command.SdCardUploadService;
+import printerhub.persistence.SerialTransferSettingsStore;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -53,6 +54,7 @@ class PrinterHubRuntimeTest {
                                                 null,
                                                 new PrinterConfigurationStore(),
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 new PrinterRuntimeStateCache(),
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -72,6 +74,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 null,
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 new PrinterRuntimeStateCache(),
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -91,6 +94,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 new PrinterConfigurationStore(),
                                                 null,
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 new PrinterRuntimeStateCache(),
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -110,6 +114,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 new PrinterConfigurationStore(),
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 null,
                                                 new PrinterRuntimeStateCache(),
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -129,6 +134,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 new PrinterConfigurationStore(),
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 null,
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -148,6 +154,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 new PrinterConfigurationStore(),
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 new PrinterRuntimeStateCache(),
                                                 null,
@@ -166,6 +173,7 @@ class PrinterHubRuntimeTest {
                                                 new DatabaseInitializer(),
                                                 new PrinterConfigurationStore(),
                                                 new MonitoringRulesStore(),
+                                                new SerialTransferSettingsStore(),
                                                 new PrinterRegistry(),
                                                 new PrinterRuntimeStateCache(),
                                                 new PrinterMonitoringScheduler(new PrinterRegistry(),
@@ -213,14 +221,17 @@ class PrinterHubRuntimeTest {
                                 printerEventStore);
 
                 PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+                SdCardService sdCardService = new SdCardService(printerEventStore);
+                SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+
                 SdCardUploadService sdCardUploadService = new SdCardUploadService(
                                 printerRegistry,
                                 monitoringScheduler,
                                 printerActionGuard,
                                 printFileService,
-                                new SdCardService(printerEventStore),
+                                sdCardService,
                                 printerSdFileService,
-                                printerEventStore);
+                                printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
 
                 PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                                 printJobService,
@@ -243,6 +254,7 @@ class PrinterHubRuntimeTest {
                                 configurationStore,
                                 monitoringRulesStore,
                                 new PrintFileSettingsStore(),
+                                serialTransferSettingsStore,
                                 printerEventStore,
                                 new PrinterCommandService(printerEventStore),
                                 new SdCardService(printerEventStore),
@@ -257,6 +269,7 @@ class PrinterHubRuntimeTest {
                                 databaseInitializer,
                                 configurationStore,
                                 monitoringRulesStore,
+                                serialTransferSettingsStore,
                                 printerRegistry,
                                 stateCache,
                                 monitoringScheduler,
@@ -307,14 +320,17 @@ class PrinterHubRuntimeTest {
                                 printerEventStore);
 
                 PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+                SdCardService sdCardService = new SdCardService(printerEventStore);
+                SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+
                 SdCardUploadService sdCardUploadService = new SdCardUploadService(
                                 printerRegistry,
                                 monitoringScheduler,
                                 printerActionGuard,
                                 printFileService,
-                                new SdCardService(printerEventStore),
+                                sdCardService,
                                 printerSdFileService,
-                                printerEventStore);
+                                printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
 
                 PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                                 printJobService,
@@ -337,6 +353,7 @@ class PrinterHubRuntimeTest {
                                 configurationStore,
                                 monitoringRulesStore,
                                 new PrintFileSettingsStore(),
+                                serialTransferSettingsStore,
                                 printerEventStore,
                                 new PrinterCommandService(printerEventStore),
                                 new SdCardService(printerEventStore),
@@ -351,6 +368,7 @@ class PrinterHubRuntimeTest {
                                 databaseInitializer,
                                 configurationStore,
                                 monitoringRulesStore,
+                                serialTransferSettingsStore,
                                 printerRegistry,
                                 stateCache,
                                 monitoringScheduler,
@@ -378,14 +396,18 @@ class PrinterHubRuntimeTest {
                                 printerEventStore);
 
                 PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+                SdCardService sdCardService = new SdCardService(printerEventStore);
+                SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+                MonitoringRulesStore monitoringRulesStore = new MonitoringRulesStore();
+
                 SdCardUploadService sdCardUploadService = new SdCardUploadService(
                                 printerRegistry,
                                 monitoringScheduler,
                                 printerActionGuard,
                                 printFileService,
-                                new SdCardService(printerEventStore),
+                                sdCardService,
                                 printerSdFileService,
-                                printerEventStore);
+                                printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
 
                 PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                                 printJobService,
@@ -408,6 +430,7 @@ class PrinterHubRuntimeTest {
                                 new PrinterConfigurationStore(),
                                 new MonitoringRulesStore(),
                                 new PrintFileSettingsStore(),
+                                serialTransferSettingsStore,
                                 printerEventStore,
                                 new PrinterCommandService(printerEventStore),
                                 new SdCardService(printerEventStore),

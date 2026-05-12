@@ -35,6 +35,8 @@ import printerhub.persistence.PrintFileSettingsStore;
 import printerhub.persistence.PrinterConfigurationStore;
 import printerhub.persistence.PrinterEvent;
 import printerhub.persistence.PrinterEventStore;
+import printerhub.persistence.SerialTransferSettings;
+import printerhub.persistence.SerialTransferSettingsStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeNodeFactory;
@@ -63,6 +65,7 @@ public final class RemoteApiServer {
     private final PrinterConfigurationStore printerConfigurationStore;
     private final MonitoringRulesStore monitoringRulesStore;
     private final PrintFileSettingsStore printFileSettingsStore;
+    private final SerialTransferSettingsStore serialTransferSettingsStore;
     private final PrinterEventStore printerEventStore;
     private final PrinterCommandService printerCommandService;
     private final SdCardService sdCardService;
@@ -85,6 +88,7 @@ public final class RemoteApiServer {
             PrinterConfigurationStore printerConfigurationStore,
             MonitoringRulesStore monitoringRulesStore,
             PrintFileSettingsStore printFileSettingsStore,
+            SerialTransferSettingsStore serialTransferSettingsStore,
             PrinterEventStore printerEventStore,
             PrinterCommandService printerCommandService,
             SdCardService sdCardService,
@@ -114,6 +118,9 @@ public final class RemoteApiServer {
         }
         if (printFileSettingsStore == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("printFileSettingsStore"));
+        }
+        if (serialTransferSettingsStore == null) {
+            throw new IllegalArgumentException(OperationMessages.SERIAL_TRANSFER_SETTINGS_STORE_MUST_NOT_BE_NULL);
         }
         if (printerEventStore == null) {
             throw new IllegalArgumentException(OperationMessages.EVENT_STORE_MUST_NOT_BE_NULL);
@@ -150,6 +157,7 @@ public final class RemoteApiServer {
         this.printerConfigurationStore = printerConfigurationStore;
         this.monitoringRulesStore = monitoringRulesStore;
         this.printFileSettingsStore = printFileSettingsStore;
+        this.serialTransferSettingsStore = serialTransferSettingsStore;
         this.printerEventStore = printerEventStore;
         this.printerCommandService = printerCommandService;
         this.sdCardService = sdCardService;
@@ -185,6 +193,8 @@ public final class RemoteApiServer {
                     exchange -> safeHandle(exchange, this::handleMonitoringSettings));
             server.createContext("/settings/print-files",
                     exchange -> safeHandle(exchange, this::handlePrintFileSettings));
+            server.createContext("/settings/serial-transfer",
+                    exchange -> safeHandle(exchange, this::handleSerialTransferSettings));
             server.createContext("/dashboard", exchange -> safeHandle(exchange, this::handleDashboard));
             server.start();
 
@@ -285,27 +295,7 @@ public final class RemoteApiServer {
                     optionalJsonBoolean(
                             body,
                             "debugWireTracingEnabled",
-                            currentRules.debugWireTracingEnabled()),
-                    optionalJsonInteger(
-                            body,
-                            "sdUploadBatchSize",
-                            currentRules.sdUploadBatchSize()),
-                    optionalJsonInteger(
-                            body,
-                            "sdUploadRecoveryWindowMultiplier",
-                            currentRules.sdUploadRecoveryWindowMultiplier()),
-                    optionalJsonInteger(
-                            body,
-                            "sdUploadMaxErrors",
-                            currentRules.sdUploadMaxErrors()),
-                    optionalJsonInteger(
-                            body,
-                            "sdUploadMaxConsecutiveIdenticalResends",
-                            currentRules.sdUploadMaxConsecutiveIdenticalResends()),
-                    optionalJsonInteger(
-                            body,
-                            "sdUploadMinPerformancePercent",
-                            currentRules.sdUploadMinPerformancePercent()));
+                            currentRules.debugWireTracingEnabled()));
 
             monitoringRulesStore.save(updatedRules);
             monitoringScheduler.updateMonitoringRules(updatedRules);
@@ -327,6 +317,63 @@ public final class RemoteApiServer {
             String body = readBody(exchange);
             PrintFileSettings settings = new PrintFileSettings(requiredJsonString(body, "storageDirectory"));
             sendJson(exchange, 200, printFileSettingsJson(printFileSettingsStore.save(settings)));
+            return;
+        }
+
+        sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+    }
+
+    private void handleSerialTransferSettings(HttpExchange exchange) throws IOException {
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 200, serialTransferSettingsJson(serialTransferSettingsStore.load()));
+            return;
+        }
+
+        if ("PUT".equalsIgnoreCase(exchange.getRequestMethod())) {
+            String body = readBody(exchange);
+            SerialTransferSettings currentSettings = serialTransferSettingsStore.load();
+
+            SerialTransferSettings updatedSettings = new SerialTransferSettings(
+                    optionalJsonInteger(body, "sdUploadBatchSize", currentSettings.sdUploadBatchSize()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadRecoveryWindowMultiplier",
+                            currentSettings.sdUploadRecoveryWindowMultiplier()),
+                    optionalJsonInteger(body, "sdUploadMaxErrors", currentSettings.sdUploadMaxErrors()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMaxConsecutiveIdenticalResends",
+                            currentSettings.sdUploadMaxConsecutiveIdenticalResends()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMinPerformancePercent",
+                            currentSettings.sdUploadMinPerformancePercent()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadMaxRetriesPerLine",
+                            currentSettings.sdUploadMaxRetriesPerLine()),
+                    optionalJsonInteger(
+                            body,
+                            "fileStreamingReadTimeoutMs",
+                            currentSettings.fileStreamingReadTimeoutMs()),
+                    optionalJsonInteger(
+                            body,
+                            "fileStreamingQuietPeriodMs",
+                            currentSettings.fileStreamingQuietPeriodMs()),
+                    optionalJsonInteger(
+                            body,
+                            "fileStreamingReadActivitySleepMs",
+                            currentSettings.fileStreamingReadActivitySleepMs()),
+                    optionalJsonInteger(
+                            body,
+                            "fileStreamingReadIdleSleepMs",
+                            currentSettings.fileStreamingReadIdleSleepMs()),
+                    optionalJsonInteger(
+                            body,
+                            "fileStreamingRecoveryReplayDelayMs",
+                            currentSettings.fileStreamingRecoveryReplayDelayMs()));
+
+            sendJson(exchange, 200, serialTransferSettingsJson(serialTransferSettingsStore.save(updatedSettings)));
             return;
         }
 
@@ -1325,19 +1372,30 @@ public final class RemoteApiServer {
                 + "\"eventDeduplicationWindowSeconds\":" + monitoringRules.eventDeduplicationWindowSeconds() + ","
                 + "\"errorPersistenceBehavior\":\"" + escapeJson(monitoringRules.errorPersistenceBehavior().name())
                 + "\","
-                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled() + ","
-                + "\"sdUploadBatchSize\":" + monitoringRules.sdUploadBatchSize() + ","
-                + "\"sdUploadRecoveryWindowMultiplier\":" + monitoringRules.sdUploadRecoveryWindowMultiplier() + ","
-                + "\"sdUploadMaxErrors\":" + monitoringRules.sdUploadMaxErrors() + ","
-                + "\"sdUploadMaxConsecutiveIdenticalResends\":"
-                + monitoringRules.sdUploadMaxConsecutiveIdenticalResends() + ","
-                + "\"sdUploadMinPerformancePercent\":" + monitoringRules.sdUploadMinPerformancePercent()
+                + "\"debugWireTracingEnabled\":" + monitoringRules.debugWireTracingEnabled()
                 + "}";
     }
 
     private String printFileSettingsJson(PrintFileSettings settings) {
         return "{"
                 + "\"storageDirectory\":\"" + escapeJson(settings.storageDirectory()) + "\""
+                + "}";
+    }
+
+    private String serialTransferSettingsJson(SerialTransferSettings settings) {
+        return "{"
+                + "\"sdUploadBatchSize\":" + settings.sdUploadBatchSize() + ","
+                + "\"sdUploadRecoveryWindowMultiplier\":" + settings.sdUploadRecoveryWindowMultiplier() + ","
+                + "\"sdUploadMaxErrors\":" + settings.sdUploadMaxErrors() + ","
+                + "\"sdUploadMaxConsecutiveIdenticalResends\":"
+                + settings.sdUploadMaxConsecutiveIdenticalResends() + ","
+                + "\"sdUploadMinPerformancePercent\":" + settings.sdUploadMinPerformancePercent() + ","
+                + "\"sdUploadMaxRetriesPerLine\":" + settings.sdUploadMaxRetriesPerLine() + ","
+                + "\"fileStreamingReadTimeoutMs\":" + settings.fileStreamingReadTimeoutMs() + ","
+                + "\"fileStreamingQuietPeriodMs\":" + settings.fileStreamingQuietPeriodMs() + ","
+                + "\"fileStreamingReadActivitySleepMs\":" + settings.fileStreamingReadActivitySleepMs() + ","
+                + "\"fileStreamingReadIdleSleepMs\":" + settings.fileStreamingReadIdleSleepMs() + ","
+                + "\"fileStreamingRecoveryReplayDelayMs\":" + settings.fileStreamingRecoveryReplayDelayMs()
                 + "}";
     }
 

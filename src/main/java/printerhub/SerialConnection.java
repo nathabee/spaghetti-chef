@@ -1,6 +1,8 @@
 package printerhub;
 
 import printerhub.config.SerialDefaults;
+import printerhub.persistence.SerialTransferSettings;
+import printerhub.persistence.SerialTransferSettingsStore;
 import printerhub.serial.JSerialCommPortAdapter;
 import printerhub.serial.SerialPortAdapter;
 
@@ -370,25 +372,31 @@ public final class SerialConnection implements PrinterPort {
 
     private String readRawResponseInternal(SerialIOMode mode)
             throws IOException, TimeoutException, InterruptedException {
+        SerialTransferSettings transferSettings = fileStreamingSettings(mode);
         int readTimeoutMs = mode == SerialIOMode.FILE_STREAMING
-                ? SerialDefaults.FILE_STREAMING_READ_TIMEOUT_MS
+                ? transferSettings.fileStreamingReadTimeoutMs()
                 : SerialDefaults.LONG_RUNNING_COMMAND_READ_TIMEOUT_MS;
 
-        return readResponseBlock(readTimeoutMs, mode);
+        return readResponseBlock(readTimeoutMs, mode, transferSettings);
     }
 
     private String readResponseBlock(int readTimeoutMs, SerialIOMode mode)
             throws IOException, TimeoutException, InterruptedException {
+        return readResponseBlock(readTimeoutMs, mode, fileStreamingSettings(mode));
+    }
+
+    private String readResponseBlock(int readTimeoutMs, SerialIOMode mode, SerialTransferSettings transferSettings)
+            throws IOException, TimeoutException, InterruptedException {
         int activitySleepMs = mode == SerialIOMode.FILE_STREAMING
-                ? SerialDefaults.FILE_STREAMING_READ_ACTIVITY_SLEEP_MS
+                ? transferSettings.fileStreamingReadActivitySleepMs()
                 : SerialDefaults.READ_ACTIVITY_SLEEP_MS;
 
         int idleSleepMs = mode == SerialIOMode.FILE_STREAMING
-                ? SerialDefaults.FILE_STREAMING_READ_IDLE_SLEEP_MS
+                ? transferSettings.fileStreamingReadIdleSleepMs()
                 : SerialDefaults.READ_IDLE_SLEEP_MS;
 
         int quietPeriodMs = mode == SerialIOMode.FILE_STREAMING
-                ? SerialDefaults.FILE_STREAMING_QUIET_PERIOD_MS
+                ? transferSettings.fileStreamingQuietPeriodMs()
                 : SerialDefaults.QUIET_PERIOD_MS;
 
         StringBuilder currentLine = new StringBuilder();
@@ -484,6 +492,18 @@ public final class SerialConnection implements PrinterPort {
         }
 
         return cleaned;
+    }
+
+    private SerialTransferSettings fileStreamingSettings(SerialIOMode mode) {
+        if (mode != SerialIOMode.FILE_STREAMING) {
+            return SerialTransferSettings.defaults();
+        }
+
+        try {
+            return new SerialTransferSettingsStore().load();
+        } catch (IllegalStateException exception) {
+            return SerialTransferSettings.defaults();
+        }
     }
 
     private boolean isResponseBlockTerminator(String line, SerialIOMode mode, String responseSoFar) {

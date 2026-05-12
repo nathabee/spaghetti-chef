@@ -1,7 +1,12 @@
 package printerhub;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import printerhub.config.SerialDefaults;
+import printerhub.persistence.DatabaseInitializer;
+import printerhub.persistence.SerialTransferSettings;
+import printerhub.persistence.SerialTransferSettingsStore;
 import printerhub.serial.SerialPortAdapter;
 
 import java.io.ByteArrayInputStream;
@@ -9,11 +14,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class SerialConnectionTest {
+
+    @TempDir
+    Path tempDir;
+
+    @AfterEach
+    void clearDatabaseProperty() {
+        System.clearProperty("printerhub.databaseFile");
+    }
 
     @Test
     void constructorFailsForBlankPortName() {
@@ -225,6 +239,37 @@ class SerialConnectionTest {
         assertEquals(
                 SerialDefaults.READ_TIMEOUT_MS,
                 SerialConnection.readTimeoutMsForCommand("M105"));
+    }
+
+    @Test
+    void fileStreamingReadsUsePersistedTransferTimeout() {
+        System.setProperty("printerhub.databaseFile", tempDir.resolve("serial-transfer-settings.db").toString());
+        new DatabaseInitializer().initialize();
+        new SerialTransferSettingsStore().save(new SerialTransferSettings(
+                5,
+                2,
+                100,
+                10,
+                5,
+                3,
+                1,
+                0,
+                0,
+                0,
+                15));
+
+        FakeSerialPortAdapter adapter = new FakeSerialPortAdapter();
+        adapter.inputStream = new ControlledInputStream("");
+        adapter.outputStream = new ByteArrayOutputStream();
+        SerialConnection connection = new SerialConnection("COM1", 115200, adapter);
+        connection.connect();
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> connection.readRawResponse(SerialIOMode.FILE_STREAMING));
+
+        assertNotNull(exception.getCause());
+        assertEquals("No response received from printer within 1 ms.", exception.getCause().getMessage());
     }
 
     @Test

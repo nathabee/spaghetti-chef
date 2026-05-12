@@ -26,6 +26,7 @@ export const state = {
   printerSdFiles: [],
   monitoringRules: null,
   printFileSettings: null,
+  serialTransferSettings: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -68,6 +69,10 @@ export function setMonitoringRules(rules) {
 
 export function setPrintFileSettings(settings) {
   state.printFileSettings = settings;
+}
+
+export function setSerialTransferSettings(settings) {
+  state.serialTransferSettings = settings;
 }
 
 export function setPrimaryView(viewId) {

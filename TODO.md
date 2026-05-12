@@ -149,6 +149,27 @@ Expected result:
 
 These are worth adding explicitly, because they will shape the design and avoid future rewrite.
 
+## structure
+
+SdCardUploadService should answer:
+
+how to execute the SD upload
+when to open write
+when to stream
+when to recover
+when to close
+when to persist events
+when to update progress
+
+SdUploadRuntimeState should answer:
+
+what the current session settings are
+what batch size is active now
+whether single-send mode is active
+what thresholds apply for this session
+
+
+
 ## 1. Separate operator policy from runtime state
 
 Do not store only one “batch size”.
