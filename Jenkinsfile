@@ -862,35 +862,48 @@ stage('Package Expert Distributions') {
             cat > package/linux/printerhub.sh <<'EOF'
 #!/usr/bin/env sh
 set -eu
-
-PORT_NAME="${1:-/dev/ttyUSB0}"
-MODE="${2:-real}"
-API_PORT="${3:-18080}"
+ 
+API_PORT="${1:-18080}"
 DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
 
 exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
 EOF
             chmod +x package/linux/printerhub.sh
-
-            cat > package/windows/printerhub.bat <<'EOF'
+cat > package/windows/printerhub.bat <<'EOF'
 @echo off
 setlocal
 
-set PORT_NAME=%1
-if "%PORT_NAME%"=="" set PORT_NAME=COM3
+set API_PORT=%1
+set API_PORT_SOURCE=arg
+if "%API_PORT%"=="" (
+  set API_PORT=%PRINTERHUB_API_PORT%
+  set API_PORT_SOURCE=env
+)
+if "%API_PORT%"=="" (
+  set API_PORT=18080
+  set API_PORT_SOURCE=default
+)
 
-set MODE=%2
-if "%MODE%"=="" set MODE=real
-
-set API_PORT=%3
-if "%API_PORT%"=="" set API_PORT=18080
-
-if "%PRINTERHUB_DATABASE_FILE%"=="" set PRINTERHUB_DATABASE_FILE=printerhub.db
+set DATABASE_FILE=%PRINTERHUB_DATABASE_FILE%
+set DATABASE_FILE_SOURCE=env
+if "%DATABASE_FILE%"=="" (
+  set DATABASE_FILE=printerhub.db
+  set DATABASE_FILE_SOURCE=default
+)
 
 set JAVA_CMD=%PRINTERHUB_JAVA%
-if "%JAVA_CMD%"=="" set JAVA_CMD=java
+set JAVA_CMD_SOURCE=env
+if "%JAVA_CMD%"=="" (
+  set JAVA_CMD=java
+  set JAVA_CMD_SOURCE=default
+)
 
-"%JAVA_CMD%" -Dprinterhub.databaseFile="%PRINTERHUB_DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
+echo PrinterHub launcher configuration
+echo   java: %JAVA_CMD% [source=%JAVA_CMD_SOURCE%]
+echo   api port: %API_PORT% [source=%API_PORT_SOURCE%]
+echo   database file: %DATABASE_FILE% [source=%DATABASE_FILE_SOURCE%]
+
+"%JAVA_CMD%" -Dprinterhub.databaseFile="%DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
 EOF
 
 cp tools/win/run.env.example package/admin/
@@ -905,9 +918,10 @@ cat > package/admin/README.txt <<'EOF'
 PrinterHub Windows remote administration bootstrap package.
 
 Contents:
-- run.env.example : example local runtime configuration
+- run.env.example : example local runtime configuration for the PowerShell helper layer
+- t.ps1 : register or refresh the PrinterHub scheduled task
 - u.ps1 : remote update script
-- r.ps1 : start PrinterHub
+- r.ps1 : start PrinterHub through Task Scheduler
 - s.ps1 : stop PrinterHub
 - v.ps1 : status and health check
 - INSTALL-REMOTE.md : setup instructions

@@ -53,7 +53,7 @@ printer-hub/
 └── ops/
     ├── phu
     └── phv
-````
+```
 
 ### Windows laptop
 
@@ -125,7 +125,13 @@ launch remote PowerShell scripts on the Windows host.
 
 ## Release packaging assumption
 
-The updater reuses the existing release asset naming pattern:
+The GitHub release tag uses:
+
+```text
+v<version>
+````
+
+The Windows asset file uses:
 
 ```text
 printer-hub-<version>-windows.zip
@@ -134,22 +140,8 @@ printer-hub-<version>-windows.zip
 Example:
 
 ```text
-printer-hub-0.2.4-windows.zip
-```
-
-The Git tag and release name are expected to match the version string used by
-the updater.
-
-The admin bootstrap package uses:
-
-```text
-printer-hub-<version>-admin.zip
-```
-
-Example:
-
-```text
-printer-hub-0.2.4-admin.zip
+tag: v1.0.0
+asset: printer-hub-1.0.0-windows.zip
 ```
 
 ---
@@ -163,12 +155,12 @@ printerhub.bat
 printer-hub.jar
 ```
 
-Current launcher behavior:
+Current launcher behavior: 
 
-* default serial port: `COM3`
-* default mode: `real`
-* default API port: `18080`
-* default database: `printerhub.db`
+* Java command: `PRINTERHUB_JAVA` from `C:\ph\data\run.env`, otherwise `java`
+* API port: `PRINTERHUB_API_PORT` from `C:\ph\data\run.env`, otherwise `18080`
+* database file: `PRINTERHUB_DATABASE_FILE` from `C:\ph\data\run.env`, otherwise `printerhub.db`
+
 
 Current dashboard URL:
 
@@ -282,8 +274,7 @@ Copy the extracted example environment file to:
 C:\ph\data\run.env
 ```
 
- 
-Review local runtime configuration:
+### 6. Review local runtime configuration
 
 Open:
 
@@ -297,16 +288,12 @@ Initial example content:
 PRINTERHUB_JAVA=
 PRINTERHUB_DATABASE_FILE=printerhub.db
 PRINTERHUB_API_PORT=18080
-PRINTERHUB_SERIAL_PORT=COM3
-PRINTERHUB_MODE=real
 ```
 
 Adjust values if needed for the target Windows laptop.
 
 
----
-
-### 6. Register the scheduled task once
+### 7. Register the scheduled task once
 
 Open a normal PowerShell window with the same Windows user that will run
 PrinterHub and execute:
@@ -321,21 +308,37 @@ C:\ph\bin\t.ps1
 
 ---
  
-### 7. Optional first manual package install
+### 8. Optional first manual package install
 
 If desired, install the first Windows release manually before remote updates are
 used:
 
-1. Download the release zip
+1. Download `printer-hub-<version>-windows.zip`
 2. Extract it into `C:\ph\app`
 3. Verify these files exist:
 
 ```text
 C:\ph\app\printerhub.bat
 C:\ph\app\printer-hub.jar
-
 ```
 
+Then refresh the scheduled task:
+
+```powershell
+C:\ph\bin\t.ps1
+```
+
+Then test start:
+
+```powershell
+C:\ph\bin\r.ps1
+```
+
+Then test status:
+
+```powershell
+C:\ph\bin\v.ps1
+```
 
 ---
 
@@ -372,7 +375,7 @@ PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
 or:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 0.2.4.STEP_C_TEST
+PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 1.0.0
 ```
 
 If you want less typing, export them once in the shell:
@@ -386,7 +389,7 @@ Then use:
 
 ```bash
 ops/phv
-ops/phu 0.2.4.STEP_C_TEST
+ops/phu 1.0.0
 ```
 
 ---
@@ -438,13 +441,13 @@ on the Windows host.
 From Linux:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 0.2.4.STEP_C_TEST
+PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 1.0.0
 ```
 
 This launches:
 
 ```text
-C:\ph\bin\u.ps1 -Version 0.2.4.STEP_C_TEST
+C:\ph\bin\u.ps1 -Version 1.0.0
 ```
 
 on the Windows host.
@@ -452,13 +455,13 @@ on the Windows host.
 The updater downloads:
 
 ```text
-https://github.com/<owner>/<repo>/releases/download/<version>/printer-hub-<version>-windows.zip
+https://github.com/<owner>/<repo>/releases/download/v<version>/printer-hub-<version>-windows.zip
 ```
-
-Example asset:
+ 
+Example download URL:
 
 ```text
-printer-hub-0.2.4.STEP_C_TEST-windows.zip
+https://github.com/nathabee/printer-hub/releases/download/v1.0.0/printer-hub-1.0.0-windows.zip
 ```
 
 ---
@@ -478,96 +481,4 @@ The updater replaces only the application package in:
 ```text
 C:\ph\app\
 ```
-
----
-
-## Current limitations
-
-This first emergency solution has known limits:
-
-* no automatic rollback yet
-* no service wrapper yet
-* no latest-release auto-discovery yet
-* no dynamic host discovery yet
-* launcher parameters are still basic and should later move fully into `run.env`
-
-This is acceptable for the current pre-`1.0.0` scope.
-
----
-
-## Recommended future improvements
-
-Planned later hardening:
-
-* move serial port and mode fully into `run.env`
-* add rollback-safe update behavior
-* add optional latest-release mode
-* integrate remote administration into the future admin dashboard
-
----
-
-## Files involved
-
-### Repo files
-
-* `docs/install-remote.md`
-* `tools/win/run.env.example`
-* `tools/win/u.ps1`
-* `tools/win/r.ps1`
-* `tools/win/s.ps1`
-* `tools/win/v.ps1`
-* `ops/phu`
-* `ops/phv`
-
-### Remote Windows files
-
-* `C:\ph\app\printerhub.bat`
-* `C:\ph\app\printer-hub.jar`
-* `C:\ph\data\run.env`
-* `C:\ph\log\start.log`
-* `C:\ph\log\stop.log`
-* `C:\ph\log\update.log`
-* `C:\ph\log\printerhub-out.log`
-* `C:\ph\log\printerhub-err.log`
-* `C:\ph\bin\u.ps1`
-* `C:\ph\bin\r.ps1`
-* `C:\ph\bin\s.ps1`
-* `C:\ph\bin\v.ps1`
-
-### Local Linux files
-
-* `ops/phu`
-* `ops/phv`
-
----
-
-## Remote Windows emergency administration bootstrap
-
-Files introduced for the temporary pre-1.0.0 remote administration flow:
-
-### Repo
-
-* `docs/install-remote.md`
-* `tools/win/run.env.example`
-* `tools/win/u.ps1`
-* `tools/win/r.ps1`
-* `tools/win/s.ps1`
-* `tools/win/v.ps1`
-* `ops/phu`
-* `ops/phv`
-
-### Remote Windows host
-
-* `C:\ph\app\`
-* `C:\ph\data\`
-* `C:\ph\log\`
-* `C:\ph\rel\`
-* `C:\ph\tmp\`
-* `C:\ph\bin\`
-
-### Local Linux admin machine
-
-* `ops/phu`
-* `ops/phv`
-
  

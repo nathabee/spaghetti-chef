@@ -36,7 +36,7 @@ Start the local runtime:
 
 ```bash
 mvn exec:java \
-  -Dprinterhub.databaseFile="printerhub-real.db" \
+  -Dprinterhub.databaseFile="printerhub.db" \
   -Dprinterhub.api.port=18080 \
   -Dexec.mainClass="printerhub.Main"
 ```

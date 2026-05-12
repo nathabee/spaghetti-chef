@@ -65,9 +65,7 @@ Run with defaults:
 
 The default command uses:
 
-```text
-serial port: /dev/ttyUSB0
-mode: real
+```text 
 API port: 18080
 database: printerhub.db
 ```
@@ -75,7 +73,7 @@ database: printerhub.db
 Run with explicit values:
 
 ```bash
-./printerhub.sh /dev/ttyUSB0 real 18080
+./printerhub.sh 18080
 ```
 
 The launcher currently uses the port value and database file. Printer
@@ -85,7 +83,7 @@ from the launcher arguments.
 Use a custom database file:
 
 ```bash
-PRINTERHUB_DATABASE_FILE=printerhub-real.db ./printerhub.sh /dev/ttyUSB0 real 18080
+PRINTERHUB_DATABASE_FILE=printerhub-prod.db ./printerhub.sh 18080
 ```
 
 Open the dashboard:
@@ -128,11 +126,17 @@ Run with defaults:
 printerhub.bat
 ```
 
+The Windows launcher supports:
+
+* explicit command-line arguments for API port
+* environment overrides for Java command, API port, and database file
+* built-in defaults when no override is provided
+
+At startup, it prints the effective values it is using.
+
 The default command uses:
 
 ```text
-serial port: COM3
-mode: real
 API port: 18080
 database: printerhub.db
 ```
@@ -140,7 +144,7 @@ database: printerhub.db
 Run with explicit values:
 
 ```bat
-printerhub.bat COM3 real 18080
+printerhub.bat 18080
 ```
 
 The launcher currently uses the port value and database file. Printer
@@ -150,8 +154,8 @@ from the launcher arguments.
 Use a custom database file:
 
 ```bat
-set PRINTERHUB_DATABASE_FILE=printerhub-real.db
-printerhub.bat COM3 real 18080
+set PRINTERHUB_DATABASE_FILE=printerhub-prod.db
+printerhub.bat 18080
 ```
 
 Open the dashboard:
@@ -173,13 +177,13 @@ printer-hub.jar
 Linux example:
 
 ```bash
-java -Dprinterhub.databaseFile=printerhub-real.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
+java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
 ```
 
 Windows example:
 
 ```bat
-java -Dprinterhub.databaseFile=printerhub-real.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
+java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
 ```
 
 If `-Dprinterhub.api.port` is omitted, PrinterHub uses its backend default:
@@ -223,16 +227,32 @@ tar for the Linux package and release archive
 ```
 
 ---
-
+ 
 ## Jenkins Artifacts
 
 For release builds with `RELEASE_VERSION` set, Jenkins produces:
 
 ```text
-dist/printer-hub-<version>-linux.tar.gz
-dist/printer-hub-<version>-windows.zip
+printer-hub-<version>-linux.tar.gz
+  Linux runtime package
+
+printer-hub-<version>-windows.zip
+  Windows runtime package
+
 printer-hub-<version>-release.tar.gz
+  CI evidence bundle with reports, smoke-test outputs, logs, and selected docs
+
+printer-hub-<version>-admin.zip
+  Windows remote-administration bootstrap package for OpenSSH-based setup
 ```
 
-The Linux and Windows packages are the expert runtime packages. The release
-archive is CI evidence: reports, smoke-test logs, docs, and release notes.
+The Linux and Windows packages are the expert runtime packages.
+
+The release archive is the CI evidence bundle. It contains build and test
+artifacts such as reports, smoke-test outputs, logs, and selected
+documentation.
+
+The admin package contains the PowerShell helper scripts and example runtime
+configuration used to bootstrap and operate a remote Windows PrinterHub host
+through OpenSSH.
+

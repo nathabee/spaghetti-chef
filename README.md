@@ -115,7 +115,7 @@ Start the local runtime with an explicit database file and API port:
 
 ```bash
 mvn exec:java \
-  -Dprinterhub.databaseFile="printerhub-real.db" \
+  -Dprinterhub.databaseFile="printerhub.db" \
   -Dprinterhub.api.port=18080 \
   -Dexec.mainClass="printerhub.Main"
 ```

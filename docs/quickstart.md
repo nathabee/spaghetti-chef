@@ -49,14 +49,14 @@ Linux:
 ```bash
 tar -xzf printer-hub-<version>-linux.tar.gz
 cd linux
-./printerhub.sh /dev/ttyUSB0 real 18080
+./printerhub.sh 18080
 ```
 
 Windows:
 
 ```bat
 rem extract printer-hub-<version>-windows.zip first
-printerhub.bat COM3 real 18080
+printerhub.bat 18080
 ```
 
 Then open:
