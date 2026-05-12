@@ -14,19 +14,34 @@ class SerialTransferSettingsTest {
     @Test
     void constructorStoresValues() {
         SerialTransferSettings settings = new SerialTransferSettings(
-                5,
-                2,
-                100,
-                10,
-                5,
-                3,
-                5000,
-                10,
-                1,
-                1,
-                15);
+                5,      // sdUploadBatchSize
+                1,      // sdUploadMinBatchSize
+                1,      // sdUploadBatchUpgradeStep
+                1,      // sdUploadBatchDowngradeStep
+                200,    // sdUploadStableLinesForUpgrade
+                50,     // sdUploadResendWindowLines
+                1,      // sdUploadResendThresholdForDowngrade
+                3,      // sdUploadRecoveryThresholdForMinBatch
+                2,      // sdUploadRecoveryWindowMultiplier
+                100,    // sdUploadMaxErrors
+                10,     // sdUploadMaxConsecutiveIdenticalResends
+                5,      // sdUploadMinPerformancePercent
+                3,      // sdUploadMaxRetriesPerLine
+                5000,   // fileStreamingReadTimeoutMs
+                10,     // fileStreamingQuietPeriodMs
+                1,      // fileStreamingReadActivitySleepMs
+                1,      // fileStreamingReadIdleSleepMs
+                15      // fileStreamingRecoveryReplayDelayMs
+        );
 
         assertEquals(5, settings.sdUploadBatchSize());
+        assertEquals(1, settings.sdUploadMinBatchSize());
+        assertEquals(1, settings.sdUploadBatchUpgradeStep());
+        assertEquals(1, settings.sdUploadBatchDowngradeStep());
+        assertEquals(200, settings.sdUploadStableLinesForUpgrade());
+        assertEquals(50, settings.sdUploadResendWindowLines());
+        assertEquals(1, settings.sdUploadResendThresholdForDowngrade());
+        assertEquals(3, settings.sdUploadRecoveryThresholdForMinBatch());
         assertEquals(2, settings.sdUploadRecoveryWindowMultiplier());
         assertEquals(100, settings.sdUploadMaxErrors());
         assertEquals(10, settings.sdUploadMaxConsecutiveIdenticalResends());
@@ -44,6 +59,13 @@ class SerialTransferSettingsTest {
         SerialTransferSettings settings = SerialTransferSettings.defaults();
 
         assertEquals(RuntimeDefaults.DEFAULT_SD_UPLOAD_BATCH_SIZE, settings.sdUploadBatchSize());
+        assertEquals(1, settings.sdUploadMinBatchSize());
+        assertEquals(1, settings.sdUploadBatchUpgradeStep());
+        assertEquals(1, settings.sdUploadBatchDowngradeStep());
+        assertEquals(200, settings.sdUploadStableLinesForUpgrade());
+        assertEquals(50, settings.sdUploadResendWindowLines());
+        assertEquals(1, settings.sdUploadResendThresholdForDowngrade());
+        assertEquals(3, settings.sdUploadRecoveryThresholdForMinBatch());
         assertEquals(
                 RuntimeDefaults.DEFAULT_SD_UPLOAD_RECOVERY_WINDOW_MULTIPLIER,
                 settings.sdUploadRecoveryWindowMultiplier());
@@ -74,6 +96,13 @@ class SerialTransferSettingsTest {
     void constructorAllowsZeroMinPerformancePercent() {
         SerialTransferSettings settings = new SerialTransferSettings(
                 5,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 2,
                 100,
                 10,
@@ -92,6 +121,13 @@ class SerialTransferSettingsTest {
     void constructorAllowsZeroQuietPeriodMs() {
         SerialTransferSettings settings = new SerialTransferSettings(
                 5,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 2,
                 100,
                 10,
@@ -110,6 +146,13 @@ class SerialTransferSettingsTest {
     void constructorAllowsZeroReadActivitySleepMs() {
         SerialTransferSettings settings = new SerialTransferSettings(
                 5,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 2,
                 100,
                 10,
@@ -128,6 +171,13 @@ class SerialTransferSettingsTest {
     void constructorAllowsZeroReadIdleSleepMs() {
         SerialTransferSettings settings = new SerialTransferSettings(
                 5,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 2,
                 100,
                 10,
@@ -146,6 +196,13 @@ class SerialTransferSettingsTest {
     void constructorAllowsZeroRecoveryReplayDelayMs() {
         SerialTransferSettings settings = new SerialTransferSettings(
                 5,
+                1,
+                1,
+                1,
+                200,
+                50,
+                1,
+                3,
                 2,
                 100,
                 10,
@@ -166,6 +223,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         0,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -183,11 +247,234 @@ class SerialTransferSettingsTest {
     }
 
     @Test
+    void constructorFailsForInvalidSdUploadMinBatchSize() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        0,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadMinBatchSize must be between 1 and 100", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsWhenMinBatchExceedsMaxBatch() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        6,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadMinBatchSize must not exceed sdUploadBatchSize", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadBatchUpgradeStep() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        0,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadBatchUpgradeStep must be between 1 and 100", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadBatchDowngradeStep() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        1,
+                        0,
+                        200,
+                        50,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadBatchDowngradeStep must be between 1 and 100", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadStableLinesForUpgrade() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        1,
+                        1,
+                        0,
+                        50,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadStableLinesForUpgrade must be between 1 and 1000000", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadResendWindowLines() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        0,
+                        1,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadResendWindowLines must be between 1 and 1000000", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadResendThresholdForDowngrade() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        0,
+                        3,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadResendThresholdForDowngrade must be between 1 and 1000000", exception.getMessage());
+    }
+
+    @Test
+    void constructorFailsForInvalidSdUploadRecoveryThresholdForMinBatch() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SerialTransferSettings(
+                        5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        0,
+                        2,
+                        100,
+                        10,
+                        5,
+                        3,
+                        5000,
+                        10,
+                        1,
+                        1,
+                        15));
+
+        assertEquals("sdUploadRecoveryThresholdForMinBatch must be between 1 and 1000000", exception.getMessage());
+    }
+
+    @Test
     void constructorFailsForInvalidSdUploadRecoveryWindowMultiplier() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         0,
                         100,
                         10,
@@ -210,6 +497,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         0,
                         10,
@@ -232,6 +526,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         0,
@@ -254,6 +555,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -276,6 +584,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -298,6 +613,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -320,6 +642,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -342,6 +671,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -364,6 +700,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,
@@ -386,6 +729,13 @@ class SerialTransferSettingsTest {
                 IllegalArgumentException.class,
                 () -> new SerialTransferSettings(
                         5,
+                        1,
+                        1,
+                        1,
+                        200,
+                        50,
+                        1,
+                        3,
                         2,
                         100,
                         10,

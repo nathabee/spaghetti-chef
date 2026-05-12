@@ -16,6 +16,13 @@ public final class SerialTransferSettingsStore {
         String sql = """
                 SELECT
                     sd_upload_batch_size,
+                    sd_upload_min_batch_size,
+                    sd_upload_batch_upgrade_step,
+                    sd_upload_batch_downgrade_step,
+                    sd_upload_stable_lines_for_upgrade,
+                    sd_upload_resend_window_lines,
+                    sd_upload_resend_threshold_for_downgrade,
+                    sd_upload_recovery_threshold_for_min_batch,
                     sd_upload_recovery_window_multiplier,
                     sd_upload_max_errors,
                     sd_upload_max_consecutive_identical_resends,
@@ -42,6 +49,13 @@ public final class SerialTransferSettingsStore {
 
                 return new SerialTransferSettings(
                         resultSet.getInt("sd_upload_batch_size"),
+                        resultSet.getInt("sd_upload_min_batch_size"),
+                        resultSet.getInt("sd_upload_batch_upgrade_step"),
+                        resultSet.getInt("sd_upload_batch_downgrade_step"),
+                        resultSet.getInt("sd_upload_stable_lines_for_upgrade"),
+                        resultSet.getInt("sd_upload_resend_window_lines"),
+                        resultSet.getInt("sd_upload_resend_threshold_for_downgrade"),
+                        resultSet.getInt("sd_upload_recovery_threshold_for_min_batch"),
                         resultSet.getInt("sd_upload_recovery_window_multiplier"),
                         resultSet.getInt("sd_upload_max_errors"),
                         resultSet.getInt("sd_upload_max_consecutive_identical_resends"),
@@ -69,6 +83,13 @@ public final class SerialTransferSettingsStore {
                 INSERT INTO serial_transfer_settings (
                     id,
                     sd_upload_batch_size,
+                    sd_upload_min_batch_size,
+                    sd_upload_batch_upgrade_step,
+                    sd_upload_batch_downgrade_step,
+                    sd_upload_stable_lines_for_upgrade,
+                    sd_upload_resend_window_lines,
+                    sd_upload_resend_threshold_for_downgrade,
+                    sd_upload_recovery_threshold_for_min_batch,
                     sd_upload_recovery_window_multiplier,
                     sd_upload_max_errors,
                     sd_upload_max_consecutive_identical_resends,
@@ -80,9 +101,16 @@ public final class SerialTransferSettingsStore {
                     file_streaming_read_idle_sleep_ms,
                     file_streaming_recovery_replay_delay_ms,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     sd_upload_batch_size = excluded.sd_upload_batch_size,
+                    sd_upload_min_batch_size = excluded.sd_upload_min_batch_size,
+                    sd_upload_batch_upgrade_step = excluded.sd_upload_batch_upgrade_step,
+                    sd_upload_batch_downgrade_step = excluded.sd_upload_batch_downgrade_step,
+                    sd_upload_stable_lines_for_upgrade = excluded.sd_upload_stable_lines_for_upgrade,
+                    sd_upload_resend_window_lines = excluded.sd_upload_resend_window_lines,
+                    sd_upload_resend_threshold_for_downgrade = excluded.sd_upload_resend_threshold_for_downgrade,
+                    sd_upload_recovery_threshold_for_min_batch = excluded.sd_upload_recovery_threshold_for_min_batch,
                     sd_upload_recovery_window_multiplier = excluded.sd_upload_recovery_window_multiplier,
                     sd_upload_max_errors = excluded.sd_upload_max_errors,
                     sd_upload_max_consecutive_identical_resends = excluded.sd_upload_max_consecutive_identical_resends,
@@ -101,17 +129,24 @@ public final class SerialTransferSettingsStore {
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, SETTINGS_ID);
             statement.setInt(2, settings.sdUploadBatchSize());
-            statement.setInt(3, settings.sdUploadRecoveryWindowMultiplier());
-            statement.setInt(4, settings.sdUploadMaxErrors());
-            statement.setInt(5, settings.sdUploadMaxConsecutiveIdenticalResends());
-            statement.setInt(6, settings.sdUploadMinPerformancePercent());
-            statement.setInt(7, settings.sdUploadMaxRetriesPerLine());
-            statement.setInt(8, settings.fileStreamingReadTimeoutMs());
-            statement.setInt(9, settings.fileStreamingQuietPeriodMs());
-            statement.setInt(10, settings.fileStreamingReadActivitySleepMs());
-            statement.setInt(11, settings.fileStreamingReadIdleSleepMs());
-            statement.setInt(12, settings.fileStreamingRecoveryReplayDelayMs());
-            statement.setString(13, Instant.now().toString());
+            statement.setInt(3, settings.sdUploadMinBatchSize());
+            statement.setInt(4, settings.sdUploadBatchUpgradeStep());
+            statement.setInt(5, settings.sdUploadBatchDowngradeStep());
+            statement.setInt(6, settings.sdUploadStableLinesForUpgrade());
+            statement.setInt(7, settings.sdUploadResendWindowLines());
+            statement.setInt(8, settings.sdUploadResendThresholdForDowngrade());
+            statement.setInt(9, settings.sdUploadRecoveryThresholdForMinBatch());
+            statement.setInt(10, settings.sdUploadRecoveryWindowMultiplier());
+            statement.setInt(11, settings.sdUploadMaxErrors());
+            statement.setInt(12, settings.sdUploadMaxConsecutiveIdenticalResends());
+            statement.setInt(13, settings.sdUploadMinPerformancePercent());
+            statement.setInt(14, settings.sdUploadMaxRetriesPerLine());
+            statement.setInt(15, settings.fileStreamingReadTimeoutMs());
+            statement.setInt(16, settings.fileStreamingQuietPeriodMs());
+            statement.setInt(17, settings.fileStreamingReadActivitySleepMs());
+            statement.setInt(18, settings.fileStreamingReadIdleSleepMs());
+            statement.setInt(19, settings.fileStreamingRecoveryReplayDelayMs());
+            statement.setString(20, Instant.now().toString());
             statement.executeUpdate();
             return settings;
         } catch (SQLException exception) {

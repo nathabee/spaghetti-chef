@@ -335,6 +335,26 @@ public final class RemoteApiServer {
 
             SerialTransferSettings updatedSettings = new SerialTransferSettings(
                     optionalJsonInteger(body, "sdUploadBatchSize", currentSettings.sdUploadBatchSize()),
+                    optionalJsonInteger(body, "sdUploadMinBatchSize", currentSettings.sdUploadMinBatchSize()),
+                    optionalJsonInteger(body, "sdUploadBatchUpgradeStep", currentSettings.sdUploadBatchUpgradeStep()),
+                    optionalJsonInteger(body, "sdUploadBatchDowngradeStep",
+                            currentSettings.sdUploadBatchDowngradeStep()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadStableLinesForUpgrade",
+                            currentSettings.sdUploadStableLinesForUpgrade()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadResendWindowLines",
+                            currentSettings.sdUploadResendWindowLines()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadResendThresholdForDowngrade",
+                            currentSettings.sdUploadResendThresholdForDowngrade()),
+                    optionalJsonInteger(
+                            body,
+                            "sdUploadRecoveryThresholdForMinBatch",
+                            currentSettings.sdUploadRecoveryThresholdForMinBatch()),
                     optionalJsonInteger(
                             body,
                             "sdUploadRecoveryWindowMultiplier",
@@ -1385,6 +1405,13 @@ public final class RemoteApiServer {
     private String serialTransferSettingsJson(SerialTransferSettings settings) {
         return "{"
                 + "\"sdUploadBatchSize\":" + settings.sdUploadBatchSize() + ","
+                + "\"sdUploadMinBatchSize\":" + settings.sdUploadMinBatchSize() + ","
+                + "\"sdUploadBatchUpgradeStep\":" + settings.sdUploadBatchUpgradeStep() + ","
+                + "\"sdUploadBatchDowngradeStep\":" + settings.sdUploadBatchDowngradeStep() + ","
+                + "\"sdUploadStableLinesForUpgrade\":" + settings.sdUploadStableLinesForUpgrade() + ","
+                + "\"sdUploadResendWindowLines\":" + settings.sdUploadResendWindowLines() + ","
+                + "\"sdUploadResendThresholdForDowngrade\":" + settings.sdUploadResendThresholdForDowngrade() + ","
+                + "\"sdUploadRecoveryThresholdForMinBatch\":" + settings.sdUploadRecoveryThresholdForMinBatch() + ","
                 + "\"sdUploadRecoveryWindowMultiplier\":" + settings.sdUploadRecoveryWindowMultiplier() + ","
                 + "\"sdUploadMaxErrors\":" + settings.sdUploadMaxErrors() + ","
                 + "\"sdUploadMaxConsecutiveIdenticalResends\":"
@@ -2043,14 +2070,12 @@ public final class RemoteApiServer {
                 + "\"updatedAt\":"
                 + nullableString(progress.updatedAt() == null ? null : progress.updatedAt().toString()) + ","
                 + "\"detail\":" + nullableString(progress.detail()) + ","
-                // Performance metrics
-                + "\"bytesPerSecond\":" + String.format("%.1f", progress.bytesPerSecond()) + ","
-                + "\"linesPerSecond\":" + String.format("%.2f", progress.linesPerSecond()) + ","
+                + "\"bytesPerSecond\":" + formatDouble(progress.bytesPerSecond()) + ","
+                + "\"linesPerSecond\":" + formatDouble(progress.linesPerSecond()) + ","
                 + "\"elapsedSeconds\":" + progress.elapsedSeconds() + ","
                 + "\"estimatedSecondsRemaining\":" + progress.estimatedSecondsRemaining() + ","
-                + "\"theoreticalMaxBytesPerSecond\":" + String.format("%.0f", progress.theoreticalMaxBytesPerSecond())
-                + ","
-                + "\"efficiencyPercent\":" + String.format("%.1f", progress.efficiencyPercent())
+                + "\"theoreticalMaxBytesPerSecond\":" + formatDouble(progress.theoreticalMaxBytesPerSecond()) + ","
+                + "\"efficiencyPercent\":" + formatDouble(progress.efficiencyPercent())
                 + "}";
     }
 

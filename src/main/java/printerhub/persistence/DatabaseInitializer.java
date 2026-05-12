@@ -43,8 +43,21 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT 10");
             ensureColumn(connection, "monitoring_rules", "sd_upload_min_performance_percent",
                     "INTEGER NOT NULL DEFAULT 5");
-
             ensureColumn(connection, "serial_transfer_settings", "sd_upload_batch_size", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_min_batch_size",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_batch_upgrade_step",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_batch_downgrade_step",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_stable_lines_for_upgrade",
+                    "INTEGER NOT NULL DEFAULT 200");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_resend_window_lines",
+                    "INTEGER NOT NULL DEFAULT 50");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_resend_threshold_for_downgrade",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "serial_transfer_settings", "sd_upload_recovery_threshold_for_min_batch",
+                    "INTEGER NOT NULL DEFAULT 3");
             ensureColumn(connection, "serial_transfer_settings", "sd_upload_recovery_window_multiplier",
                     "INTEGER NOT NULL DEFAULT 2");
             ensureColumn(connection, "serial_transfer_settings", "sd_upload_max_errors",
@@ -252,11 +265,19 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
+    
     private void createSerialTransferSettingsTable(Statement statement) throws SQLException {
         String sql = """
                 CREATE TABLE IF NOT EXISTS serial_transfer_settings (
                     id TEXT PRIMARY KEY,
                     sd_upload_batch_size INTEGER NOT NULL DEFAULT 5,
+                    sd_upload_min_batch_size INTEGER NOT NULL DEFAULT 1,
+                    sd_upload_batch_upgrade_step INTEGER NOT NULL DEFAULT 1,
+                    sd_upload_batch_downgrade_step INTEGER NOT NULL DEFAULT 1,
+                    sd_upload_stable_lines_for_upgrade INTEGER NOT NULL DEFAULT 200,
+                    sd_upload_resend_window_lines INTEGER NOT NULL DEFAULT 50,
+                    sd_upload_resend_threshold_for_downgrade INTEGER NOT NULL DEFAULT 1,
+                    sd_upload_recovery_threshold_for_min_batch INTEGER NOT NULL DEFAULT 3,
                     sd_upload_recovery_window_multiplier INTEGER NOT NULL DEFAULT 2,
                     sd_upload_max_errors INTEGER NOT NULL DEFAULT 100,
                     sd_upload_max_consecutive_identical_resends INTEGER NOT NULL DEFAULT 10,

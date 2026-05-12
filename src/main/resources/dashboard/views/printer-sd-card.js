@@ -211,7 +211,7 @@ function renderSdUploadStatus(uploadStatus) {
     return "";
   }
 
-  const stateLabel = uploadStatus.state || "info";
+  const stateLabel = String(uploadStatus.state || "info");
   const badgeClass = stateLabel === "success"
     ? "badge-real"
     : stateLabel === "error"
@@ -222,84 +222,196 @@ function renderSdUploadStatus(uploadStatus) {
     ? "Upload in progress"
     : stateLabel === "success"
       ? "Last upload"
-      : "Upload error";
-  const totalLineCount = Number(uploadStatus.totalLineCount || 0);
-  const uploadedLineCount = Number(uploadStatus.uploadedLineCount || 0);
+      : "Upload status";
+
+  const totalLineCount = toNumber(uploadStatus.totalLineCount, 0);
+  const uploadedLineCount = toNumber(uploadStatus.uploadedLineCount, 0);
+  const rejectedLineCount = toNumber(uploadStatus.rejectedLineCount, 0);
+  const totalByteCount = toNumber(uploadStatus.totalByteCount, 0);
+
   const percent = totalLineCount > 0
-    ? Math.min(100, Math.max(0, Number(uploadStatus.percent ?? Math.floor(uploadedLineCount * 100 / totalLineCount))))
-    : 0;
-  const progressHtml = uploadStatus.active
+    ? Math.min(
+      100,
+      Math.max(
+        0,
+        toNumber(
+          uploadStatus.percent,
+          Math.floor((uploadedLineCount * 100) / totalLineCount)
+        )
+      )
+    )
+    : toNumber(uploadStatus.percent, 0);
+
+  const qualityPercent = toNumber(
+    uploadStatus.qualityPercent,
+    calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount)
+  );
+
+  const bytesPerSecond = toNullableNumber(uploadStatus.bytesPerSecond);
+  const linesPerSecond = toNullableNumber(uploadStatus.linesPerSecond);
+  const efficiencyPercent = toNullableNumber(uploadStatus.efficiencyPercent);
+  const elapsedSeconds = toNullableNumber(uploadStatus.elapsedSeconds);
+  const estimatedSecondsRemaining = toNullableNumber(uploadStatus.estimatedSecondsRemaining);
+  const theoreticalMaxBytesPerSecond = toNullableNumber(uploadStatus.theoreticalMaxBytesPerSecond);
+
+  const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
+
+  const progressHtml = totalLineCount > 0
     ? `
       <div class="info-row">
         <span>Progress</span>
-        <strong>${escapeHtml(String(uploadedLineCount))}/${escapeHtml(String(totalLineCount))} confirmed lines</strong>
+        <strong>${escapeHtml(String(uploadedLineCount))}/${escapeHtml(String(totalLineCount))} confirmed lines (${escapeHtml(String(percent))}%)</strong>
       </div>
       <progress max="100" value="${escapeHtml(String(percent))}"></progress>
     `
-    : "";
-
-  // Performance metrics
-  const performanceHtml = uploadStatus.active && uploadStatus.bytesPerSecond
-    ? `
+    : `
       <div class="info-row">
-        <span>Performance</span>
-        <strong>${escapeHtml(String(Math.round(uploadStatus.bytesPerSecond)))} bytes/sec</strong>
+        <span>Progress</span>
+        <strong>${escapeHtml(String(uploadedLineCount))} confirmed lines</strong>
       </div>
-      ${uploadStatus.linesPerSecond ? `<div class="info-row">
-        <span>&nbsp;</span>
-        <strong>${escapeHtml(String(Math.round(uploadStatus.linesPerSecond * 10) / 10))} lines/sec</strong>
-      </div>` : ''}
-      ${uploadStatus.efficiencyPercent ? `<div class="info-row">
-        <span>&nbsp;</span>
-        <strong>${escapeHtml(String(Math.round(uploadStatus.efficiencyPercent)))}% efficiency</strong>
-      </div>` : ''}
-      ${uploadStatus.estimatedSecondsRemaining ? `<div class="info-row">
-        <span>Time remaining</span>
-        <strong>${escapeHtml(formatTimeRemaining(uploadStatus.estimatedSecondsRemaining))}</strong>
-      </div>` : ''}
-    `
-    : "";
+    `;
 
-  const rejectedLineCount = Number(uploadStatus.rejectedLineCount || 0);
-  const qualityPercent = Number(uploadStatus.qualityPercent ?? calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount));
-  const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
-  const qualityHtml = uploadStatus.active || rejectedLineCount > 0
-    ? `
-      <div class="upload-quality ${qualityClass}">
-        <div class="info-row">
-          <span>Transfer quality</span>
-          <strong>${escapeHtml(String(qualityPercent))}%</strong>
-        </div>
-        <div class="quality-bar" aria-label="Transfer quality">
-          <span style="width: ${escapeHtml(String(qualityPercent))}%"></span>
-        </div>
-        <p class="muted">${escapeHtml(String(rejectedLineCount))} rejected/resend request${rejectedLineCount === 1 ? "" : "s"} for ${escapeHtml(String(uploadedLineCount))} confirmed line${uploadedLineCount === 1 ? "" : "s"}.</p>
+  const telemetryRows = [
+    renderMetricRow("Printer", uploadStatus.printerId),
+    renderMetricRow("Print file id", uploadStatus.printFileId),
+    renderMetricRow("Original filename", uploadStatus.originalFilename),
+    renderMetricRow("Target filename", uploadStatus.requestedTargetFilename),
+    renderMetricRow("Uploaded lines", uploadedLineCount),
+    renderMetricRow("Total lines", totalLineCount),
+    renderMetricRow("Rejected lines", rejectedLineCount),
+    renderMetricRow("Total bytes", totalByteCount),
+    renderMetricRow("Percent", `${percent}%`),
+    renderMetricRow("Quality", `${qualityPercent}%`),
+    renderMetricRow("Bytes/sec", bytesPerSecond === null ? null : formatDecimal(bytesPerSecond, 1)),
+    renderMetricRow("Lines/sec", linesPerSecond === null ? null : formatDecimal(linesPerSecond, 2)),
+    renderMetricRow("Efficiency", efficiencyPercent === null ? null : `${formatDecimal(efficiencyPercent, 1)}%`),
+    renderMetricRow(
+      "Theoretical max bytes/sec",
+      theoreticalMaxBytesPerSecond === null ? null : formatDecimal(theoreticalMaxBytesPerSecond, 1)
+    ),
+    renderMetricRow(
+      "Elapsed",
+      elapsedSeconds === null ? null : `${formatTimeRemaining(elapsedSeconds)} (${formatDecimal(elapsedSeconds, 1)}s)`
+    ),
+    renderMetricRow(
+      "Estimated remaining",
+      estimatedSecondsRemaining === null ? null : `${formatTimeRemaining(estimatedSecondsRemaining)} (${formatDecimal(estimatedSecondsRemaining, 1)}s)`
+    ),
+    renderMetricRow("Started at", uploadStatus.startedAt),
+    renderMetricRow("Updated at", uploadStatus.updatedAt)
+  ].join("");
+
+  const qualityHtml = `
+    <div class="upload-quality ${qualityClass}">
+      <div class="info-row">
+        <span>Transfer quality</span>
+        <strong>${escapeHtml(String(qualityPercent))}%</strong>
       </div>
-    `
-    : "";
+      <div class="quality-bar" aria-label="Transfer quality">
+        <span style="width: ${escapeHtml(String(qualityPercent))}%"></span>
+      </div>
+      <p class="muted">${escapeHtml(String(rejectedLineCount))} rejected/resend request${rejectedLineCount === 1 ? "" : "s"} for ${escapeHtml(String(uploadedLineCount))} confirmed line${uploadedLineCount === 1 ? "" : "s"}.</p>
+    </div>
+  `;
 
   return `
     <div class="empty-state">
       <div class="section-header compact">
         <div>
           <h3>${escapeHtml(title)}</h3>
-          <p class="muted">${escapeHtml(uploadStatus.message || "")}</p>
+          <p class="muted">${escapeHtml(uploadStatus.message || uploadStatus.detail || "")}</p>
         </div>
         <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
       </div>
+
       ${progressHtml}
-      ${performanceHtml}
       ${qualityHtml}
+
+      <details class="events-section" open>
+        <summary class="events-header">Upload telemetry</summary>
+        <div class="info-list">
+          ${telemetryRows}
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+function renderMetricRow(label, value) {
+  if (value === undefined || value === null || value === "") {
+    return `
+      <div class="info-row">
+        <span>${escapeHtml(label)}</span>
+        <strong>n/a</strong>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="info-row">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
     </div>
   `;
 }
 
 function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
-  if (uploadedLineCount <= 0) {
+  const uploaded = toNumber(uploadedLineCount, 0);
+  const rejected = toNumber(rejectedLineCount, 0);
+
+  if (uploaded <= 0) {
     return 100;
   }
 
-  return Math.max(0, Math.min(100, Math.floor((uploadedLineCount * 100) / (uploadedLineCount + rejectedLineCount))));
+  return Math.max(0, Math.min(100, Math.floor((uploaded * 100) / (uploaded + rejected))));
+}
+
+function toNumber(value, fallback = 0) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function toNullableNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function formatDecimal(value, digits = 1) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "n/a";
+  }
+
+  return numericValue.toFixed(digits);
+}
+
+function formatTimeRemaining(seconds) {
+  const numericSeconds = Number(seconds);
+
+  if (!Number.isFinite(numericSeconds) || numericSeconds < 0) {
+    return "n/a";
+  }
+
+  if (numericSeconds < 60) {
+    return `${Math.round(numericSeconds)}s`;
+  }
+
+  const minutes = Math.floor(numericSeconds / 60);
+  const remainingSeconds = Math.round(numericSeconds % 60);
+
+  if (minutes < 60) {
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 function resolveUploadQualityClass(qualityPercent, rejectedLineCount) {
@@ -311,20 +423,7 @@ function resolveUploadQualityClass(qualityPercent, rejectedLineCount) {
   }
   return "upload-quality-bad";
 }
-
-function formatTimeRemaining(seconds) {
-  if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-  if (minutes < 60) {
-    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-}
+ 
 
 function renderFirmwareFileTable(printerId, files, registeredFiles) {
   const registeredPaths = new Set(registeredFiles.map((file) => file.firmwarePath));
