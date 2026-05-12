@@ -28,8 +28,7 @@ function Read-RunEnv {
         $parts = $trimmed -split '=', 2
         if ($parts.Count -eq 2) {
             $key = $parts[0].Trim()
-            $value = $parts[1].Trim()
-            $value = $value.Trim('"')
+            $value = $parts[1].Trim().Trim('"')
             $map[$key] = $value
         }
     }
@@ -37,72 +36,73 @@ function Read-RunEnv {
     return $map
 }
 
-$appDir = 'C:\ph\app'
-$launcher = Join-Path $appDir 'printerhub.bat'
+function Get-JavaCommand {
+    param([hashtable]$EnvMap)
+
+    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
+        $configured = $EnvMap['PRINTERHUB_JAVA']
+        if (-not [string]::IsNullOrWhiteSpace($configured) -and (Test-Path -LiteralPath $configured)) {
+            return $configured
+        }
+    }
+
+    $cmd = Get-Command java -ErrorAction SilentlyContinue
+    if ($null -ne $cmd) {
+        if ($cmd.Source) { return $cmd.Source }
+        if ($cmd.Path) { return $cmd.Path }
+    }
+
+    return $null
+}
+
+function Get-JavaMajorVersion {
+    param([string]$JavaCommand)
+
+    if ([string]::IsNullOrWhiteSpace($JavaCommand)) {
+        return $null
+    }
+
+    $quotedJava = '"' + $JavaCommand + '"'
+    $cmdLine = "$quotedJava -version 2>&1"
+    $out = cmd /c $cmdLine
+    if (-not $out) {
+        return $null
+    }
+
+    $lines = @($out | ForEach-Object { "$_" })
+    $firstLine = $lines | Select-Object -First 1
+
+    if ($firstLine -match '"(?<version>\d+)(\.\d+)?(\.\d+)?.*"') {
+        return [int]$Matches.version
+    }
+
+    return $null
+}
+
+$taskName = 'PrinterHub'
 $runEnvPath = 'C:\ph\data\run.env'
-$logDir = 'C:\ph\log'
-$stdoutLog = Join-Path $logDir 'printerhub-out.log'
-$stderrLog = Join-Path $logDir 'printerhub-err.log'
-$startLog = Join-Path $logDir 'start.log'
-
-if (-not (Test-Path -LiteralPath $appDir)) {
-    Fail "App directory not found: $appDir"
-}
-if (-not (Test-Path -LiteralPath $launcher)) {
-    Fail "Launcher not found: $launcher"
-}
-
-if (-not (Test-Path -LiteralPath $logDir)) {
-    New-Item -ItemType Directory -Path $logDir | Out-Null
-}
-
 $envMap = Read-RunEnv -Path $runEnvPath
+$javaCommand = Get-JavaCommand -EnvMap $envMap
+$javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
-$databaseFile = 'printerhub.db'
-$apiPort = '18080'
-$serialPort = 'COM3'
-$mode = 'real'
-$javaCommand = $null
-
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+if ($null -eq $javaCommand) {
+    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
 }
+if ($javaMajor -ne 21) {
+    Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
+}
+
+& "C:\ph\bin\t.ps1"
+
+schtasks /Run /TN $taskName | Out-Null
+
+$apiPort = '18080'
 if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
     $apiPort = $envMap['PRINTERHUB_API_PORT']
 }
-if ($envMap.ContainsKey('PRINTERHUB_SERIAL_PORT')) {
-    $serialPort = $envMap['PRINTERHUB_SERIAL_PORT']
-}
-if ($envMap.ContainsKey('PRINTERHUB_MODE')) {
-    $mode = $envMap['PRINTERHUB_MODE']
-}
-if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
-    $javaCommand = $envMap['PRINTERHUB_JAVA']
-}
-
-$env:PRINTERHUB_DATABASE_FILE = $databaseFile
-if (-not [string]::IsNullOrWhiteSpace($javaCommand)) {
-    $env:PRINTERHUB_JAVA = $javaCommand
-}
-
-$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-"[$stamp] launcher=$launcher" | Add-Content -LiteralPath $startLog
-"[$stamp] serialPort=$serialPort mode=$mode apiPort=$apiPort databaseFile=$databaseFile" | Add-Content -LiteralPath $startLog
-"[$stamp] javaOverride=$javaCommand" | Add-Content -LiteralPath $startLog
-
-$cmdArgs = "/c `"$launcher`" $serialPort $mode $apiPort"
-
-$process = Start-Process -FilePath 'cmd.exe' `
-    -ArgumentList $cmdArgs `
-    -WorkingDirectory $appDir `
-    -RedirectStandardOutput $stdoutLog `
-    -RedirectStandardError $stderrLog `
-    -PassThru
-
-"[$stamp] started launcher PID=$($process.Id)" | Add-Content -LiteralPath $startLog
 
 $healthy = $false
-for ($i = 0; $i -lt 20; $i++) {
+for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
     try {
         $resp = Invoke-WebRequest -Uri "http://localhost:$apiPort/health" -UseBasicParsing -TimeoutSec 2
@@ -116,13 +116,7 @@ for ($i = 0; $i -lt 20; $i++) {
 }
 
 if (-not $healthy) {
-    "[$stamp] health endpoint did not become reachable on port $apiPort" | Add-Content -LiteralPath $startLog
-    Fail "PrinterHub start failed. Health endpoint not reachable on port $apiPort. Check C:\ph\log\printerhub-out.log and C:\ph\log\printerhub-err.log"
+    Fail "PrinterHub start failed. Health endpoint not reachable on port $apiPort"
 }
 
-"[$stamp] health endpoint reachable on port $apiPort" | Add-Content -LiteralPath $startLog
-Write-Host "PrinterHub started successfully."
-Write-Host "Serial port: $serialPort"
-Write-Host "Mode: $mode"
-Write-Host "API port: $apiPort"
-Write-Host "Database file: $databaseFile"
+Write-Host "PrinterHub started successfully through Task Scheduler."

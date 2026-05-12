@@ -199,5 +199,6 @@ Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
 Write-Host "Starting updated PrinterHub"
 & "C:\ph\bin\r.ps1"
 
+
 "$stamp update success version=$Version" | Add-Content -LiteralPath $updateLog
 Write-Host "Update complete for version $Version"
