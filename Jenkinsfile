@@ -894,6 +894,7 @@ if "%JAVA_CMD%"=="" set JAVA_CMD=java
 EOF
 
 cp tools/win/run.env.example package/admin/
+cp tools/win/t.ps1 package/admin/
 cp tools/win/u.ps1 package/admin/
 cp tools/win/r.ps1 package/admin/
 cp tools/win/s.ps1 package/admin/

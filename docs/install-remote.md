@@ -48,6 +48,7 @@ printer-hub/
 │       ├── u.ps1
 │       ├── r.ps1
 │       ├── s.ps1
+│       ├── t.ps1
 │       └── v.ps1
 └── ops/
     ├── phu
@@ -77,18 +78,25 @@ launch remote PowerShell scripts on the Windows host.
 
 ### Windows scripts
 
+* `t.ps1`
+
+  * create or refresh the Windows Task Scheduler entry for PrinterHub
+  * prepare detached background start on the Windows host
+
 * `u.ps1`
 
   * remote update entrypoint
+  * verify Java 21
   * download a specific release asset
   * stop PrinterHub
   * extract the package
   * replace app files
-  * restart PrinterHub
+  * restart PrinterHub through Task Scheduler
 
 * `r.ps1`
 
-  * start PrinterHub
+  * start PrinterHub through the scheduled task
+  * verify health after start
 
 * `s.ps1`
 
@@ -96,7 +104,7 @@ launch remote PowerShell scripts on the Windows host.
 
 * `v.ps1`
 
-  * status and health check
+  * status, health, and scheduled-task diagnostics
 
 * `run.env.example`
 
@@ -274,17 +282,8 @@ Copy the extracted example environment file to:
 C:\ph\data\run.env
 ```
 
-If the admin package contains `run.env.example`, copy it as:
-
-```text
-C:\ph\data\run.env
-```
-
-You do not need to open or download files one by one from GitHub.
-
----
-
-### 6. Review local runtime configuration
+ 
+Review local runtime configuration:
 
 Open:
 
@@ -295,6 +294,7 @@ C:\ph\data\run.env
 Initial example content:
 
 ```text
+PRINTERHUB_JAVA=
 PRINTERHUB_DATABASE_FILE=printerhub.db
 PRINTERHUB_API_PORT=18080
 PRINTERHUB_SERIAL_PORT=COM3
@@ -303,8 +303,24 @@ PRINTERHUB_MODE=real
 
 Adjust values if needed for the target Windows laptop.
 
+
 ---
 
+### 6. Register the scheduled task once
+
+Open a normal PowerShell window with the same Windows user that will run
+PrinterHub and execute:
+
+```powershell
+C:\ph\bin\t.ps1
+
+```
+
+
+
+
+---
+ 
 ### 7. Optional first manual package install
 
 If desired, install the first Windows release manually before remote updates are
@@ -317,19 +333,9 @@ used:
 ```text
 C:\ph\app\printerhub.bat
 C:\ph\app\printer-hub.jar
+
 ```
 
-Then test startup manually:
-
-```powershell
-C:\ph\bin\r.ps1
-```
-
-Then test status:
-
-```powershell
-C:\ph\bin\v.ps1
-```
 
 ---
 
@@ -402,6 +408,12 @@ PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
 ---
 
 ## Remote update flow
+
+
+The remote start path uses Windows Task Scheduler so that PrinterHub continues
+running after the SSH session disconnects.
+
+
 
 ### Status check
 
