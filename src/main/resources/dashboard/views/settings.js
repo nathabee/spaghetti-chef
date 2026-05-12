@@ -5,6 +5,7 @@ import { state } from "../state.js";
  export function renderSettingsPage() {
   const monitoringRules = state.monitoringRules || {};
   const printFileSettings = state.printFileSettings || {};
+  const serialTransferSettings = state.serialTransferSettings || {};
   const printers = state.printers;
 
   return `
@@ -13,7 +14,7 @@ import { state } from "../state.js";
         <div class="section-header">
           <div>
             <h2>Monitoring rules</h2>
-            <p class="lead">Runtime polling, SD upload, and persistence settings already available in the backend.</p>
+            <p class="lead">Runtime polling and persistence settings already available in the backend.</p>
           </div>
         </div>
 
@@ -46,63 +47,6 @@ import { state } from "../state.js";
             </select>
           </label>
 
-          <label>
-            SD upload batch size
-            <input id="sdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(monitoringRules.sdUploadBatchSize ?? 5)}" required>
-          </label>
-
-          <label>
-            SD upload recovery window multiplier
-            <input
-              id="sdUploadRecoveryWindowMultiplierInput"
-              name="sdUploadRecoveryWindowMultiplier"
-              type="number"
-              step="1"
-              min="1"
-              max="100"
-              value="${escapeHtml(monitoringRules.sdUploadRecoveryWindowMultiplier ?? 2)}"
-              required>
-          </label>
-
-          <label>
-            SD upload max errors
-            <input
-              id="sdUploadMaxErrorsInput"
-              name="sdUploadMaxErrors"
-              type="number"
-              step="1"
-              min="1"
-              max="1000000"
-              value="${escapeHtml(monitoringRules.sdUploadMaxErrors ?? 100)}"
-              required>
-          </label>
-
-          <label>
-            SD upload max consecutive identical resends
-            <input
-              id="sdUploadMaxConsecutiveIdenticalResendsInput"
-              name="sdUploadMaxConsecutiveIdenticalResends"
-              type="number"
-              step="1"
-              min="1"
-              max="1000"
-              value="${escapeHtml(monitoringRules.sdUploadMaxConsecutiveIdenticalResends ?? 10)}"
-              required>
-          </label>
-
-          <label>
-            SD upload min performance percent
-            <input
-              id="sdUploadMinPerformancePercentInput"
-              name="sdUploadMinPerformancePercent"
-              type="number"
-              step="1"
-              min="0"
-              max="100"
-              value="${escapeHtml(monitoringRules.sdUploadMinPerformancePercent ?? 5)}"
-              required>
-          </label>
-
           <label class="checkbox-label">
             <input id="debugWireTracingEnabledInput" name="debugWireTracingEnabled" type="checkbox" ${(monitoringRules.debugWireTracingEnabled ?? false) ? "checked" : ""}>
             Enable printer wire trace logging
@@ -110,6 +54,76 @@ import { state } from "../state.js";
 
           <div class="form-actions">
             <button type="submit">Save monitoring rules</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="section-card">
+        <div class="section-header">
+          <div>
+            <h2>Serial transfer</h2>
+            <p class="lead">Runtime SD upload and file-streaming limits used by printer transfer operations.</p>
+          </div>
+        </div>
+
+        <form id="serialTransferSettingsForm" class="form-grid">
+          <label>
+            SD upload batch size
+            <input id="transferSdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadBatchSize ?? 5)}" required>
+          </label>
+
+          <label>
+            SD upload recovery window multiplier
+            <input id="transferSdUploadRecoveryWindowMultiplierInput" name="sdUploadRecoveryWindowMultiplier" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadRecoveryWindowMultiplier ?? 2)}" required>
+          </label>
+
+          <label>
+            SD upload max errors
+            <input id="transferSdUploadMaxErrorsInput" name="sdUploadMaxErrors" type="number" step="1" min="1" max="1000000" value="${escapeHtml(serialTransferSettings.sdUploadMaxErrors ?? 100)}" required>
+          </label>
+
+          <label>
+            SD upload max consecutive identical resends
+            <input id="transferSdUploadMaxConsecutiveIdenticalResendsInput" name="sdUploadMaxConsecutiveIdenticalResends" type="number" step="1" min="1" max="1000" value="${escapeHtml(serialTransferSettings.sdUploadMaxConsecutiveIdenticalResends ?? 10)}" required>
+          </label>
+
+          <label>
+            SD upload min performance percent
+            <input id="transferSdUploadMinPerformancePercentInput" name="sdUploadMinPerformancePercent" type="number" step="1" min="0" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMinPerformancePercent ?? 5)}" required>
+          </label>
+
+          <label>
+            SD upload max retries per line
+            <input id="transferSdUploadMaxRetriesPerLineInput" name="sdUploadMaxRetriesPerLine" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMaxRetriesPerLine ?? 3)}" required>
+          </label>
+
+          <label>
+            File streaming read timeout ms
+            <input id="transferFileStreamingReadTimeoutMsInput" name="fileStreamingReadTimeoutMs" type="number" step="1" min="1" max="600000" value="${escapeHtml(serialTransferSettings.fileStreamingReadTimeoutMs ?? 5000)}" required>
+          </label>
+
+          <label>
+            File streaming quiet period ms
+            <input id="transferFileStreamingQuietPeriodMsInput" name="fileStreamingQuietPeriodMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingQuietPeriodMs ?? 10)}" required>
+          </label>
+
+          <label>
+            File streaming activity sleep ms
+            <input id="transferFileStreamingReadActivitySleepMsInput" name="fileStreamingReadActivitySleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadActivitySleepMs ?? 1)}" required>
+          </label>
+
+          <label>
+            File streaming idle sleep ms
+            <input id="transferFileStreamingReadIdleSleepMsInput" name="fileStreamingReadIdleSleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadIdleSleepMs ?? 1)}" required>
+          </label>
+
+          <label>
+            File streaming recovery replay delay ms
+            <input id="transferFileStreamingRecoveryReplayDelayMsInput" name="fileStreamingRecoveryReplayDelayMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingRecoveryReplayDelayMs ?? 15)}" required>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit">Save serial transfer settings</button>
           </div>
         </form>
       </article>

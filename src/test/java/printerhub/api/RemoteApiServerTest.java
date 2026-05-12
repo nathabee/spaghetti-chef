@@ -34,6 +34,7 @@ import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeNodeFactory;
 import printerhub.runtime.PrinterRuntimeStateCache;
 import printerhub.command.SdCardUploadService;
+import printerhub.persistence.SerialTransferSettingsStore;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -190,6 +191,59 @@ class RemoteApiServerTest {
             assertTrue(response.body().contains("\"eventDeduplicationWindowSeconds\":90"));
             assertTrue(response.body().contains("\"errorPersistenceBehavior\":\"ALWAYS\""));
             assertTrue(response.body().contains("\"debugWireTracingEnabled\":true"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getSerialTransferSettingsReturnsDefaults() throws Exception {
+        TestContext context = createContext("serial-transfer-settings-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/settings/serial-transfer");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"sdUploadBatchSize\":5"));
+            assertTrue(response.body().contains("\"sdUploadRecoveryWindowMultiplier\":2"));
+            assertTrue(response.body().contains("\"sdUploadMaxErrors\":100"));
+            assertTrue(response.body().contains("\"sdUploadMaxConsecutiveIdenticalResends\":10"));
+            assertTrue(response.body().contains("\"sdUploadMinPerformancePercent\":5"));
+            assertTrue(response.body().contains("\"sdUploadMaxRetriesPerLine\":3"));
+            assertTrue(response.body().contains("\"fileStreamingReadTimeoutMs\":5000"));
+            assertTrue(response.body().contains("\"fileStreamingQuietPeriodMs\":10"));
+            assertTrue(response.body().contains("\"fileStreamingReadActivitySleepMs\":1"));
+            assertTrue(response.body().contains("\"fileStreamingReadIdleSleepMs\":1"));
+            assertTrue(response.body().contains("\"fileStreamingRecoveryReplayDelayMs\":15"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putSerialTransferSettingsUpdatesSettings() throws Exception {
+        TestContext context = createContext("serial-transfer-settings-put.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/settings/serial-transfer",
+                    """
+                            {"sdUploadBatchSize":7,"sdUploadRecoveryWindowMultiplier":3,"sdUploadMaxErrors":200,"sdUploadMaxConsecutiveIdenticalResends":12,"sdUploadMinPerformancePercent":8,"sdUploadMaxRetriesPerLine":4,"fileStreamingReadTimeoutMs":6000,"fileStreamingQuietPeriodMs":20,"fileStreamingReadActivitySleepMs":2,"fileStreamingReadIdleSleepMs":3,"fileStreamingRecoveryReplayDelayMs":25}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"sdUploadBatchSize\":7"));
+            assertTrue(response.body().contains("\"sdUploadRecoveryWindowMultiplier\":3"));
+            assertTrue(response.body().contains("\"sdUploadMaxErrors\":200"));
+            assertTrue(response.body().contains("\"sdUploadMaxConsecutiveIdenticalResends\":12"));
+            assertTrue(response.body().contains("\"sdUploadMinPerformancePercent\":8"));
+            assertTrue(response.body().contains("\"sdUploadMaxRetriesPerLine\":4"));
+            assertTrue(response.body().contains("\"fileStreamingReadTimeoutMs\":6000"));
+            assertTrue(response.body().contains("\"fileStreamingQuietPeriodMs\":20"));
+            assertTrue(response.body().contains("\"fileStreamingReadActivitySleepMs\":2"));
+            assertTrue(response.body().contains("\"fileStreamingReadIdleSleepMs\":3"));
+            assertTrue(response.body().contains("\"fileStreamingRecoveryReplayDelayMs\":25"));
         } finally {
             context.close();
         }
@@ -836,6 +890,7 @@ class RemoteApiServerTest {
         MonitoringRulesStore monitoringRulesStore = new MonitoringRulesStore();
         PrintFileSettingsStore printFileSettingsStore = new PrintFileSettingsStore();
         PrinterEventStore printerEventStore = new PrinterEventStore();
+        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
         PrinterMonitoringScheduler monitoringScheduler = new PrinterMonitoringScheduler(
                 printerRegistry,
                 stateCache);
@@ -852,14 +907,18 @@ class RemoteApiServerTest {
                 printerEventStore);
 
         PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+        SdCardService sdCardService = new SdCardService(printerEventStore);
+
         SdCardUploadService sdCardUploadService = new SdCardUploadService(
                 printerRegistry,
                 monitoringScheduler,
                 printerActionGuard,
                 printFileService,
-                new SdCardService(printerEventStore),
+                sdCardService,
                 printerSdFileService,
-                printerEventStore);
+                printerEventStore,
+                monitoringRulesStore,
+                serialTransferSettingsStore);
 
         PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                 printJobService,
@@ -883,6 +942,7 @@ class RemoteApiServerTest {
                 configurationStore,
                 monitoringRulesStore,
                 printFileSettingsStore,
+                serialTransferSettingsStore,
                 printerEventStore,
                 new PrinterCommandService(printerEventStore),
                 new SdCardService(printerEventStore),
@@ -1724,14 +1784,19 @@ class RemoteApiServerTest {
                 printerEventStore);
 
         PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+        SdCardService sdCardService = new SdCardService(printerEventStore);
+        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+
         SdCardUploadService sdCardUploadService = new SdCardUploadService(
                 printerRegistry,
                 monitoringScheduler,
                 printerActionGuard,
                 printFileService,
-                new SdCardService(printerEventStore),
+                sdCardService,
                 printerSdFileService,
-                printerEventStore);
+                printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
+
+                
 
         PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                 printJobService,
@@ -1748,6 +1813,7 @@ class RemoteApiServerTest {
                 printJobExecutionService);
 
         int port = findFreePort();
+ 
 
         RemoteApiServer server = new RemoteApiServer(
                 port,
@@ -1757,6 +1823,7 @@ class RemoteApiServerTest {
                 configurationStore,
                 monitoringRulesStore,
                 new PrintFileSettingsStore(),
+                serialTransferSettingsStore,
                 printerEventStore,
                 new PrinterCommandService(printerEventStore),
                 new SdCardService(printerEventStore),
@@ -1857,14 +1924,17 @@ class RemoteApiServerTest {
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
 
         PrinterActionGuard printerActionGuard = new PrinterActionGuard();
+        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+        SdCardService sdCardService =new SdCardService(printerEventStore);
+        
         SdCardUploadService sdCardUploadService = new SdCardUploadService(
                 printerRegistry,
                 monitoringScheduler,
                 printerActionGuard,
                 printFileService,
-                new SdCardService(printerEventStore),
+                sdCardService,
                 printerSdFileService,
-                printerEventStore);
+                printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
 
         PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                 printJobService,
@@ -1880,6 +1950,7 @@ class RemoteApiServerTest {
                 printerActionGuard,
                 printJobExecutionService);
 
+
         return new RemoteApiServer(
                 port,
                 printerRegistry,
@@ -1888,6 +1959,7 @@ class RemoteApiServerTest {
                 configurationStore,
                 monitoringRulesStore,
                 new PrintFileSettingsStore(),
+                serialTransferSettingsStore,
                 printerEventStore,
                 new PrinterCommandService(printerEventStore),
                 new SdCardService(printerEventStore),

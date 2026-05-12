@@ -13,6 +13,7 @@ import {
   getMonitoringRules,
   getPrintFileContent,
   getPrintFileSettings,
+  getSerialTransferSettings,
   getPrintFiles,
   getPrinterEvents,
   getPrinterSdCardFiles,
@@ -27,6 +28,7 @@ import {
   resumeJob,
   saveMonitoringRules,
   savePrintFileSettings,
+  saveSerialTransferSettings,
   setPrinterSdFileEnabled,
   setPrinterEnabled,
   startJob,
@@ -60,6 +62,7 @@ import {
   setPrintFileSettings,
   setPrintFiles,
   setPrinterSdFiles,
+  setSerialTransferSettings,
   setPrinterCommandResult,
   setPrinterEvents,
   setPrinterSdCardFiles,
@@ -93,13 +96,22 @@ async function refreshAllData(options = {}) {
   const silent = options.silent === true;
 
   try {
-    const [printers, jobs, printFiles, printerSdFiles, monitoringRules, printFileSettings] = await Promise.all([
+    const [
+      printers,
+      jobs,
+      printFiles,
+      printerSdFiles,
+      monitoringRules,
+      printFileSettings,
+      serialTransferSettings
+    ] = await Promise.all([
       getPrinters(),
       getJobs(),
       getPrintFiles(),
       getPrinterSdFiles(),
       getMonitoringRules(),
-      getPrintFileSettings()
+      getPrintFileSettings(),
+      getSerialTransferSettings()
     ]);
 
     setPrinters(printers);
@@ -108,6 +120,7 @@ async function refreshAllData(options = {}) {
     setPrinterSdFiles(printerSdFiles);
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
+    setSerialTransferSettings(serialTransferSettings);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 
@@ -515,6 +528,15 @@ function bindPageListeners() {
     });
   }
 
+  const serialTransferSettingsForm = document.getElementById("serialTransferSettingsForm");
+  if (serialTransferSettingsForm) {
+    serialTransferSettingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await handleSaveSerialTransferSettings(serialTransferSettingsForm);
+      renderApp();
+    });
+  }
+
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
     jobForm.addEventListener("submit", async (event) => {
@@ -612,23 +634,6 @@ async function handleSaveMonitoringRules(form) {
     temperatureDeltaThreshold: Number.parseFloat(form.querySelector("#temperatureDeltaThresholdInput").value),
     eventDeduplicationWindowSeconds: Number.parseInt(form.querySelector("#eventDeduplicationWindowSecondsInput").value, 10),
     errorPersistenceBehavior: form.querySelector("#errorPersistenceBehaviorInput").value,
-    sdUploadBatchSize: Number.parseInt(form.querySelector("#sdUploadBatchSizeInput").value, 10),
-    sdUploadRecoveryWindowMultiplier: Number.parseInt(
-      form.querySelector("#sdUploadRecoveryWindowMultiplierInput").value,
-      10
-    ),
-    sdUploadMaxErrors: Number.parseInt(
-      form.querySelector("#sdUploadMaxErrorsInput").value,
-      10
-    ),
-    sdUploadMaxConsecutiveIdenticalResends: Number.parseInt(
-      form.querySelector("#sdUploadMaxConsecutiveIdenticalResendsInput").value,
-      10
-    ),
-    sdUploadMinPerformancePercent: Number.parseInt(
-      form.querySelector("#sdUploadMinPerformancePercentInput").value,
-      10
-    ),
     debugWireTracingEnabled: form.querySelector("#debugWireTracingEnabledInput").checked
   };
 
@@ -638,6 +643,57 @@ async function handleSaveMonitoringRules(form) {
     await refreshAllData({ silent: true });
   } catch (error) {
     setMessage(`Failed to save monitoring rules: ${error.message}`);
+  }
+}
+
+async function handleSaveSerialTransferSettings(form) {
+  const payload = {
+    sdUploadBatchSize: Number.parseInt(form.querySelector("#transferSdUploadBatchSizeInput").value, 10),
+    sdUploadRecoveryWindowMultiplier: Number.parseInt(
+      form.querySelector("#transferSdUploadRecoveryWindowMultiplierInput").value,
+      10
+    ),
+    sdUploadMaxErrors: Number.parseInt(form.querySelector("#transferSdUploadMaxErrorsInput").value, 10),
+    sdUploadMaxConsecutiveIdenticalResends: Number.parseInt(
+      form.querySelector("#transferSdUploadMaxConsecutiveIdenticalResendsInput").value,
+      10
+    ),
+    sdUploadMinPerformancePercent: Number.parseInt(
+      form.querySelector("#transferSdUploadMinPerformancePercentInput").value,
+      10
+    ),
+    sdUploadMaxRetriesPerLine: Number.parseInt(
+      form.querySelector("#transferSdUploadMaxRetriesPerLineInput").value,
+      10
+    ),
+    fileStreamingReadTimeoutMs: Number.parseInt(
+      form.querySelector("#transferFileStreamingReadTimeoutMsInput").value,
+      10
+    ),
+    fileStreamingQuietPeriodMs: Number.parseInt(
+      form.querySelector("#transferFileStreamingQuietPeriodMsInput").value,
+      10
+    ),
+    fileStreamingReadActivitySleepMs: Number.parseInt(
+      form.querySelector("#transferFileStreamingReadActivitySleepMsInput").value,
+      10
+    ),
+    fileStreamingReadIdleSleepMs: Number.parseInt(
+      form.querySelector("#transferFileStreamingReadIdleSleepMsInput").value,
+      10
+    ),
+    fileStreamingRecoveryReplayDelayMs: Number.parseInt(
+      form.querySelector("#transferFileStreamingRecoveryReplayDelayMsInput").value,
+      10
+    )
+  };
+
+  try {
+    await saveSerialTransferSettings(payload);
+    setMessage("Saved serial transfer settings.");
+    await refreshAllData({ silent: true });
+  } catch (error) {
+    setMessage(`Failed to save serial transfer settings: ${error.message}`);
   }
 }
 

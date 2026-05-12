@@ -46,6 +46,20 @@ public final class OperationMessages {
     public static final String ERROR_PERSISTENCE_BEHAVIOR_MUST_NOT_BE_NULL = "errorPersistenceBehavior must not be null";
     public static final String TARGET_TEMPERATURE_MUST_NOT_BE_NEGATIVE = "targetTemperature must not be negative";
 
+    public static final String SERIAL_TRANSFER_SETTINGS_MUST_NOT_BE_NULL = "serialTransferSettings must not be null";
+
+    public static final String SD_UPLOAD_BATCH_SIZE_MUST_BE_IN_RANGE = "sdUploadBatchSize must be between 1 and 100";
+    public static final String SD_UPLOAD_RECOVERY_WINDOW_MULTIPLIER_MUST_BE_IN_RANGE = "sdUploadRecoveryWindowMultiplier must be between 1 and 100";
+    public static final String SD_UPLOAD_MAX_ERRORS_MUST_BE_IN_RANGE = "sdUploadMaxErrors must be between 1 and 1000000";
+    public static final String SD_UPLOAD_MAX_CONSECUTIVE_IDENTICAL_RESENDS_MUST_BE_IN_RANGE = "sdUploadMaxConsecutiveIdenticalResends must be between 1 and 1000";
+    public static final String SD_UPLOAD_MIN_PERFORMANCE_PERCENT_MUST_BE_IN_RANGE = "sdUploadMinPerformancePercent must be between 0 and 100";
+    public static final String SD_UPLOAD_MAX_RETRIES_PER_LINE_MUST_BE_IN_RANGE = "sdUploadMaxRetriesPerLine must be between 1 and 100";
+    public static final String FILE_STREAMING_READ_TIMEOUT_MS_MUST_BE_IN_RANGE = "fileStreamingReadTimeoutMs must be between 1 and 600000";
+    public static final String FILE_STREAMING_QUIET_PERIOD_MS_MUST_BE_IN_RANGE = "fileStreamingQuietPeriodMs must be between 0 and 60000";
+    public static final String FILE_STREAMING_READ_ACTIVITY_SLEEP_MS_MUST_BE_IN_RANGE = "fileStreamingReadActivitySleepMs must be between 0 and 60000";
+    public static final String FILE_STREAMING_READ_IDLE_SLEEP_MS_MUST_BE_IN_RANGE = "fileStreamingReadIdleSleepMs must be between 0 and 60000";
+    public static final String FILE_STREAMING_RECOVERY_REPLAY_DELAY_MS_MUST_BE_IN_RANGE = "fileStreamingRecoveryReplayDelayMs must be between 0 and 60000";
+
     public static final String EVENT_PRINTER_POLLED = "PRINTER_POLLED";
     public static final String EVENT_PRINTER_DISABLED = "PRINTER_DISABLED";
     public static final String EVENT_PRINTER_TIMEOUT = "PRINTER_TIMEOUT";
@@ -85,6 +99,8 @@ public final class OperationMessages {
     public static final String FAILED_TO_SAVE_MONITORING_RULES = "Failed to save monitoring rules";
     public static final String FAILED_TO_LOAD_PRINT_FILE_SETTINGS = "Failed to load print file settings";
     public static final String FAILED_TO_SAVE_PRINT_FILE_SETTINGS = "Failed to save print file settings";
+    public static final String FAILED_TO_LOAD_SERIAL_TRANSFER_SETTINGS = "Failed to load serial transfer settings";
+    public static final String FAILED_TO_SAVE_SERIAL_TRANSFER_SETTINGS = "Failed to save serial transfer settings";
 
     public static final String SERIAL_CONNECTION_IS_NOT_OPEN = "Serial port is not open.";
     public static final String INTERRUPTED_WHILE_READING_RESPONSE = "Interrupted while reading response from serial port.";
@@ -176,6 +192,8 @@ public final class OperationMessages {
     public static final String EVENT_JOB_RESUMED = "JOB_RESUMED";
     public static final String EVENT_JOB_CANCELLING = "JOB_CANCELLING";
     public static final String EVENT_JOB_RESTARTED = "JOB_RESTARTED";
+
+    public static final String SERIAL_TRANSFER_SETTINGS_STORE_MUST_NOT_BE_NULL = "serialTransferSettingsStore must not be null";
 
     public static String simulatedPrinterDisconnected(String portName) {
         return "Simulated printer is disconnected: " + portName;

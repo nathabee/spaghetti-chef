@@ -1881,7 +1881,7 @@ Expected result for 0.2.3 overall:
 ---
 
 
-## 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
+### 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
 
 Purpose:
 
@@ -1889,7 +1889,7 @@ Use the real-printer findings from `0.2.3` to close the remaining SD-upload and 
 
 ---
 
-### 0.2.4 — Step A — Real-printer correction and anomaly closure
+#### 0.2.4 — Step A — Real-printer correction and anomaly closure
 
 status: done
 
@@ -1916,7 +1916,7 @@ Expected result:
 
 ---
 
-### 0.2.4 — Step B — SD upload observability and transfer performance
+#### 0.2.4 — Step B — SD upload observability and transfer performance
 
 status: done
 
@@ -1940,7 +1940,7 @@ Expected result:
 
 ---
 
-### 0.2.4 — Step C — Windowed SD upload
+#### 0.2.4 — Step C — Windowed SD upload
 
 status: done
 
@@ -2003,7 +2003,7 @@ After all file lines accepted:
 
 ---
 
-### 0.2.4 — Step D — buffered resend recovery and degraded replay stabilization
+#### 0.2.4 — Step D — buffered resend recovery and degraded replay stabilization
 
 status: done
 
@@ -2079,7 +2079,7 @@ the current upload session degrades to single-send mode for safety.
 ---
 
  
-### 0.2.4 — Step E — transfer settings administration foundation
+#### 0.2.4 — Step E — transfer settings administration foundation
 
 status: planned
 
@@ -2107,7 +2107,7 @@ Expected result:
 
 ---
 
-### 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning
+#### 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning
 
 status: planned
 
@@ -2172,7 +2172,7 @@ Expected result:
 
 ---
 
-### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
+#### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
 
 status: planned
 

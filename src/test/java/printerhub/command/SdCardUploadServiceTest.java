@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import printerhub.PrinterPort;
 import printerhub.SerialIOMode;
+import printerhub.config.PrinterProtocolDefaults;
 import printerhub.config.RuntimeDefaults;
+import printerhub.config.SerialDefaults;
 import printerhub.job.PrintFile;
 import printerhub.job.PrintFileService;
 import printerhub.job.PrinterActionGuard;
@@ -13,9 +15,13 @@ import printerhub.job.PrinterSdFile;
 import printerhub.job.PrinterSdFileService;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
+import printerhub.persistence.MonitoringRules;
+import printerhub.persistence.MonitoringRulesStore;
 import printerhub.persistence.PrintFileStore;
 import printerhub.persistence.PrinterEventStore;
 import printerhub.persistence.PrinterSdFileStore;
+import printerhub.persistence.SerialTransferSettings;
+import printerhub.persistence.SerialTransferSettingsStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeStateCache;
@@ -59,12 +65,11 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadService(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore);
 
@@ -136,12 +141,11 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadService(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore);
 
@@ -186,12 +190,11 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadService(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore);
 
@@ -237,12 +240,11 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadService(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore);
 
@@ -282,12 +284,11 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadService(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore);
 
@@ -353,39 +354,35 @@ class SdCardUploadServiceTest {
         try {
             System.setOut(new PrintStream(output));
 
-            SdCardUploadService disabledTraceService = new SdCardUploadService(
+            SdCardUploadService disabledTraceService = createUploadServiceWithSettings(
                     printerRegistry,
                     monitoringScheduler,
-                    new PrinterActionGuard(),
                     printFileService,
-                    new SdCardService(printerEventStore),
                     printerSdFileService,
                     printerEventStore,
-                    () -> false,
-                    () -> 5,
-                    () -> 2,
-                    () -> 10_000,
-                    () -> 10,
-                    () -> 0);
+                    false,
+                    5,
+                    2,
+                    10_000,
+                    10,
+                    0);
             disabledTraceService.uploadToPrinterSd("printer-1", printFile.id(), "TEST4.GCO");
             assertFalse(output.toString().contains("SD upload wire"));
 
             output.reset();
 
-            SdCardUploadService enabledTraceService = new SdCardUploadService(
+            SdCardUploadService enabledTraceService = createUploadServiceWithSettings(
                     printerRegistry,
                     monitoringScheduler,
-                    new PrinterActionGuard(),
                     printFileService,
-                    new SdCardService(printerEventStore),
                     printerSdFileService,
                     printerEventStore,
-                    () -> true,
-                    () -> 5,
-                    () -> 2,
-                    () -> 10_000,
-                    () -> 10,
-                    () -> 0);
+                    true,
+                    5,
+                    2,
+                    10_000,
+                    10,
+                    0);
             enabledTraceService.uploadToPrinterSd("printer-1", printFile.id(), "TEST4.GCO");
             assertTrue(output.toString().contains("SD upload wire"));
         } finally {
@@ -408,20 +405,19 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadServiceWithSettings(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore,
-                () -> false,
-                () -> 2,
-                () -> 2,
-                () -> 10_000,
-                () -> 10,
-                () -> 0);
+                false,
+                2,
+                2,
+                10_000,
+                10,
+                0);
 
         PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
         ActiveBatchRecoveryPrinterPort printerPort = new ActiveBatchRecoveryPrinterPort();
@@ -478,20 +474,19 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadServiceWithSettings(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore,
-                () -> false,
-                () -> 2,
-                () -> 2,
-                () -> 10_000,
-                () -> 10,
-                () -> 0);
+                false,
+                2,
+                2,
+                10_000,
+                10,
+                0);
 
         PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
         RecentBufferRecoveryPrinterPort printerPort = new RecentBufferRecoveryPrinterPort();
@@ -555,20 +550,19 @@ class SdCardUploadServiceTest {
         PrintFileStore printFileStore = new PrintFileStore();
         PrintFileService printFileService = new PrintFileService(printFileStore);
         PrinterSdFileService printerSdFileService = new PrinterSdFileService(new PrinterSdFileStore(), printFileStore);
-        SdCardUploadService uploadService = new SdCardUploadService(
+
+        SdCardUploadService uploadService = createUploadServiceWithSettings(
                 printerRegistry,
                 monitoringScheduler,
-                new PrinterActionGuard(),
                 printFileService,
-                new SdCardService(printerEventStore),
                 printerSdFileService,
                 printerEventStore,
-                () -> false,
-                () -> 2,
-                () -> 2,
-                () -> 10_000,
-                () -> 10,
-                () -> 0);
+                false,
+                2,
+                2,
+                10_000,
+                10,
+                0);
 
         PrintFile printFile = printFileService.registerHostFile(hostFile.toString());
         RecentBufferMissPrinterPort printerPort = new RecentBufferMissPrinterPort();
@@ -623,6 +617,76 @@ class SdCardUploadServiceTest {
         }
 
         return false;
+    }
+
+    private SdCardUploadService createUploadService(
+            PrinterRegistry printerRegistry,
+            PrinterMonitoringScheduler monitoringScheduler,
+            PrintFileService printFileService,
+            PrinterSdFileService printerSdFileService,
+            PrinterEventStore printerEventStore) {
+        MonitoringRulesStore monitoringRulesStore = new MonitoringRulesStore();
+        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+
+        return new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore,
+                monitoringRulesStore,
+                serialTransferSettingsStore);
+    }
+
+    private SdCardUploadService createUploadServiceWithSettings(
+            PrinterRegistry printerRegistry,
+            PrinterMonitoringScheduler monitoringScheduler,
+            PrintFileService printFileService,
+            PrinterSdFileService printerSdFileService,
+            PrinterEventStore printerEventStore,
+            boolean debugWireTracingEnabled,
+            int sdUploadBatchSize,
+            int sdUploadRecoveryWindowMultiplier,
+            int sdUploadMaxErrors,
+            int sdUploadMaxConsecutiveIdenticalResends,
+            int sdUploadMinPerformancePercent) {
+        MonitoringRulesStore monitoringRulesStore = new MonitoringRulesStore();
+        SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
+
+        MonitoringRules defaultRules = MonitoringRules.defaults();
+        monitoringRulesStore.save(new MonitoringRules(
+                defaultRules.pollIntervalSeconds(),
+                defaultRules.snapshotMinimumIntervalSeconds(),
+                defaultRules.temperatureDeltaThreshold(),
+                defaultRules.eventDeduplicationWindowSeconds(),
+                defaultRules.errorPersistenceBehavior(),
+                debugWireTracingEnabled));
+
+        serialTransferSettingsStore.save(new SerialTransferSettings(
+                sdUploadBatchSize,
+                sdUploadRecoveryWindowMultiplier,
+                sdUploadMaxErrors,
+                sdUploadMaxConsecutiveIdenticalResends,
+                sdUploadMinPerformancePercent,
+                PrinterProtocolDefaults.SD_UPLOAD_MAX_RETRIES_PER_LINE,
+                SerialDefaults.FILE_STREAMING_READ_TIMEOUT_MS,
+                SerialDefaults.FILE_STREAMING_QUIET_PERIOD_MS,
+                SerialDefaults.FILE_STREAMING_READ_ACTIVITY_SLEEP_MS,
+                SerialDefaults.FILE_STREAMING_READ_IDLE_SLEEP_MS,
+                SerialDefaults.FILE_STREAMING_RECOVERY_REPLAY_DELAY_MS));
+
+        return new SdCardUploadService(
+                printerRegistry,
+                monitoringScheduler,
+                new PrinterActionGuard(),
+                printFileService,
+                new SdCardService(printerEventStore),
+                printerSdFileService,
+                printerEventStore,
+                monitoringRulesStore,
+                serialTransferSettingsStore);
     }
 
     private abstract static class BaseTestPrinterPort implements PrinterPort {

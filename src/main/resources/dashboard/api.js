@@ -85,6 +85,10 @@ export async function getPrintFileSettings() {
   return requestJson("/settings/print-files");
 }
 
+export async function getSerialTransferSettings() {
+  return requestJson("/settings/serial-transfer");
+}
+
 export async function saveMonitoringRules(rules) {
   return requestJson("/settings/monitoring", {
     method: "PUT",
@@ -97,6 +101,16 @@ export async function saveMonitoringRules(rules) {
 
 export async function savePrintFileSettings(settings) {
   return requestJson("/settings/print-files", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(settings)
+  });
+}
+
+export async function saveSerialTransferSettings(settings) {
+  return requestJson("/settings/serial-transfer", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json"
