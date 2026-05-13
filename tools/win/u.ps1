@@ -94,7 +94,7 @@ function Get-JavaMajorVersion {
     return $null
 }
 
-$root = 'C:\ph'
+$root = 'C:\printerhub'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
 $relDir = "$root\rel"
