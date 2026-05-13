@@ -8,6 +8,8 @@ public final class OperationMessages {
     public static final String ERROR_PREFIX = "[ERROR] ";
     public static final String INFO_PREFIX = "[INFO] ";
 
+    public static final String RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL = "Printer requested resend for line %d but that line was outside the recoverable resend window.";
+
     public static final String MONITORING_SCHEDULER_MUST_NOT_BE_NULL = "monitoringScheduler must not be null";
     public static final String MONITORING_RULES_STORE_MUST_NOT_BE_NULL = "monitoringRulesStore must not be null";
     public static final String COMMAND_SERVICE_MUST_NOT_BE_NULL = "printerCommandService must not be null";

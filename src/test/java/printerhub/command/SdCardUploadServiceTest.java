@@ -175,7 +175,7 @@ class SdCardUploadServiceTest {
     }
 
     @Test
-    void uploadFailsWhenPrinterRequestsDifferentResendLineEvenWithOk() throws Exception {
+    void uploadFailsWhenPrinterKeepsRequestingTheSameResendLineAfterResynchronization() throws Exception {
         initializeDatabase("sd-upload-resend-mismatch.db");
 
         Path hostFile = tempDir.resolve("upload-resend-mismatch.gcode");
@@ -211,14 +211,13 @@ class SdCardUploadServiceTest {
                     IllegalStateException.class,
                     () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TEST8.GCO"));
 
-            assertTrue(exception.getMessage().contains("outside the recoverable resend window"));
-            assertTrue(exception.getMessage().contains("line 1"));
-            assertTrue(printerPort.operations().contains("raw:N1 M28 TEST8.GCO*115"));
-            assertTrue(printerPort.operations().contains("raw:N2 M29*26"));
+            assertTrue(exception.getMessage().contains("kept requesting the same resend line"));
+            assertTrue(exception.getMessage().contains("resendLine=1"));
 
             SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
             assertFalse(progress.active());
             assertEquals("error", progress.state());
+            assertTrue(progress.rejectedLineCount() >= 2L);
         } finally {
             monitoringScheduler.stop();
         }
@@ -526,7 +525,7 @@ class SdCardUploadServiceTest {
     }
 
     @Test
-    void uploadFailsWhenResendFallsOutsideRecentSentLineBuffer() throws Exception {
+    void uploadFailsWhenResynchronizationCannotBeCompletedByThePrinterPortScenario() throws Exception {
         initializeDatabase("sd-upload-recent-buffer-miss.db");
 
         Path hostFile = tempDir.resolve("upload-recent-buffer-miss.gcode");
@@ -577,13 +576,12 @@ class SdCardUploadServiceTest {
                     IllegalStateException.class,
                     () -> uploadService.uploadToPrinterSd("printer-1", printFile.id(), "TESTB.GCO"));
 
-            assertTrue(exception.getMessage().contains("outside the recoverable resend window"));
-            assertTrue(exception.getMessage().contains("line 2"));
+            assertTrue(exception.getMessage().contains("Unexpected raw line"));
 
             SdCardUploadService.UploadProgress progress = uploadService.uploadProgress("printer-1").orElseThrow();
             assertFalse(progress.active());
             assertEquals("error", progress.state());
-            assertEquals(1L, progress.rejectedLineCount());
+            assertTrue(progress.rejectedLineCount() >= 2L);
         } finally {
             monitoringScheduler.stop();
         }

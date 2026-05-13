@@ -2081,7 +2081,7 @@ the current upload session degrades to single-send mode for safety.
  
 #### 0.2.4 — Step E — transfer settings administration foundation
 
-status: planned
+status: done
 
 Goals:
 
@@ -2107,143 +2107,104 @@ Expected result:
 
 ---
 
-#### 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning
+#### 0.2.4 — Step F — Adaptive SD upload control
 
-status: planned
+Status: done
 
-Goals:
+Goal:
 
-* introduce an AIMD-inspired adaptive serial upload window controller that reduces batch aggressiveness on resend instability and gradually restores throughput after a stable acceptance window
-* build on Step D buffered resend recovery instead of replacing it
-* introduce a real runtime transfer controller instead of a fixed batch size plus permanent degraded latch
-* separate:
+Make SD upload batch size adapt at runtime instead of staying fixed or permanently degraded after the first resend.
 
-  * configured maximum batch size
-  * current runtime batch size
-  * recovery state
-  * stability evidence since last resend
-  * recent resend density
-* automatically reduce transfer aggressiveness after resend instability
-* gradually re-enable batching after a stable stretch of accepted lines
-* search for a stable high-throughput operating point instead of staying permanently in single-send mode after the first resend
-* persist adaptation decisions and stability evidence in printer events
-* keep real printer validation as the primary target
+##### Core idea
 
-Planned behavior:
+Use a simple safe controller:
 
-* start each upload at operator-configured transfer settings
-* if resend appears:
+* start fast
+* downgrade quickly on instability
+* upgrade slowly after proven stability
+* keep buffered resend recovery
+* abort only when recovery is no longer safe or error limits are exceeded
 
-  * drain pending input
-  * use buffered replay recovery
-  * lower the active runtime batch size
-  * reset stability counters
-* if upload remains stable long enough:
-
-  * increase active runtime batch size step by step
-* never exceed configured ceilings
-* if instability returns:
-
-  * reduce again
-* abort only when recovery leaves retained-history or protocol thresholds are exceeded
-
-Planned runtime state:
-
-* configured maximum batch size
-* configured minimum batch size
-* current active batch size
-* accepted lines since last resend
-* recent resend count
-* recent recovery count
-* recent mode transitions
-* throughput indicators for current session
-
-Deliverables:
-
-* adaptive batch controller inside SD upload runtime state
-* configurable thresholds for increase / decrease / stability windows
-* event logging for mode transitions and adaptation evidence
-* API exposure for upload runtime metrics
-
-Expected result:
-
-* PrinterHub behaves safely under resend instability
-* upload can recover upward instead of remaining permanently degraded
-* runtime approximates a practical stable operating point per printer/firmware/host path
-
----
-
-
-
-## The right Step F direction
-
-You do **not** want a complicated “AI” controller first.
-You want a **safe hill-climbing controller with hysteresis**.
-
-That means:
-
-* start from configured ceiling
-* reduce quickly on instability
-* increase slowly on proven stability
-* never jump wildly
-* never oscillate too fast
-
-## The algorithm for STEP F
-
-Use 5 runtime concepts:
+##### Runtime state
 
 * `configuredMaxBatchSize`
 * `configuredMinBatchSize`
 * `activeBatchSize`
 * `acceptedLinesSinceLastResend`
 * `recentResendCount`
+* `recentRecoveryCount`
+* `singleSendMode`
 
-And 3 tuning thresholds:
+##### Tuning thresholds
 
 * `stableLinesForUpgrade`
 * `resendsBeforeDowngrade`
 * `recoveryEventsBeforeSingleSend`
 
-### Runtime behavior
+##### Algorithm
 
 At upload start:
 
 * `activeBatchSize = configuredMaxBatchSize`
 * `acceptedLinesSinceLastResend = 0`
 * `recentResendCount = 0`
-* mode = `PIPELINED`
+* `recentRecoveryCount = 0`
+* `singleSendMode = false`
 
-When a batch succeeds cleanly:
+On clean progress:
 
-* add accepted line count to `acceptedLinesSinceLastResend`
+* add accepted lines to `acceptedLinesSinceLastResend`
+* if stability reaches `stableLinesForUpgrade`:
 
-If `acceptedLinesSinceLastResend >= stableLinesForUpgrade`:
+  * increase `activeBatchSize` by 1
+  * never exceed `configuredMaxBatchSize`
+  * reset `acceptedLinesSinceLastResend`
 
-* if `activeBatchSize < configuredMaxBatchSize`
+On resend:
 
-  * increase by `1`
-* reset `acceptedLinesSinceLastResend = 0`
-* record event like:
-
-  * `SD upload adaptation: increased active batch size from 2 to 3 after 300 stable lines`
-
-When a resend happens:
-
-* run buffered recovery as you already do
-* increment resend/recovery counters
+* drain pending input if needed
+* run buffered replay recovery
+* increment resend and recovery counters
 * reset `acceptedLinesSinceLastResend = 0`
 
-Then downgrade:
+After resend:
 
-* if `activeBatchSize > configuredMinBatchSize`
+* if resend count reaches `resendsBeforeDowngrade`:
 
-  * reduce by `1`
-* else stay at min
-* if repeated recovery still happens at min batch:
+  * reduce `activeBatchSize` by 1
+  * never go below `configuredMinBatchSize`
 
-  * enter `singleSendMode`
+If recovery keeps happening at minimum batch size:
+
+* enable `singleSendMode`
+
+On out-of-window resend:
+
+* count it as a protocol anomaly
+* count it against `rejectedLineCount`
+* count it against `sdUploadMaxErrors`
+* try resynchronization from the oldest recoverable buffered line
+
+Abort only when:
+
+* resend recovery falls outside retained history and cannot be resynchronized safely
+* `sdUploadMaxErrors` is exceeded
+* `sdUploadMaxConsecutiveIdenticalResends` is exceeded
+* another hard protocol failure occurs
+
+##### Deliverables
+
+* adaptive batch controller in SD upload runtime state
+* persisted settings for stability and downgrade thresholds
+* upload events for upgrades, downgrades, resync, and single-send fallback
+* API/dashboard exposure for active runtime upload metrics
+
+##### Expected result
+
+PrinterHub should recover from resend instability safely, climb back up after stable stretches, and settle near a practical throughput level for the real printer instead of staying permanently slow after one recovery.
 
 
+---
 
 #### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
 

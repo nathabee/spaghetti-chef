@@ -34,8 +34,6 @@ import java.util.function.IntSupplier;
 
 public final class SdCardUploadService {
 
-    private static final String RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL = "Printer requested resend for line %d but that line was outside the recoverable resend window.";
-
     private final PrinterRegistry printerRegistry;
     private final PrinterMonitoringScheduler monitoringScheduler;
     private final PrinterActionGuard printerActionGuard;
@@ -809,13 +807,7 @@ public final class SdCardUploadService {
 
                     maybeDowngradeBatch(node, runtimeState, resendLine);
 
-                    if (!windowHistory.isRecoverable(resendLine)) {
-                        throw new SdUploadLineException(
-                                resendLine,
-                                String.format(Locale.ROOT, RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL, resendLine));
-                    }
-
-                    replayRecoveryStateMachine(
+                    int recoveryStartLine = resolveRecoveryStartLine(
                             node,
                             windowHistory,
                             resendLine,
@@ -823,7 +815,17 @@ public final class SdCardUploadService {
                             runtimeState,
                             printFile,
                             targetFilename);
+
+                    replayRecoveryStateMachine(
+                            node,
+                            windowHistory,
+                            recoveryStartLine,
+                            guardState,
+                            runtimeState,
+                            printFile,
+                            targetFilename);
                     continue;
+
                 }
 
                 runtimeState.recordAcceptedLine();
@@ -886,20 +888,26 @@ public final class SdCardUploadService {
                 printFile,
                 targetFilename);
         if (resendLine < 0) {
+            guardState.resetOutOfWindowResyncs();
             return;
         }
 
-        if (!windowHistory.isRecoverable(resendLine)) {
-            throw new SdUploadLineException(
-                    resendLine,
-                    String.format(Locale.ROOT, RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL, resendLine));
-        }
+        int recoveryStartLine = resolveRecoveryStartLine(
+                node,
+                windowHistory,
+                resendLine,
+                guardState,
+                runtimeState,
+                printFile,
+                targetFilename);
 
         printerEventStore.record(
                 node.id(),
                 null,
                 "SD_CARD_UPLOAD_RECOVERY_STARTED",
                 "SD upload recovery started from line "
+                        + recoveryStartLine
+                        + " | requestedResendLine="
                         + resendLine
                         + " | oldestRecoverable="
                         + windowHistory.oldestRecoverableLineNumber()
@@ -911,7 +919,7 @@ public final class SdCardUploadService {
         replayRecoveryStateMachine(
                 node,
                 windowHistory,
-                resendLine,
+                recoveryStartLine,
                 guardState,
                 runtimeState,
                 printFile,
@@ -1309,11 +1317,14 @@ public final class SdCardUploadService {
                         targetFilename);
                 enforceMaxErrorThreshold(node, printFile, targetFilename);
 
-                if (!windowHistory.isRecoverable(resendTarget)) {
-                    throw new SdUploadLineException(
-                            resendTarget,
-                            String.format(Locale.ROOT, RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL, resendTarget));
-                }
+                int recoveryStartLine = resolveRecoveryStartLine(
+                        node,
+                        windowHistory,
+                        resendTarget,
+                        guardState,
+                        runtimeState,
+                        printFile,
+                        targetFilename);
 
                 maybeDowngradeBatch(node, runtimeState, resendTarget);
 
@@ -1323,16 +1334,19 @@ public final class SdCardUploadService {
                         "SD_CARD_UPLOAD_RECOVERY_JUMP",
                         "SD upload recovery jump: currentLine="
                                 + replayCursor
-                                + " -> resendLine="
+                                + " -> recoveryStartLine="
+                                + recoveryStartLine
+                                + " | requestedResendLine="
                                 + resendTarget
                                 + " | activeBatchSize="
                                 + runtimeState.activeBatchSize());
 
                 sleepRecoveryReplayDelay();
-                replayCursor = resendTarget;
+                replayCursor = recoveryStartLine;
                 continue;
             }
 
+            guardState.resetOutOfWindowResyncs();
             runtimeState.recordAcceptedLine();
             maybeUpgradeBatch(node, runtimeState);
 
@@ -1401,6 +1415,70 @@ public final class SdCardUploadService {
                             + " | acceptedLinesSinceLastResend="
                             + runtimeState.acceptedLinesSinceLastResend());
         }
+    }
+
+    private int resolveRecoveryStartLine(
+            PrinterRuntimeNode node,
+            RecentWindowHistory windowHistory,
+            int requestedResendLine,
+            UploadGuardState guardState,
+            SdUploadRuntimeState runtimeState,
+            PrintFile printFile,
+            String targetFilename) {
+        if (windowHistory.isRecoverable(requestedResendLine)) {
+            guardState.resetOutOfWindowResyncs();
+            return requestedResendLine;
+        }
+
+        int oldestRecoverable = windowHistory.oldestRecoverableLineNumber();
+        int newestSent = windowHistory.newestSentLineNumber();
+
+        printerEventStore.record(
+                node.id(),
+                null,
+                "SD_CARD_UPLOAD_RESEND_OUTSIDE_WINDOW",
+                "SD upload received resend outside recoverable window: requestedResendLine="
+                        + requestedResendLine
+                        + " | oldestRecoverable="
+                        + oldestRecoverable
+                        + " | newestSent="
+                        + newestSent
+                        + " | activeBatchSize="
+                        + runtimeState.activeBatchSize());
+
+        guardState.registerOutOfWindowResync();
+
+        incrementRejectedLineCount(node.id());
+        runtimeState.recordRejectedLine();
+        enforceMaxErrorThreshold(node, printFile, targetFilename);
+
+        if (oldestRecoverable < 0) {
+            throw new SdUploadLineException(
+                    requestedResendLine,
+                    String.format(
+                            Locale.ROOT,
+                            OperationMessages.RESEND_OUTSIDE_RECOVERY_WINDOW_DETAIL,
+                            requestedResendLine)
+                            + " No recoverable buffered line was available for resynchronization.");
+        }
+
+        discardPendingUploadInput(node);
+        sleepRecoveryReplayDelay();
+
+        printerEventStore.record(
+                node.id(),
+                null,
+                "SD_CARD_UPLOAD_RESYNC_REQUESTED",
+                "SD upload resynchronization requested after out-of-window resend: requestedResendLine="
+                        + requestedResendLine
+                        + " | restartingFromOldestRecoverable="
+                        + oldestRecoverable
+                        + " | newestSent="
+                        + newestSent
+                        + " | consecutiveOutOfWindowResyncs="
+                        + guardState.consecutiveOutOfWindowResyncs());
+
+        return oldestRecoverable;
     }
 
     private String normalizeUploadPayload(String rawLine) {
@@ -1640,7 +1718,9 @@ public final class SdCardUploadService {
 
         String normalized = response.toLowerCase(Locale.ROOT);
 
-        if (!normalized.contains("resend")) {
+        if (!normalized.contains("resend")
+                && !normalized.contains("rs")
+                && !normalized.contains("last line")) {
             return null;
         }
 
@@ -1663,12 +1743,17 @@ public final class SdCardUploadService {
     }
 
     private Integer extractRequestedResendLine(String response) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("(?i)resend\\s*:\\s*(\\d+)")
-                .matcher(response);
+        java.util.regex.Pattern[] patterns = new java.util.regex.Pattern[] {
+                java.util.regex.Pattern.compile("(?i)\\bresend\\s*:?\\s*(\\d+)\\b"),
+                java.util.regex.Pattern.compile("(?i)\\brs\\s*:?\\s*(\\d+)\\b"),
+                java.util.regex.Pattern.compile("(?i)\\blast\\s+line\\s*:?\\s*(\\d+)\\b")
+        };
 
-        if (matcher.find()) {
-            return Integer.parseInt(matcher.group(1));
+        for (java.util.regex.Pattern pattern : patterns) {
+            java.util.regex.Matcher matcher = pattern.matcher(response);
+            if (matcher.find()) {
+                return Integer.parseInt(matcher.group(1));
+            }
         }
 
         return null;
@@ -2115,6 +2200,7 @@ public final class SdCardUploadService {
     private static final class UploadGuardState {
         private Integer lastRequestedResendLine;
         private int consecutiveIdenticalResends;
+        private int consecutiveOutOfWindowResyncs;
 
         private int registerResend(int resendLine) {
             if (lastRequestedResendLine != null && lastRequestedResendLine == resendLine) {
@@ -2125,6 +2211,19 @@ public final class SdCardUploadService {
             }
 
             return consecutiveIdenticalResends;
+        }
+
+        private int registerOutOfWindowResync() {
+            consecutiveOutOfWindowResyncs++;
+            return consecutiveOutOfWindowResyncs;
+        }
+
+        private void resetOutOfWindowResyncs() {
+            consecutiveOutOfWindowResyncs = 0;
+        }
+
+        private int consecutiveOutOfWindowResyncs() {
+            return consecutiveOutOfWindowResyncs;
         }
     }
 
