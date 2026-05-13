@@ -887,8 +887,13 @@ if "%API_PORT%"=="" (
 set DATABASE_FILE=%PRINTERHUB_DATABASE_FILE%
 set DATABASE_FILE_SOURCE=env
 if "%DATABASE_FILE%"=="" (
-  set DATABASE_FILE=printerhub.db
-  set DATABASE_FILE_SOURCE=default
+  if exist "C:\printerhub\data" (
+    set "DATABASE_FILE=C:\printerhub\data\printerhub.db"
+    set "DATABASE_FILE_SOURCE=managed-default"
+  ) else (
+    set "DATABASE_FILE=printerhub.db"
+    set "DATABASE_FILE_SOURCE=local-default"
+  )
 )
 
 set JAVA_CMD=%PRINTERHUB_JAVA%
@@ -926,8 +931,8 @@ Contents:
 - v.ps1 : status and health check
 - INSTALL-REMOTE.md : setup instructions
 
-Copy the PowerShell scripts to C:\\ph\\bin on the Windows host.
-Copy run.env.example to C:\\ph\\data\\run.env and adjust values if needed.
+Copy the PowerShell scripts to C:\\printerhub\\bin on the Windows host.
+Copy run.env.example to C:\\printerhub\\data\\run.env and adjust values if needed.
 EOF
 
             tar -C package -czf "dist/${LINUX_PACKAGE}" linux

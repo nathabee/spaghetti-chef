@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = 'r.ps1 runtime-env-v1'
+$ScriptVersion = 'r.ps1 runtime-env-v2'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
@@ -87,8 +87,8 @@ function Get-JavaMajorVersion {
 }
 
 $taskName = 'PrinterHub'
-$runEnvPath = 'C:\ph\data\run.env'
-$startLog = 'C:\ph\log\start.log'
+$runEnvPath = 'C:\printerhub\data\run.env'
+$startLog = 'C:\printerhub\log\start.log'
 $envMap = Read-RunEnv -Path $runEnvPath
 
 $apiPort = '18080'
@@ -96,7 +96,7 @@ if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
     $apiPort = $envMap['PRINTERHUB_API_PORT']
 }
 
-$databaseFile = 'printerhub.db'
+$databaseFile = 'C:\printerhub\data\printerhub.db'
 if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
     $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
 }
@@ -105,29 +105,29 @@ $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
+    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\printerhub\data\run.env"
 }
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
 }
 
-if (-not (Test-Path -LiteralPath 'C:\ph\app\printerhub.bat')) {
-    Fail "Launcher not found: C:\ph\app\printerhub.bat"
+if (-not (Test-Path -LiteralPath 'C:\printerhub\app\printerhub.bat')) {
+    Fail "Launcher not found: C:\printerhub\app\printerhub.bat"
 }
 
-if (-not (Test-Path -LiteralPath 'C:\ph\bin\t.ps1')) {
-    Fail "Task registration script not found: C:\ph\bin\t.ps1"
+if (-not (Test-Path -LiteralPath 'C:\printerhub\log')) {
+    New-Item -ItemType Directory -Force -Path 'C:\printerhub\log' | Out-Null
 }
 
-if (-not (Test-Path -LiteralPath 'C:\ph\log')) {
-    New-Item -ItemType Directory -Force -Path 'C:\ph\log' | Out-Null
+try {
+    schtasks /Query /TN $taskName | Out-Null
+}
+catch {
+    Fail "Scheduled task '$taskName' not found. Run C:\printerhub\bin\t.ps1 once as the intended task owner."
 }
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 "[$stamp] start requested task=$taskName apiPort=$apiPort databaseFile=$databaseFile java=$javaCommand" | Add-Content -LiteralPath $startLog
-
-Write-Host "Refreshing scheduled task from run.env"
-& 'C:\ph\bin\t.ps1'
 
 Write-Host "Starting scheduled task '$taskName'"
 schtasks /Run /TN $taskName | Out-Null

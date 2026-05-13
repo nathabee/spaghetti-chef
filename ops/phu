@@ -11,4 +11,4 @@ fi
 
 VERSION="$1"
 
-ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\ph\\bin\\u.ps1 -Version ${VERSION}"
+ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\printerhub\\bin\\u.ps1 -Version ${VERSION}"

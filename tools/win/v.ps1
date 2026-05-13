@@ -33,14 +33,14 @@ function Read-RunEnv {
     return $map
 }
 
-$runEnvPath = 'C:\ph\data\run.env'
-$appDir = 'C:\ph\app'
+$runEnvPath = 'C:\printerhub\data\run.env'
+$appDir = 'C:\printerhub\app'
 $jarPath = Join-Path $appDir 'printer-hub.jar'
 $launcherPath = Join-Path $appDir 'printerhub.bat'
-$taskCmdPath = 'C:\ph\bin\printerhub-task.cmd'
-$stdoutLog = 'C:\ph\log\printerhub-out.log'
-$stderrLog = 'C:\ph\log\printerhub-err.log'
-$startLog = 'C:\ph\log\start.log'
+$taskCmdPath = 'C:\printerhub\bin\printerhub-task.cmd'
+$stdoutLog = 'C:\printerhub\log\printerhub-out.log'
+$stderrLog = 'C:\printerhub\log\printerhub-err.log'
+$startLog = 'C:\printerhub\log\start.log'
 
 $envMap = Read-RunEnv -Path $runEnvPath
 
