@@ -4,4 +4,4 @@ set -euo pipefail
 HOST="${PH_HOST:-printerhub-win}"
 USER_NAME="${PH_USER:-admin}"
 
-ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\ph\\bin\\v.ps1"
+ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\printerhub\\bin\\v.ps1"

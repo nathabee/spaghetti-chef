@@ -58,7 +58,7 @@ printer-hub/
 ### Windows laptop
 
 ```text
-C:\ph\
+C:\printerhub\
 ├── app
 ├── data
 ├── log
@@ -109,7 +109,7 @@ launch remote PowerShell scripts on the Windows host.
 * `run.env.example`
 
   * example local runtime configuration file
-  * copied once to `C:\ph\data\run.env`
+  * copied once to `C:\printerhub\data\run.env`
 
 ### Linux helper commands
 
@@ -157,14 +157,14 @@ printer-hub.jar
 
 Current launcher behavior: 
 
-* Java command: `PRINTERHUB_JAVA` from `C:\ph\data\run.env`, otherwise `java`
-* API port: `PRINTERHUB_API_PORT` from `C:\ph\data\run.env`, otherwise `18080`
-* database file: `PRINTERHUB_DATABASE_FILE` from `C:\ph\data\run.env`, otherwise `printerhub.db`. 
+* Java command: `PRINTERHUB_JAVA` from `C:\printerhub\data\run.env`, otherwise `java`
+* API port: `PRINTERHUB_API_PORT` from `C:\printerhub\data\run.env`, otherwise `18080`
+* database file: `PRINTERHUB_DATABASE_FILE` from `C:\printerhub\data\run.env`, otherwise `printerhub.db`. 
 
 Use full path for PRINTERHUB_DATABASE_FILE : 
 
 ```text
-PRINTERHUB_DATABASE_FILE=C:\ph\data\printerhub.db
+PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
 ```
 
 Current dashboard URL:
@@ -247,12 +247,12 @@ Open PowerShell as Administrator:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path C:\ph
-New-Item -ItemType Directory -Force -Path C:\ph\app
-New-Item -ItemType Directory -Force -Path C:\ph\data
-New-Item -ItemType Directory -Force -Path C:\ph\log
-New-Item -ItemType Directory -Force -Path C:\ph\rel
-New-Item -ItemType Directory -Force -Path C:\ph\tmp
-New-Item -ItemType Directory -Force -Path C:\ph\bin
+New-Item -ItemType Directory -Force -Path C:\printerhub\app
+New-Item -ItemType Directory -Force -Path C:\printerhub\data
+New-Item -ItemType Directory -Force -Path C:\printerhub\log
+New-Item -ItemType Directory -Force -Path C:\printerhub\rel
+New-Item -ItemType Directory -Force -Path C:\printerhub\tmp
+New-Item -ItemType Directory -Force -Path C:\printerhub\bin
 ```
 
 ---
@@ -270,13 +270,13 @@ Extract the zip on the Windows laptop.
 Copy the extracted PowerShell scripts into:
 
 ```text
-C:\ph\bin\
+C:\printerhub\bin\
 ```
 
 Copy the extracted example environment file to:
 
 ```text
-C:\ph\data\run.env
+C:\printerhub\data\run.env
 ```
 
 ### 6. Review local runtime configuration
@@ -284,14 +284,14 @@ C:\ph\data\run.env
 Open:
 
 ```text
-C:\ph\data\run.env
+C:\printerhub\data\run.env
 ```
 
 Initial example content:
 
 ```text
 PRINTERHUB_JAVA=
-PRINTERHUB_DATABASE_FILE=C:\ph\data\printerhub.db
+PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
 PRINTERHUB_API_PORT=18080
 ```
 
@@ -304,7 +304,7 @@ Open a normal PowerShell window with the same Windows user that will run
 PrinterHub and execute:
 
 ```powershell
-C:\ph\bin\t.ps1
+C:\printerhub\bin\t.ps1
 
 ```
 
@@ -319,30 +319,30 @@ If desired, install the first Windows release manually before remote updates are
 used:
 
 1. Download `printer-hub-<version>-windows.zip`
-2. Extract it into `C:\ph\app`
+2. Extract it into `C:\printerhub\app`
 3. Verify these files exist:
 
 ```text
-C:\ph\app\printerhub.bat
-C:\ph\app\printer-hub.jar
+C:\printerhub\app\printerhub.bat
+C:\printerhub\app\printer-hub.jar
 ```
 
 Then refresh the scheduled task:
 
 ```powershell
-C:\ph\bin\t.ps1
+C:\printerhub\bin\t.ps1
 ```
 
 Then test start:
 
 ```powershell
-C:\ph\bin\r.ps1
+C:\printerhub\bin\r.ps1
 ```
 
 Then test status:
 
 ```powershell
-C:\ph\bin\v.ps1
+C:\printerhub\bin\v.ps1
 ```
 
 ---
@@ -434,7 +434,7 @@ PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
 This launches:
 
 ```text
-C:\ph\bin\v.ps1
+C:\printerhub\bin\v.ps1
 ```
 
 on the Windows host.
@@ -452,7 +452,7 @@ PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 1.0.0
 This launches:
 
 ```text
-C:\ph\bin\u.ps1 -Version 1.0.0
+C:\printerhub\bin\u.ps1 -Version 1.0.0
 ```
 
 on the Windows host.
@@ -476,7 +476,7 @@ https://github.com/nathabee/printer-hub/releases/download/v1.0.0/printer-hub-1.0
 The updater must not replace persisted runtime data in:
 
 ```text
-C:\ph\data\
+C:\printerhub\data\
 ```
 
 In particular, database files must remain intact across updates.
@@ -484,6 +484,6 @@ In particular, database files must remain intact across updates.
 The updater replaces only the application package in:
 
 ```text
-C:\ph\app\
+C:\printerhub\app\
 ```
  

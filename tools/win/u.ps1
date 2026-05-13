@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = 'u.ps1 runtime-env-v1'
+$ScriptVersion = 'u.ps1 runtime-env-v2'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
@@ -94,11 +94,12 @@ function Get-JavaMajorVersion {
     return $null
 }
 
-$root = 'C:\ph'
+$root = 'C:\printerhub'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
 $relDir = "$root\rel"
 $logDir = "$root\log"
+$dataDir = "$root\data"
 $runEnvPath = "$root\data\run.env"
 $updateLog = Join-Path $logDir 'update.log'
 
@@ -107,32 +108,30 @@ $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\ph\data\run.env"
+    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\printerhub\data\run.env"
 }
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
 }
 
-if (-not (Test-Path -LiteralPath $logDir)) {
-    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+foreach ($dir in @($logDir, $tmpDir, $relDir, $dataDir)) {
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
 }
-if (-not (Test-Path -LiteralPath $tmpDir)) {
-    New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+
+if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\s.ps1')) {
+    Fail "Stop script not found: C:\printerhub\bin\s.ps1"
 }
-if (-not (Test-Path -LiteralPath $relDir)) {
-    New-Item -ItemType Directory -Force -Path $relDir | Out-Null
-}
-if (-not (Test-Path -LiteralPath 'C:\ph\bin\s.ps1')) {
-    Fail "Stop script not found: C:\ph\bin\s.ps1"
-}
-if (-not (Test-Path -LiteralPath 'C:\ph\bin\r.ps1')) {
-    Fail "Start script not found: C:\ph\bin\r.ps1"
+if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\r.ps1')) {
+    Fail "Start script not found: C:\printerhub\bin\r.ps1"
 }
 
 $assetName = "printer-hub-$Version-windows.zip"
 $tagName = "v$Version"
 $zipPath = Join-Path $relDir $assetName
 $extractDir = Join-Path $tmpDir ("extract-" + $Version)
+$backupDir = Join-Path $tmpDir ("app-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $downloadUrl = "https://github.com/$Owner/$Repo/releases/download/$tagName/$assetName"
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -146,7 +145,7 @@ Write-Host "Downloading $downloadUrl"
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
 
 Write-Host "Stopping current PrinterHub"
-& 'C:\ph\bin\s.ps1'
+& 'C:\printerhub\bin\s.ps1'
 
 if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force
@@ -171,9 +170,19 @@ if (-not (Test-Path -LiteralPath (Join-Path $sourceDir 'printer-hub.jar'))) {
     Fail "Extracted package does not contain printer-hub.jar"
 }
 
-$backupDir = Join-Path $tmpDir ("app-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-if (Test-Path -LiteralPath $appDir) {
-    Move-Item -LiteralPath $appDir -Destination $backupDir
+for ($i = 0; $i -lt 15; $i++) {
+    try {
+        if (Test-Path -LiteralPath $appDir) {
+            Move-Item -LiteralPath $appDir -Destination $backupDir -Force
+        }
+        break
+    }
+    catch {
+        if ($i -eq 14) {
+            Fail "App directory is still locked after stop: $($_.Exception.Message)"
+        }
+        Start-Sleep -Seconds 2
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $appDir | Out-Null
@@ -183,7 +192,7 @@ Write-Host "App directory content after copy:"
 Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
 
 Write-Host "Starting updated PrinterHub"
-& 'C:\ph\bin\r.ps1'
+& 'C:\printerhub\bin\r.ps1'
 
 "[$stamp] update success version=$Version tag=$tagName asset=$assetName" | Add-Content -LiteralPath $updateLog
 Write-Host "Update complete for version $Version"

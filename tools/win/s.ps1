@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = 's.ps1 runtime-env-v1'
+$ScriptVersion = 's.ps1 runtime-env-v2'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
@@ -39,7 +39,8 @@ function Read-RunEnv {
     return $map
 }
 
-$runEnvPath = 'C:\ph\data\run.env'
+$taskName = 'PrinterHub'
+$runEnvPath = 'C:\printerhub\data\run.env'
 $envMap = Read-RunEnv -Path $runEnvPath
 
 $databaseFile = $null
@@ -52,42 +53,82 @@ if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
     $apiPort = $envMap['PRINTERHUB_API_PORT']
 }
 
+try {
+    schtasks /End /TN $taskName | Out-Null
+    Write-Host "Requested Task Scheduler stop for '$taskName'"
+}
+catch {
+    Write-Host "Scheduled task '$taskName' was not running or could not be ended through schtasks."
+}
+
 $targets = Get-CimInstance Win32_Process | Where-Object {
-    ($_.Name -eq 'java.exe' -or $_.Name -eq 'javaw.exe') -and
-    $_.CommandLine -and
-    ($_.CommandLine -match 'printer-hub\.jar')
+    $_.CommandLine -and (
+        $_.CommandLine -match 'printer-hub\.jar' -or
+        $_.CommandLine -match 'printerhub\.bat' -or
+        $_.CommandLine -match 'printerhub-task\.cmd'
+    )
 }
 
 if ($databaseFile) {
     $escapedDatabaseFile = [regex]::Escape($databaseFile)
-    $targets = $targets | Where-Object {
-        $_.CommandLine -match $escapedDatabaseFile
+    $filtered = $targets | Where-Object { $_.CommandLine -match $escapedDatabaseFile }
+    if ($filtered.Count -gt 0) {
+        $targets = $filtered
     }
 }
 
 if (-not $targets) {
     Write-Host "No PrinterHub process found."
-    exit 0
+}
+else {
+    foreach ($proc in $targets) {
+        try {
+            Stop-Process -Id $proc.ProcessId -Force
+            Write-Host "Stopped PrinterHub PID $($proc.ProcessId)"
+        }
+        catch {
+            Fail "Failed to stop PrinterHub PID $($proc.ProcessId): $($_.Exception.Message)"
+        }
+    }
 }
 
-foreach ($proc in $targets) {
+$stopped = $false
+for ($i = 0; $i -lt 20; $i++) {
+    Start-Sleep -Seconds 1
+
+    $remaining = Get-CimInstance Win32_Process | Where-Object {
+        $_.CommandLine -and (
+            $_.CommandLine -match 'printer-hub\.jar' -or
+            $_.CommandLine -match 'printerhub\.bat' -or
+            $_.CommandLine -match 'printerhub-task\.cmd'
+        )
+    }
+
+    if ($databaseFile) {
+        $escapedDatabaseFile = [regex]::Escape($databaseFile)
+        $filteredRemaining = $remaining | Where-Object { $_.CommandLine -match $escapedDatabaseFile }
+        if ($filteredRemaining.Count -gt 0) {
+            $remaining = $filteredRemaining
+        }
+    }
+
     try {
-        Stop-Process -Id $proc.ProcessId -Force
-        Write-Host "Stopped PrinterHub PID $($proc.ProcessId)"
+        $resp = Invoke-WebRequest -Uri "http://localhost:$apiPort/health" -UseBasicParsing -TimeoutSec 2
+        $healthStillUp = ($resp.StatusCode -eq 200)
     }
     catch {
-        Fail "Failed to stop PrinterHub PID $($proc.ProcessId): $($_.Exception.Message)"
+        $healthStillUp = $false
+    }
+
+    if (($remaining.Count -eq 0) -and (-not $healthStillUp)) {
+        $stopped = $true
+        break
     }
 }
 
-Start-Sleep -Seconds 2
+if (-not $stopped) {
+    Fail "PrinterHub stop was requested, but runtime still appears active or locked."
+}
 
-try {
-    $resp = Invoke-WebRequest -Uri "http://localhost:$apiPort/health" -UseBasicParsing -TimeoutSec 2
-    if ($resp.StatusCode -eq 200) {
-        Fail "Process stop was requested, but health endpoint is still reachable on port $apiPort"
-    }
-}
-catch {
-    Write-Host "Health endpoint no longer reachable on port $apiPort"
-}
+Write-Host "Health endpoint no longer reachable on port $apiPort"
+Write-Host "PrinterHub stopped successfully."

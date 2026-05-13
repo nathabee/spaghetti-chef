@@ -824,7 +824,6 @@ EOF
                 '''
             }
         }
-
 stage('Package Expert Distributions') {
     when {
         expression {
@@ -858,19 +857,10 @@ stage('Package Expert Distributions') {
             cp docs/install.md package/windows/INSTALL.md
             cp docs/quickstart.md package/linux/QUICKSTART.md
             cp docs/quickstart.md package/windows/QUICKSTART.md
+        '''
 
-            cat > package/linux/printerhub.sh <<'EOF'
-#!/usr/bin/env sh
-set -eu
- 
-API_PORT="${1:-18080}"
-DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
-
-exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
-EOF
-            chmod +x package/linux/printerhub.sh
-cat > package/windows/printerhub.bat <<'EOF'
-@echo off
+        script {
+            writeFile file: 'package/windows/printerhub.bat', text: '''@echo off
 setlocal
 
 set API_PORT=%1
@@ -887,8 +877,13 @@ if "%API_PORT%"=="" (
 set DATABASE_FILE=%PRINTERHUB_DATABASE_FILE%
 set DATABASE_FILE_SOURCE=env
 if "%DATABASE_FILE%"=="" (
-  set DATABASE_FILE=printerhub.db
-  set DATABASE_FILE_SOURCE=default
+  if exist "C:\\printerhub\\data" (
+    set "DATABASE_FILE=C:\\printerhub\\data\\printerhub.db"
+    set "DATABASE_FILE_SOURCE=managed-default"
+  ) else (
+    set "DATABASE_FILE=printerhub.db"
+    set "DATABASE_FILE_SOURCE=local-default"
+  )
 )
 
 set JAVA_CMD=%PRINTERHUB_JAVA%
@@ -904,17 +899,32 @@ echo   api port: %API_PORT% [source=%API_PORT_SOURCE%]
 echo   database file: %DATABASE_FILE% [source=%DATABASE_FILE_SOURCE%]
 
 "%JAVA_CMD%" -Dprinterhub.databaseFile="%DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
+'''
+        }
+
+        sh '''
+            set -eu
+
+            cat > package/linux/printerhub.sh <<'EOF'
+#!/usr/bin/env sh
+set -eu
+
+API_PORT="${1:-18080}"
+DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
+
+exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
 EOF
+            chmod +x package/linux/printerhub.sh
 
-cp tools/win/run.env.example package/admin/
-cp tools/win/t.ps1 package/admin/
-cp tools/win/u.ps1 package/admin/
-cp tools/win/r.ps1 package/admin/
-cp tools/win/s.ps1 package/admin/
-cp tools/win/v.ps1 package/admin/
-cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
+            cp tools/win/run.env.example package/admin/
+            cp tools/win/t.ps1 package/admin/
+            cp tools/win/u.ps1 package/admin/
+            cp tools/win/r.ps1 package/admin/
+            cp tools/win/s.ps1 package/admin/
+            cp tools/win/v.ps1 package/admin/
+            cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
 
-cat > package/admin/README.txt <<'EOF'
+            cat > package/admin/README.txt <<'EOF'
 PrinterHub Windows remote administration bootstrap package.
 
 Contents:
@@ -926,8 +936,8 @@ Contents:
 - v.ps1 : status and health check
 - INSTALL-REMOTE.md : setup instructions
 
-Copy the PowerShell scripts to C:\\ph\\bin on the Windows host.
-Copy run.env.example to C:\\ph\\data\\run.env and adjust values if needed.
+Copy the PowerShell scripts to C:\\printerhub\\bin on the Windows host.
+Copy run.env.example to C:\\printerhub\\data\\run.env and adjust values if needed.
 EOF
 
             tar -C package -czf "dist/${LINUX_PACKAGE}" linux
