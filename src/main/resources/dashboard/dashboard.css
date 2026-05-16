@@ -550,8 +550,129 @@ progress::-moz-progress-bar {
   background: var(--bg-surface-muted);
 }
 
+.sd-upload-status-card {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--border-strong);
+}
+
+.sd-upload-status-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.35rem;
+  background: var(--primary);
+}
+
+.sd-upload-health-healthy::before,
+.sd-upload-health-complete::before {
+  background: var(--ok);
+}
+
+.sd-upload-health-recovering::before,
+.sd-upload-health-degraded::before {
+  background: var(--warn);
+}
+
+.sd-upload-health-fallback::before,
+.sd-upload-health-failed::before {
+  background: var(--danger);
+}
+
 .sd-upload-card .info-list {
   margin-top: 0.7rem;
+}
+
+.sd-upload-hero,
+.sd-upload-state-stack,
+.sd-upload-controller-strip,
+.sd-upload-pressure-header,
+.sd-upload-progress-header,
+.sd-upload-detail-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.sd-upload-hero {
+  align-items: flex-start;
+}
+
+.sd-upload-state-stack {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.sd-upload-health-badge,
+.sd-upload-mode-badge,
+.sd-upload-batch-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--pill-radius);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.sd-upload-health-healthy .sd-upload-health-badge,
+.sd-upload-health-complete .sd-upload-health-badge {
+  border-color: rgba(106, 217, 160, 0.45);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.sd-upload-health-recovering .sd-upload-health-badge,
+.sd-upload-health-degraded .sd-upload-health-badge {
+  border-color: rgba(245, 182, 111, 0.48);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.sd-upload-health-fallback .sd-upload-health-badge,
+.sd-upload-health-failed .sd-upload-health-badge {
+  border-color: rgba(255, 138, 128, 0.5);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.sd-upload-stat-grid,
+.sd-upload-pressure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.95rem;
+}
+
+.sd-upload-stat-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  margin-top: 0.75rem;
+}
+
+.sd-upload-stat-tile,
+.sd-upload-pressure-panel {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-small);
+  background: rgba(11, 18, 32, 0.42);
+}
+
+.sd-upload-stat-tile span,
+.sd-upload-stat-tile small,
+.sd-upload-pressure-panel small {
+  color: var(--text-muted);
+}
+
+.sd-upload-stat-tile strong {
+  display: block;
+  margin: 0.25rem 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
 }
 
 .sd-upload-diagnostics-card {
@@ -561,6 +682,25 @@ progress::-moz-progress-bar {
 
 .sd-upload-diagnostics-card > summary {
   cursor: pointer;
+}
+
+.sd-upload-controller-strip {
+  flex-wrap: wrap;
+  padding: 0.85rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-small);
+  background: rgba(123, 170, 230, 0.08);
+}
+
+.sd-upload-controller-strip strong {
+  color: var(--primary-hover);
+}
+
+.sd-upload-batch-chip,
+.sd-upload-mode-badge {
+  border-color: rgba(123, 170, 230, 0.45);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
 }
 
 .sd-upload-metric-group {
@@ -574,11 +714,70 @@ progress::-moz-progress-bar {
 }
 
 .sd-upload-progress-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
   margin: 0.6rem 0 0.45rem;
+}
+
+.sd-upload-progress-header strong {
+  font-size: 1.55rem;
+}
+
+.sd-upload-meter {
+  height: 0.8rem;
+  border-radius: var(--pill-radius);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sd-upload-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.sd-upload-meter.tone-normal span,
+.sd-upload-meter.tone-stable span {
+  background: var(--primary);
+}
+
+.sd-upload-meter.tone-good span {
+  background: var(--ok);
+}
+
+.sd-upload-meter.tone-warn span {
+  background: var(--warn);
+}
+
+.sd-upload-meter.tone-bad span {
+  background: var(--danger);
+}
+
+.sd-upload-pressure-panel.tone-good {
+  border-color: rgba(106, 217, 160, 0.28);
+}
+
+.sd-upload-pressure-panel.tone-warn {
+  border-color: rgba(245, 182, 111, 0.34);
+}
+
+.sd-upload-pressure-panel.tone-bad {
+  border-color: rgba(255, 138, 128, 0.38);
+}
+
+.sd-upload-detail-line {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-soft);
+  align-items: flex-start;
+}
+
+.sd-upload-detail-line span {
+  color: var(--text-muted);
+}
+
+.sd-upload-detail-line strong {
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .card-badges,

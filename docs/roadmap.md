@@ -2239,18 +2239,24 @@ Expected result:
 The SD-card page shows upload progress as a clear operator summary while keeping adaptive controller internals available in a separate diagnostics card for verifying runtime behavior during long uploads.
 
  
-#### 0.2.4 — Step I —  
+#### 0.2.4 — Step I — Modern upload monitoring UX and operator-grade visualization
 
-status: planned
+status: done
 
 Goals:
+
+* add a frontend transfer-health indicator for healthy, recovering, degraded, fallback, failed, complete, and idle states
+* make upload progress, throughput, ETA, line/byte counters, resend count, and transfer quality readable at a glance
+* add color-coded quality, resend, recovery, and stability pressure meters
+* show adaptive controller decisions with a mode badge, active batch chip, configured range, and last adaptation reason/time
+* keep runtime telemetry display near the SD-card upload workflow while leaving persistent transfer settings in settings
+
+Expected result:
+
+The SD-card page now reads like an operator monitoring panel: progress and alarms are visually prominent, adaptive changes are called out, and resend/recovery pressure can be interpreted without scanning raw logs.
 
  
-#### 0.2.4 — Step J —  
 
-status: planned
-
-Goals:
 
  
 
