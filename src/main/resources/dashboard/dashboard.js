@@ -10,6 +10,7 @@ import {
   getJobEvents,
   getJobExecutionSteps,
   getJobs,
+  getMonitoringOverview,
   getMonitoringRules,
   getPrintFileContent,
   getPrintFileSettings,
@@ -38,6 +39,7 @@ import {
 import { renderNav } from "./components/nav.js";
 import { renderFarmHome } from "./views/farm-home.js";
 import { renderJobsPage } from "./views/jobs.js";
+import { renderMonitoringPage } from "./views/monitoring.js";
 import { renderPrinterControl } from "./views/printer-control.js";
 import { renderPrinterHistory } from "./views/printer-history.js";
 import { renderPrinterHome } from "./views/printer-home.js";
@@ -58,6 +60,7 @@ import {
   setJobs,
   setLastRefreshLabel,
   setMessage,
+  setMonitoringOverview,
   setMonitoringRules,
   setPrintFileSettings,
   setPrintFiles,
@@ -104,7 +107,8 @@ async function refreshAllData(options = {}) {
       printerSdFiles,
       monitoringRules,
       printFileSettings,
-      serialTransferSettings
+      serialTransferSettings,
+      monitoringOverview
     ] = await Promise.all([
       getPrinters(),
       getJobs(),
@@ -112,7 +116,8 @@ async function refreshAllData(options = {}) {
       getPrinterSdFiles(),
       getMonitoringRules(),
       getPrintFileSettings(),
-      getSerialTransferSettings()
+      getSerialTransferSettings(),
+      getMonitoringOverview()
     ]);
 
     setPrinters(printers);
@@ -122,6 +127,7 @@ async function refreshAllData(options = {}) {
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
     setSerialTransferSettings(serialTransferSettings);
+    setMonitoringOverview(monitoringOverview);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 
@@ -159,6 +165,19 @@ async function refreshUploadStatuses(printers) {
   }));
 }
 
+async function refreshMonitoringOverview(options = {}) {
+  try {
+    const overview = await getMonitoringOverview();
+    setMonitoringOverview(overview);
+
+    if (options.silent !== true) {
+      setMessage("Monitoring overview refreshed.");
+    }
+  } catch (error) {
+    setMessage(`Failed to refresh monitoring overview: ${error.message}`);
+  }
+}
+
 function renderApp() {
   renderNav();
   renderHeader();
@@ -180,6 +199,12 @@ function renderHeader() {
   if (state.activePrimaryView === PRIMARY_VIEW_IDS.JOBS) {
     pageTitleElement.textContent = "Jobs";
     pageLeadElement.textContent = "Global job view aligned with the backend job domain model.";
+    return;
+  }
+
+  if (state.activePrimaryView === PRIMARY_VIEW_IDS.MONITORING) {
+    pageTitleElement.textContent = "Monitoring";
+    pageLeadElement.textContent = "Cross-printer runtime activity, active jobs, and SD upload telemetry.";
     return;
   }
 
@@ -219,6 +244,11 @@ function renderPage() {
 
   if (state.activePrimaryView === PRIMARY_VIEW_IDS.JOBS) {
     pageContentElement.innerHTML = renderJobsPage();
+    return;
+  }
+
+  if (state.activePrimaryView === PRIMARY_VIEW_IDS.MONITORING) {
+    pageContentElement.innerHTML = renderMonitoringPage();
     return;
   }
 
@@ -410,6 +440,30 @@ function bindGlobalListeners() {
     const stopSyncUploadStatusButton = event.target.closest("[data-stop-sync-sd-upload-status]");
     if (stopSyncUploadStatusButton) {
       handleStopUploadStatusSynchronization(stopSyncUploadStatusButton.dataset.stopSyncSdUploadStatus);
+      renderApp();
+      return;
+    }
+
+    const refreshMonitoringButton = event.target.closest("[data-refresh-monitoring-overview]");
+    if (refreshMonitoringButton) {
+      await refreshMonitoringOverview({ silent: false });
+      renderApp();
+      return;
+    }
+
+    const monitoringSyncUploadButton = event.target.closest("[data-monitoring-sync-upload]");
+    if (monitoringSyncUploadButton) {
+      await handleMonitoringSyncUpload(monitoringSyncUploadButton.dataset.monitoringSyncUpload);
+      renderApp();
+      return;
+    }
+
+    const monitoringSyncJobButton = event.target.closest("[data-monitoring-sync-job]");
+    if (monitoringSyncJobButton) {
+      await handleMonitoringSyncJob(
+        monitoringSyncJobButton.dataset.printerId,
+        monitoringSyncJobButton.dataset.monitoringSyncJob
+      );
       renderApp();
       return;
     }
@@ -893,6 +947,33 @@ function handleStopUploadStatusSynchronization(printerId) {
   setUploadStatusSynchronization(printerId, false);
   stopUploadStatusPolling(printerId);
   setMessage(`Stopped upload status synchronization for ${printerId}.`);
+}
+
+async function handleMonitoringSyncUpload(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  setSelectedPrinter(printerId);
+  setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
+  setPrinterView(PRINTER_VIEW_IDS.SD_CARD);
+  handleStartUploadStatusSynchronization(printerId);
+  await refreshUploadStatus(printerId);
+  setMessage(`Following SD upload for ${printerId}.`);
+}
+
+async function handleMonitoringSyncJob(printerId, jobId) {
+  if (!printerId) {
+    setPrimaryView(PRIMARY_VIEW_IDS.JOBS);
+    setMessage(`Open job ${jobId || ""} from the global Jobs page.`);
+    return;
+  }
+
+  setSelectedPrinter(printerId);
+  setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
+  setPrinterView(PRINTER_VIEW_IDS.PRINT);
+  await refreshMonitoringOverview({ silent: true });
+  setMessage(`Following job ${jobId || ""} on ${printerId}.`);
 }
 
 function stopManualUploadStatusSynchronizations() {

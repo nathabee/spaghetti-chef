@@ -359,7 +359,7 @@ Example local run:
 mvn exec:java \
 -Dprinterhub.api.port=18080 \
 -Dexec.mainClass="printerhub.Main"
-````
+```
 
 Example verification:
 
@@ -917,7 +917,7 @@ PrinterRuntimeNode
 PrinterRuntimeStateCache
 SerialConnection
 SimulatedPrinterPort
-````
+```
 
 Expected behavior:
 
@@ -2276,7 +2276,25 @@ A second operator can open the dashboard from another PC, select the same printe
 ---
 ## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
 
-status: planned
+status: done
+
+Purpose:
+
+Add a global Monitoring workspace for observing runtime activity across all configured printers without first selecting one printer.
+
+Goals:
+
+* add a global `Monitoring` dashboard menu entry
+* add `GET /monitoring` as a backend runtime aggregation endpoint
+* summarize configured, enabled, disabled, busy, and error printers
+* show active/recent jobs across the local farm
+* show active or last-known SD upload telemetry across printers
+* expose adaptive upload diagnostics globally without replacing the selected-printer SD Card workflow
+* provide follow/synchronize actions that jump from the global page to the focused selected-printer workspace
+
+Expected result:
+
+Operators can open one global Monitoring page to see farm runtime health, active jobs, and SD upload telemetry across printers, then follow a specific upload or job into the detailed printer page when they need deeper control.
 
 
 ### 0.2.6 — Runtime Recovery and Serial Device Robustness

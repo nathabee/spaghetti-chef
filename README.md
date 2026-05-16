@@ -4,37 +4,26 @@
 
 # PrinterHub
 
-**PrinterHub** is a Java-based system integration project for monitoring and controlling 3D printers in a structured runtime environment.
+**PrinterHub** is a Java-based system integration project for monitoring and controlling 3D printers in a structured local runtime environment.
 
-It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and is evolving into a **local multi-printer runtime architecture** with background monitoring, persistence, REST API access, dashboard administration, audit visibility, asynchronous job execution, and controlled operator actions.
+It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and is evolving into a **local multi-printer runtime architecture** with background monitoring, persistence, REST API access, dashboard administration, audit visibility, asynchronous job execution, controlled operator actions, SD-card upload monitoring, and cross-printer runtime observability.
 
-PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference is a **Creality Ender-3 V2 Neo**.
+PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference remains the Creality Ender-series Marlin behavior used during USB serial and SD-card upload verification.
 
 Roadmap:
 
 * [`docs/roadmap.md`](docs/roadmap.md)
 
+---
 
 ## Current scope
 
-> 
-> ## NOTE : Real printer. Real serial link. Real recovery work.
-> PrinterHub is currently being tested against a physical USB-connected 3D printer, with active work focused on high-speed SD upload over a constrained serial channel.
->
-> Recent work adds pipelined transfer, buffered resend recovery, degraded safe replay after instability, and detailed upload diagnostics visible in the runtime.
->
-> Current testing pushes aggressive batch settings on purpose, so protocol edge cases appear early and can be corrected on real hardware instead of staying hidden in simulation.
->
-> The next target is an adaptive transfer controller that can recover safely, observe stability, and climb back toward a fast runtime batch size automatically. 
->
-> Remote Windows bootstrap and update via OpenSSH is now available as an emergency pre-1.0.0 administration path.
->
-
+PrinterHub is currently focused on the **local runtime**: one running PrinterHub instance controls and observes one local printer farm through USB-connected or simulated printers.
 
 Current focus:
 
 ```text
-0.2.x — local runtime administration, audit visibility, dashboard UI, and job management
+0.2.x — local runtime administration, audit visibility, dashboard UI, job management, SD-card upload observability, and global runtime monitoring
 ```
 
 The current implementation provides:
@@ -42,20 +31,42 @@ The current implementation provides:
 * local multi-printer runtime
 * background monitoring per configured printer
 * runtime state cache
-* REST API for printer administration, monitoring settings, event visibility, and controlled job execution
-* SQLite persistence for printer configuration, monitoring rules, snapshots, events, jobs, and execution diagnostics
-* embedded dashboard with two-level navigation
-* selected-printer workspace inspired by the printer display logic
+* REST API for printer administration, monitoring settings, runtime monitoring, event visibility, controlled job execution, SD-card upload, and diagnostics
+* SQLite persistence for printer configuration, monitoring rules, serial transfer settings, snapshots, events, jobs, files, and execution diagnostics
+* embedded dashboard with global and selected-printer workspaces
+* global Monitoring workspace for cross-printer runtime visibility
+* selected-printer workspace inspired by practical printer operation
 * selected-printer SD Card administration for printer-side file discovery and host-side file preparation
+* guarded host-to-printer SD-card `.gcode` upload for the verified Marlin serial path
+* live upload telemetry, adaptive transfer diagnostics, and remote dashboard synchronization
 * controlled job-oriented actions instead of only raw direct command sending
 * asynchronous job start with bounded background execution
 * job history, printer history, execution events, and structured workflow-step diagnostics
-* guarded host-to-printer SD-card `.gcode` upload for the verified real-printer Marlin path
 * simulation modes for normal and failing printer behavior
 * Jenkins CI verification and runtime smoke tests
 * remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
 
-The implementation is intentionally still focused on the **local runtime** and its operational visibility.
+PrinterHub is intentionally not yet a centralized SaaS or multi-site production control platform. The current system is a local runtime with operational visibility and controlled administration.
+
+---
+
+## Real-printer and serial-upload note
+
+PrinterHub is tested against physical USB-connected Marlin-style 3D printers. A major part of the current work is reliable host-to-printer SD-card upload over a constrained serial channel.
+
+The SD-upload path includes:
+
+* numbered and checksummed G-code upload session
+* pipelined transfer
+* buffered resend recovery
+* adaptive batch-size behavior
+* degraded safe replay after instability
+* transfer quality metrics
+* live upload progress
+* adaptive transfer diagnostics in the dashboard
+* synchronization support for observing an upload from another browser or PC
+
+This is real serial recovery work, not only simulation. Simulation remains important for automated tests, but the implementation is shaped by real printer behavior.
 
 ---
 
@@ -68,6 +79,8 @@ flowchart TB
     runtime --> api["REST API and dashboard server"]
     runtime --> monitor["Background monitoring scheduler"]
     runtime --> jobs["Asynchronous job executor"]
+    runtime --> upload["SD-card upload service"]
+    runtime --> global["Global monitoring aggregation"]
     runtime --> cache["Runtime state cache"]
     runtime --> persistence["SQLite persistence layer"]
     runtime --> serial["Serial / simulation communication"]
@@ -79,15 +92,19 @@ flowchart TB
 
     cache --> latest["Latest known state per printer"]
     jobs --> serial
-    persistence --> data["Configuration, monitoring rules, snapshots, events, jobs, diagnostics"]
+    upload --> serial
+    global --> cache
+    global --> jobs
+    global --> upload
+    persistence --> data["Configuration, settings, snapshots, events, jobs, files, diagnostics"]
     serial --> ports["USB ports or simulated ports"]
 ```
 
 Operational rule:
 
 ```text
-The API reads runtime state from the cache.
-Background monitoring performs the polling.
+The API reads runtime state from the cache or runtime services.
+Background monitoring performs normal polling.
 Normal status and dashboard reads must not poll printers directly.
 Job start requests return quickly; long-running printer workflows continue in the background.
 ```
@@ -100,7 +117,7 @@ Job executor pool:      8
 Monitoring pool:        runtime-sized, with an 8-thread lazy default
 ```
 
-Each printer still accepts only one active job at a time.
+Each printer accepts only one active controlled job or guarded action at a time.
 
 ---
 
@@ -129,18 +146,13 @@ http://localhost:18080/dashboard
 
 The dashboard uses relative API requests, so it follows the port used to serve the dashboard. Port `8080` is only the backend default when no `printerhub.api.port` property is provided.
 
-Current platform note:
-
-* the currently documented and validated runtime/release workflow is Ubuntu/Linux-oriented
-* the Java runtime architecture is intended to remain cross-platform, but Windows-oriented packaging and verification are planned for a later packaging step
-
 ---
 
-## Monitoring configuration
+## Monitoring and runtime settings
 
-PrinterHub supports runtime-global monitoring rules.
+PrinterHub supports runtime-global monitoring rules and serial transfer settings.
 
-Available settings:
+Monitoring settings include:
 
 ```text
 poll interval
@@ -148,11 +160,14 @@ snapshot minimum interval
 temperature delta threshold
 event deduplication window
 error persistence behavior
+debug wire tracing
 ```
 
-These rules are currently global to the runtime and not yet printer-specific.
+Serial transfer settings include upload and file-streaming parameters used by the SD-card upload path, including batch-size limits, recovery thresholds, retry limits, and read timing values.
 
-The dashboard auto-refresh is intentionally limited to live printer status fields. Full dashboard reloads happen on user action, such as the **Refresh now** button, or after create/update/delete actions that change the data model.
+These settings are currently global to the runtime and not yet printer-specific.
+
+The dashboard auto-refresh is intentionally selective. Lightweight live fields can refresh automatically, while heavier actions such as SD-card file listing remain explicit user actions.
 
 ---
 
@@ -160,7 +175,7 @@ The dashboard auto-refresh is intentionally limited to live printer status field
 
 PrinterHub includes an embedded dashboard as part of the local runtime.
 
-The dashboard now uses a **two-level UI**:
+The dashboard uses global navigation plus a selected-printer workspace.
 
 ### Primary navigation
 
@@ -169,6 +184,7 @@ PrinterHub
 ├── Farm Home
 ├── Printers
 ├── Jobs
+├── Monitoring
 ├── History
 └── Settings
 ```
@@ -186,59 +202,77 @@ Selected Printer
 └── History
 ```
 
-This structure is designed to stay aligned with the practical logic of operating a printer, while still supporting local runtime administration and diagnostics.
+The structure separates fleet-level administration from selected-printer operation.
 
-### Dashboard screenshots
+### Global Monitoring workspace
 
-<table>  
+The **Monitoring** page provides cross-printer runtime visibility.
 
-  <tr align="center">
-    <sub>Farm Home</sub>
-    <img src="docs/assets/media-src/screenshot-printerhub-dashboard-01.png" alt="PrinterHub dashboard farm home" width="100%">
-  
-</tr>
+It shows:
 
+* fleet runtime summary
+* printer runtime states
+* active and recent jobs
+* active or last-known SD uploads
+* upload health
+* adaptive transfer diagnostics
+* follow actions for jobs and uploads
 
-  <tr align="center">
-    <sub>SD card management</sub>
-    <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="SD card management" width="100%"> 
-  </tr>
+From Monitoring, an operator can follow an active upload or job and jump into the relevant selected-printer workspace.
 
+### Selected-printer SD Card workspace
 
-  <tr>
-    <td align="center">
-      <br>
-      <sub>Settings</sub>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="PrinterHub settings view" width="100%">
-    </td>
-    <td align="center">
-      <br>
-      <sub>Selected Printer → Print</sub>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-02.png" alt="PrinterHub print view" width="100%">
-    </td>
-  </tr>
-</table>
-
-The dashboard is part of the local runtime architecture and reads through the API layer.
-
-The **SD Card** view now owns:
+The **SD Card** view owns:
 
 * printer-side SD file listing
 * registration of printer-side printable targets
 * enable / disable of registered printable targets
 * host-side `.gcode` registration and upload
 * guarded copy of a host-side `.gcode` file to the selected printer SD card
+* upload progress
+* upload quality
+* transfer performance
+* adaptive transfer diagnostics
+* manual or synchronized upload-status refresh
 
-The **Print** view now creates `PRINT_FILE` jobs only from already registered
-printer-side file targets.
+### Selected-printer Print workspace
+
+The **Print** view creates `PRINT_FILE` jobs from already registered printer-side file targets.
+
+The dashboard is part of the local runtime architecture and reads through the API layer.
+
+---
+
+## Dashboard screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <sub>Farm Home</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-01.png" alt="PrinterHub dashboard farm home" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Selected Printer → Print</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-02.png" alt="PrinterHub print view" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>SD card management</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="SD card management" width="100%">
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Jobs and controlled actions
 
-PrinterHub already uses the backend term **job** and keeps that terminology consistently across API, persistence, and dashboard.
+PrinterHub uses the backend term **job** consistently across API, persistence, and dashboard.
 
-At the current stage, jobs are still an early operational form and do not yet represent the full future production workflow of printing a piece from start to finish.
+At the current stage, jobs are operational control records. They are not yet the full future production workflow of slicing, queueing, printing, supervising, and completing a manufactured part.
 
 What is already available:
 
@@ -249,7 +283,8 @@ What is already available:
 * job event visibility
 * job execution result visibility
 * structured execution-step diagnostics
-* host-side `.gcode` print-file registration and dashboard upload through the SD Card workflow
+* host-side `.gcode` print-file registration
+* dashboard upload of host-side `.gcode` files
 * printer-side SD file discovery, registration, and enable/disable management
 * guarded host-to-printer SD-card `.gcode` upload
 * file-backed `PRINT_FILE` jobs created from registered printer-side SD targets
@@ -270,33 +305,15 @@ TURN_FAN_OFF
 PRINT_FILE
 ```
 
-`PRINT_FILE` jobs now reference a registered printer-side SD target. PrinterHub
-can register an existing host path or save a dashboard-uploaded file into the
-configured print-file storage directory, then copy that host-side file to the
-selected printer SD card through a guarded upload session. It can then select
-that printer-side file and request an autonomous printer-side print start
-through the firmware. PrinterHub validates and persists the file metadata, but
-it does not slice, edit, or line-stream a full print from the host in this
-version.
+`PRINT_FILE` jobs reference a registered printer-side SD target. PrinterHub can register an existing host path or save a dashboard-uploaded file into the configured print-file storage directory, copy that host-side file to the selected printer SD card through a guarded upload session, and then request a firmware-side print start.
+
+PrinterHub validates and persists file metadata, but it does not slice, edit, or line-stream a full print from the host in this version.
 
 Current limitation:
 
-* autonomous SD-print supervision is still early-stage: PrinterHub can start a
-  printer-side file-backed print and detect completion in observable cases, but
-  richer pause/cancel/progress controls remain future work
-
-Real-printer note:
-
-* the currently verified SD-upload path was tested against an Ender 2 Neo V3
-  style Marlin behavior
-* on that path, PrinterHub uses a dedicated numbered/checksummed upload session
-  instead of the normal single-command request/response path
-* host-to-printer SD upload is synchronous and can be very slow on this class of
-  serial Marlin printer; for large real print files, it is usually more
-  practical to copy the `.gcode` to the printer SD card separately and then use
-  PrinterHub to refresh/register the printer-side SD target
-* the dashboard upload progress shows confirmed transferred lines and transfer
-  quality, but it does not make the printer-side serial transfer fast
+* autonomous SD-print supervision is still early-stage
+* PrinterHub can start a printer-side file-backed print and detect completion in observable cases
+* richer pause, cancel, and print-progress controls remain future work
 
 Job start behavior:
 
@@ -316,15 +333,45 @@ GET /jobs/{id}/events
 GET /jobs/{id}/execution-steps
 ```
 
-For autonomous SD-backed `PRINT_FILE` jobs, PrinterHub also uses monitoring to
-help determine when a started printer-side file has completed on the firmware
-side.
+For autonomous SD-backed `PRINT_FILE` jobs, PrinterHub also uses monitoring to help determine when a started printer-side file has completed on the firmware side.
+
+---
+
+## SD-card upload observability
+
+Host-to-printer SD-card upload is one of the main real-printer verification paths.
+
+PrinterHub exposes upload visibility through:
+
+```text
+POST /printers/{id}/sd-card/uploads
+GET  /printers/{id}/sd-card/uploads/status
+```
+
+The dashboard displays:
+
+* upload state
+* file name
+* confirmed lines / total lines
+* confirmed bytes / total bytes
+* elapsed time
+* estimated remaining time
+* bytes per second
+* lines per second
+* rejected/resend count
+* transfer quality
+* current transfer mode
+* configured and active batch sizes
+* stability and recovery pressure
+* last adaptation reason
+
+The upload monitor is split into operator-facing progress and deeper adaptive diagnostics, so the user can either simply check that the upload works or inspect controller behavior during long transfers.
 
 ---
 
 ## Audit and diagnostics
 
-PrinterHub already exposes and persists operational information that makes local troubleshooting easier.
+PrinterHub exposes and persists operational information that makes local troubleshooting easier.
 
 Available diagnostic visibility includes:
 
@@ -332,11 +379,12 @@ Available diagnostic visibility includes:
 * job history
 * job event history
 * monitoring-related runtime events
+* upload recovery and adaptation events
 * execution command and result details
 * workflow-step response, outcome, and failure detail records
 * dashboard and API review of operator-triggered actions
 
-This makes local runtime behavior easier to inspect after failures and during test or operator use.
+This makes local runtime behavior easier to inspect after failures and during hardware tests.
 
 ---
 
@@ -452,8 +500,9 @@ Useful local verification commands:
 ```bash
 mvn test
 mvn clean verify
-mvn -Dtest=AsyncPrintJobExecutorTest,PrintJobExecutionServiceTest test
 mvn -Dtest=RemoteApiServerTest test
+mvn -Dtest=SdCardUploadServiceTest test
+mvn -Dtest=AsyncPrintJobExecutorTest,PrintJobExecutionServiceTest test
 ```
 
 ---
@@ -492,7 +541,7 @@ printer-hub/
 │   └── test/
 │       └── java/printerhub/
 │           └── ...
-├── ops/ 
+├── ops/
 ├── tools/
 │   └── win/
 └── pom.xml

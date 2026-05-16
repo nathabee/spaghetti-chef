@@ -2,6 +2,7 @@ export const PRIMARY_VIEW_IDS = Object.freeze({
   FARM_HOME: "farm-home",
   PRINTERS: "printers",
   JOBS: "jobs",
+  MONITORING: "monitoring",
   HISTORY: "history",
   SETTINGS: "settings"
 });
@@ -27,6 +28,7 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  monitoringOverview: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -74,6 +76,10 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setMonitoringOverview(overview) {
+  state.monitoringOverview = overview || null;
 }
 
 export function setPrimaryView(viewId) {

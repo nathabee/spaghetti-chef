@@ -808,6 +808,39 @@ progress::-moz-progress-bar {
   box-shadow: 0 0 0 0.25rem var(--warn-soft);
 }
 
+.monitoring-refresh-line {
+  margin: 0.6rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.monitoring-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.monitoring-summary-tile {
+  padding: 0.9rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-small);
+  background: var(--bg-surface-muted);
+}
+
+.monitoring-summary-tile span {
+  color: var(--text-muted);
+}
+
+.monitoring-summary-tile strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1.6rem;
+}
+
+.compact-empty {
+  padding: 1.2rem;
+}
+
 .card-badges,
 .badge-row,
 .action-row,

@@ -22,6 +22,10 @@ export async function getPrinters() {
   return Array.isArray(data.printers) ? data.printers : [];
 }
 
+export async function getMonitoringOverview() {
+  return requestJson("/monitoring");
+}
+
 export async function createPrinter(printer) {
   return requestJson("/printers", {
     method: "POST",
