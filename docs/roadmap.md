@@ -2256,9 +2256,22 @@ Expected result:
 The SD-card page now reads like an operator monitoring panel: progress and alarms are visually prominent, adaptive changes are called out, and resend/recovery pressure can be interpreted without scanning raw logs.
 
  
+#### 0.2.4 — Step J — Remote dashboard upload synchronization
 
+status: done
 
- 
+Goals:
+
+* add `Synchronize` and `Stop sync` controls beside the SD-card file refresh action
+* reuse selected-printer upload-status polling so another browser can follow an upload started elsewhere
+* poll only `GET /printers/{id}/sd-card/uploads/status`, without refreshing SD-card files or touching printer serial traffic
+* keep the last visible upload card when synchronization is stopped
+* show whether the selected printer is in live upload sync or manual-refresh mode
+
+Expected result:
+
+A second operator can open the dashboard from another PC, select the same printer, click `Synchronize`, and watch the existing upload telemetry card update live until they stop synchronization or leave the page.
+
 
 ---
 ## 0.2.5 — Global monitoring workspace and cross-printer runtime observability

@@ -33,6 +33,7 @@ export const state = {
   jobCardSections: new Map(),
   printerSdCardFiles: new Map(),
   printerSdUploadStatus: new Map(),
+  uploadStatusSynchronization: new Set(),
   printerSdTargetFilters: new Map(),
   printerCommandResults: new Map(),
   message: "",
@@ -152,6 +153,27 @@ export function getPrinterSdUploadStatus(printerId) {
   }
 
   return state.printerSdUploadStatus.get(printerId) ?? null;
+}
+
+export function setUploadStatusSynchronization(printerId, active) {
+  if (!printerId) {
+    return;
+  }
+
+  if (active) {
+    state.uploadStatusSynchronization.add(printerId);
+    return;
+  }
+
+  state.uploadStatusSynchronization.delete(printerId);
+}
+
+export function isUploadStatusSynchronized(printerId) {
+  if (!printerId) {
+    return false;
+  }
+
+  return state.uploadStatusSynchronization.has(printerId);
 }
 
 export function setPrinterSdTargetFilter(printerId, fieldName, value) {

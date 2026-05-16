@@ -1,5 +1,10 @@
 import { escapeHtml } from "../dashboard.js";
-import { getPrinterSdTargetFilter, getPrinterSdUploadStatus, state } from "../state.js";
+import {
+  getPrinterSdTargetFilter,
+  getPrinterSdUploadStatus,
+  isUploadStatusSynchronized,
+  state
+} from "../state.js";
 
 export function renderPrinterSdCard(printer) {
   const data = state.printerSdCardFiles.get(printer.id);
@@ -9,6 +14,7 @@ export function renderPrinterSdCard(printer) {
   const filteredRegisteredFiles = filterRegisteredFiles(registeredFiles, registeredFilter);
   const uploadStatus = getPrinterSdUploadStatus(printer.id);
   const uploadActive = uploadStatus?.active === true;
+  const uploadSyncActive = isUploadStatusSynchronized(printer.id);
 
   return `
     <section class="section-card">
@@ -20,7 +26,22 @@ export function renderPrinterSdCard(printer) {
         </div>
         <div class="action-row">
           <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}" ${uploadActive ? "disabled" : ""}>Refresh files</button>
+          <button
+            type="button"
+            data-sync-sd-upload-status="${escapeHtml(printer.id)}"
+            ${uploadSyncActive ? "disabled" : ""}
+          >${uploadSyncActive ? "Synchronizing..." : "Synchronize"}</button>
+          <button
+            type="button"
+            class="secondary-button"
+            data-stop-sync-sd-upload-status="${escapeHtml(printer.id)}"
+            ${uploadSyncActive ? "" : "disabled"}
+          >Stop sync</button>
         </div>
+      </div>
+      <div class="sync-status-row">
+        <span class="sync-active-indicator ${uploadSyncActive ? "sync-active" : "sync-idle"}"></span>
+        <span>${uploadSyncActive ? "Live upload sync active" : "Manual refresh only"}</span>
       </div>
             ${renderSdUploadStatus(uploadStatus)}
 

@@ -780,6 +780,34 @@ progress::-moz-progress-bar {
   overflow-wrap: anywhere;
 }
 
+.sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.75rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.sync-active-indicator {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--disabled-text);
+  box-shadow: 0 0 0 0.25rem rgba(147, 163, 184, 0.12);
+}
+
+.sync-active-indicator.sync-active {
+  background: var(--ok);
+  box-shadow: 0 0 0 0.25rem var(--ok-soft);
+}
+
+.sync-active-indicator.sync-idle {
+  background: var(--warn);
+  box-shadow: 0 0 0 0.25rem var(--warn-soft);
+}
+
 .card-badges,
 .badge-row,
 .action-row,

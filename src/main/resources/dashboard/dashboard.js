@@ -72,6 +72,7 @@ import {
   setPrinterView,
   setSelectedPrinter,
   setPrinterSdUploadStatus,
+  setUploadStatusSynchronization,
   state
 } from "./state.js";
 
@@ -353,6 +354,7 @@ function bindGlobalListeners() {
   document.addEventListener("click", async (event) => {
     const navButton = event.target.closest("[data-nav-target]");
     if (navButton) {
+      stopManualUploadStatusSynchronizations();
       setPrimaryView(navButton.dataset.navTarget);
       renderApp();
       return;
@@ -360,6 +362,7 @@ function bindGlobalListeners() {
 
     const printerNavButton = event.target.closest("[data-printer-nav-target]");
     if (printerNavButton) {
+      stopManualUploadStatusSynchronizations();
       setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
       setPrinterView(printerNavButton.dataset.printerNavTarget);
       renderApp();
@@ -368,6 +371,7 @@ function bindGlobalListeners() {
 
     const selectPrinterButton = event.target.closest("[data-select-printer]");
     if (selectPrinterButton) {
+      stopManualUploadStatusSynchronizations();
       setSelectedPrinter(selectPrinterButton.dataset.selectPrinter);
       setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
       setPrinterView(PRINTER_VIEW_IDS.HOME);
@@ -392,6 +396,20 @@ function bindGlobalListeners() {
     const loadSdCardFilesButton = event.target.closest("[data-load-sd-card-files]");
     if (loadSdCardFilesButton) {
       await loadPrinterSdCardFilesIntoState(loadSdCardFilesButton.dataset.loadSdCardFiles);
+      renderApp();
+      return;
+    }
+
+    const syncUploadStatusButton = event.target.closest("[data-sync-sd-upload-status]");
+    if (syncUploadStatusButton) {
+      handleStartUploadStatusSynchronization(syncUploadStatusButton.dataset.syncSdUploadStatus);
+      renderApp();
+      return;
+    }
+
+    const stopSyncUploadStatusButton = event.target.closest("[data-stop-sync-sd-upload-status]");
+    if (stopSyncUploadStatusButton) {
+      handleStopUploadStatusSynchronization(stopSyncUploadStatusButton.dataset.stopSyncSdUploadStatus);
       renderApp();
       return;
     }
@@ -587,6 +605,7 @@ function bindPageListeners() {
         return;
       }
 
+      stopManualUploadStatusSynchronizations();
       setSelectedPrinter(printerId);
       setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
       setPrinterView(PRINTER_VIEW_IDS.HOME);
@@ -848,6 +867,40 @@ function stopUploadStatusPolling(printerId) {
 
   window.clearInterval(intervalId);
   uploadStatusPollers.delete(printerId);
+}
+
+function handleStartUploadStatusSynchronization(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  setUploadStatusSynchronization(printerId, true);
+  startUploadStatusPolling(printerId);
+  refreshUploadStatus(printerId).catch(() => {
+    setMessage(`Failed to synchronize upload status for ${printerId}.`);
+    setUploadStatusSynchronization(printerId, false);
+    stopUploadStatusPolling(printerId);
+    renderApp();
+  });
+  setMessage(`Synchronizing upload status for ${printerId}.`);
+}
+
+function handleStopUploadStatusSynchronization(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  setUploadStatusSynchronization(printerId, false);
+  stopUploadStatusPolling(printerId);
+  setMessage(`Stopped upload status synchronization for ${printerId}.`);
+}
+
+function stopManualUploadStatusSynchronizations() {
+  for (const printerId of state.uploadStatusSynchronization) {
+    stopUploadStatusPolling(printerId);
+  }
+
+  state.uploadStatusSynchronization.clear();
 }
 
 async function refreshUploadStatus(printerId) {

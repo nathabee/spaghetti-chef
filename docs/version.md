@@ -15,6 +15,8 @@ next:
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
+- 0.2.4 — Step J — Remote dashboard upload synchronization
+- 0.2.4 — Step I — Modern upload monitoring UX and operator-grade visualization
 - 0.2.4 — Step H — Functional two-card upload monitoring display
 - 0.2.4 — Step G — Backend-to-frontend upload telemetry exposure
 - 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning 
