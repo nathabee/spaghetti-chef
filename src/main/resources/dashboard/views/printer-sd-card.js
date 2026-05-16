@@ -301,6 +301,25 @@ function renderSdUploadStatus(uploadStatus) {
     renderMetricRow("Updated at", uploadStatus.updatedAt)
   ].join("");
 
+  const adaptiveRows = [
+    renderMetricRow("Configured max batch size", uploadStatus.configuredMaxBatchSize),
+    renderMetricRow("Configured min batch size", uploadStatus.configuredMinBatchSize),
+    renderMetricRow("Active batch size", uploadStatus.activeBatchSize),
+    renderMetricRow("Batch upgrade step", uploadStatus.batchUpgradeStep),
+    renderMetricRow("Batch downgrade step", uploadStatus.batchDowngradeStep),
+    renderMetricRow("Stable lines for upgrade", uploadStatus.stableLinesForUpgrade),
+    renderMetricRow("Accepted lines since last resend", uploadStatus.acceptedLinesSinceLastResend),
+    renderMetricRow("Recent resend window lines", uploadStatus.recentResendWindowLines),
+    renderMetricRow("Recent resend count", uploadStatus.recentResendCount),
+    renderMetricRow("Resend threshold for downgrade", uploadStatus.resendThresholdForDowngrade),
+    renderMetricRow("Recovery threshold for min batch", uploadStatus.recoveryThresholdForMinBatch),
+    renderMetricRow("Recovery count", uploadStatus.recoveryCount),
+    renderMetricRow("Single-send mode", uploadStatus.singleSendMode === undefined ? null : uploadStatus.singleSendMode ? "yes" : "no"),
+    renderMetricRow("Transport mode", uploadStatus.transportMode),
+    renderMetricRow("Last adaptation reason", uploadStatus.lastAdaptationReason),
+    renderMetricRow("Last adaptation at", uploadStatus.lastAdaptationAt)
+  ].join("");
+
   const qualityHtml = `
     <div class="upload-quality ${qualityClass}">
       <div class="info-row">
@@ -331,6 +350,13 @@ function renderSdUploadStatus(uploadStatus) {
         <summary class="events-header">Upload telemetry</summary>
         <div class="info-list">
           ${telemetryRows}
+        </div>
+      </details>
+
+      <details class="events-section" open>
+        <summary class="events-header">Adaptive runtime state</summary>
+        <div class="info-list">
+          ${adaptiveRows}
         </div>
       </details>
     </div>

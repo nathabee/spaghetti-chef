@@ -1337,7 +1337,7 @@ Expected result:
 
 ### 0.2.3 — Local Audit, History Views, and Controlled Job Actions
 
-status: in progress
+status: done
 
 * step A, B, C, D : done
 
@@ -2206,38 +2206,44 @@ PrinterHub should recover from resend instability safely, climb back up after st
 
 ---
 
-#### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
+#### 0.2.4 — Step G — Backend-to-frontend upload telemetry exposure
+
+status: done
+
+Goals:
+
+* expose SD-card upload transfer telemetry through `GET /printers/{printerId}/sd-card/uploads/status`
+* keep persistent `SerialTransferSettings` separate from per-upload adaptive runtime state
+* publish runtime adaptive values such as configured batch limits, active batch size, resend pressure, recovery pressure, transport mode, and last adaptation reason/time
+* render the returned fields in the SD-card dashboard view as raw readable telemetry for verification
+* preserve final upload-session telemetry after success or error without writing runtime tuning values back to database settings
+
+Expected result:
+
+The browser can verify Step F adaptive upload behavior during and after an upload: progress, quality, throughput, active batch size, resend/recovery pressure, transport mode, and the last controller decision are visible from the SD-card page.
+
+ 
+#### 0.2.4 — Step H —  
 
 status: planned
 
 Goals:
 
-* make upload progress visible as a modern operator card instead of only raw text/log style state
-* expose real-time session telemetry for active SD uploads
-* show transfer progress, timing, recovery pressure, and active tuned parameters clearly
-* make adaptive behavior understandable to the operator
+ 
+#### 0.2.4 — Step I —  
 
-Dashboard targets:
+status: planned
 
-* current upload phase
-* elapsed time
-* estimated remaining time
-* completed lines / total lines
-* completed bytes / total bytes if available
-* current active batch size
-* configured maximum batch size
-* current transfer mode
-* resend count / resend threshold
-* recovery count / recovery threshold
-* stability streak
-* transfer health indicator
-* optional tiny trend bars / meter / progress segments
+Goals:
 
-Expected result:
+ 
+#### 0.2.4 — Step J —  
 
-* operator can see not only that an upload is running, but how well it is running
-* adaptive runtime decisions become auditable and understandable
-* project demonstrates both protocol resilience and operator-grade monitoring UX
+status: planned
+
+Goals:
+
+ 
 
 ---
 

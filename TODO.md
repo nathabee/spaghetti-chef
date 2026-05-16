@@ -1,299 +1,173 @@
-# TO DO
+Below is a cleaned, split version of your roadmap section. I separated it into:
 
-----
+* **Step G**: backend-to-frontend telemetry exposure
+* **Step H**: functional two-card frontend display
+* **Step I**: polished monitoring UX / operator-grade visualization
 
-
-detail version 0.2.4 STEP E,F,G
-
-
- **three distinct deliverables**:
-
-1. **adaptive upload control logic**
-2. **operator telemetry / better live dashboard display**
-3. **editable transfer settings in dashboard settings**
- 
-----
-
-## roadmap
- 
-
-### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
-
-status: planned
-
-Goals:
-
-* make upload progress visible as a modern operator card instead of only raw text/log style state
-* expose real-time session telemetry for active SD uploads
-* show transfer progress, timing, recovery pressure, and active tuned parameters clearly
-* make adaptive behavior understandable to the operator
-
-Dashboard targets:
-
-* current upload phase
-* elapsed time
-* estimated remaining time
-* completed lines / total lines
-* completed bytes / total bytes if available
-* current active batch size
-* configured maximum batch size
-* current transfer mode
-* resend count / resend threshold
-* recovery count / recovery threshold
-* stability streak
-* transfer health indicator
-* optional tiny trend bars / meter / progress segments
-
-Expected result:
-
-* operator can see not only that an upload is running, but how well it is running
-* adaptive runtime decisions become auditable and understandable
-* project demonstrates both protocol resilience and operator-grade monitoring UX
+You can paste this into your roadmap.
 
 ---
 
-## Theme 3 — upload telemetry and modern dashboard card
+## 0.2.4 — Upload telemetry, adaptive tuning visibility, and operator dashboard UX
 
-These are the most likely files for **Step G**.
+Status: planned
 
-### Dashboard views/components
+Purpose:
 
-* `src/main/resources/dashboard/views/printer-print.js`
-* possibly `src/main/resources/dashboard/views/printer-home.js`
-* possibly `src/main/resources/dashboard/components/job-card.js`
-* possibly `src/main/resources/dashboard/components/status-panels.js`
+Make SD-card upload behavior observable from the dashboard. The goal is not only to know that an upload is running, but also to understand how well it is running, how the adaptive controller behaves, and whether the transfer is stable, degraded, or recovering.
 
-My guess:
+This work is split into three steps:
 
-* `printer-print.js` should likely own the detailed upload card
-* `printer-home.js` may show a compact summary
-* `job-card.js` may need partial enrichment if upload is part of job display
-
-### Frontend API wiring
-
-* `src/main/resources/dashboard/api.js`
-* `src/main/resources/dashboard/state.js`
-
-### Styling
-
-* `src/main/resources/dashboard/dashboard.css`
-
-This file will definitely be touched if you want:
-
-* segmented counters
-* nice timing display
-* quality meter
-* active parameter chips
-* progress visualization
-
-### Server payload source
-
-* `src/main/java/printerhub/api/RemoteApiServer.java`
-
-Because the dashboard needs richer structured upload telemetry, not just text.
-
-### Possibly backend aggregation helpers
-
-* `src/main/java/printerhub/command/SdCardUploadService.java`
-* or new DTO/state model exposed through API
-
-### Tests
-
-* mostly API tests, maybe some frontend manual testing rather than full JS unit tests if you do not currently have a frontend test harness
+* **Step G** — expose all upload telemetry from backend to frontend
+* **Step H** — render the functional two-card upload monitoring display
+* **Step I** — polish the display into a modern operator-grade monitoring UX
 
 ---
 
-# Files most likely to become overloaded if you do not split the work
+# 0.2.4 — Step G — expose upload telemetry and adaptive runtime state
 
-These are the danger files:
+Status: planned
 
-## `SdCardUploadService.java`
+## Goal
 
-This can become a monster very fast.
+Bring all useful SD-upload telemetry from the backend to the frontend through the REST API.
 
-Recommendation:
+At this stage, the display does not need to be beautiful. The priority is correctness and observability: the frontend must receive the values needed to verify that Step F adaptive upload behavior is really working.
 
-* keep transport execution here
-* move adaptive policy/state into helper classes
+## Scope
 
-## `RemoteApiServer.java`
+Step G focuses on the data chain:
 
-This file already does a lot.
+```text
+SdCardUploadService runtime state
+        ↓
+UploadProgress model
+        ↓
+RemoteApiServer JSON
+        ↓
+dashboard API/state
+        ↓
+printer-sd-card.js raw rendering
+```
 
-Recommendation:
+## Main principle
 
-* group new endpoints clearly:
+Persistent settings and runtime adaptive state must remain separate.
 
-  * transfer settings endpoints
-  * upload telemetry endpoints
+### Persistent settings
 
-## `settings.js`
+These are operator configuration values stored in the database through `SerialTransferSettings`.
 
-Do not also cram live upload visualization into settings.
-Settings should stay settings.
+Examples:
 
-## `printer-print.js`
+* `sdUploadBatchSize`
+* `sdUploadMinBatchSize`
+* `sdUploadBatchUpgradeStep`
+* `sdUploadBatchDowngradeStep`
+* `sdUploadStableLinesForUpgrade`
+* `sdUploadResendWindowLines`
+* `sdUploadResendThresholdForDowngrade`
+* `sdUploadRecoveryThresholdForMinBatch`
+* `sdUploadRecoveryWindowMultiplier`
+* `sdUploadMaxErrors`
+* `sdUploadMaxConsecutiveIdenticalResends`
+* `sdUploadMinPerformancePercent`
+* `sdUploadMaxRetriesPerLine`
+* file-streaming timing values
 
-This is a good place for upload monitoring UI, but keep it componentized if possible.
+These values describe what the controller is allowed to do.
 
----
+### Runtime adaptive state
 
-# Minimal architecture I would recommend
+These are live per-upload values held by the upload runtime/session state.
 
-This is the clean shape.
+Examples:
 
-## Backend
-
-### persistent operator settings
-
-* `SerialTransferSettings`
-* `SerialTransferSettingsStore`
-
-### runtime upload session state
-
-* `SdUploadRuntimeState`
-
-### adaptive control policy/helper
-
-* `AdaptiveTransferController`
-
-### executor/service
-
-* `SdCardUploadService`
-
-That four-part split is much healthier than dumping everything in the service.
-
-
-
-
-###########################
-
- In this order:
-
-1. `src/main/java/printerhub/command/SdCardUploadService.java`
-
-   * add the live adaptive/runtime fields to the upload progress model
-   * populate/update them during upload
-
-2. `src/main/java/printerhub/api/RemoteApiServer.java`
-
-   * expose those new `UploadProgress` fields in `/printers/{id}/sd-card/uploads/status`
-   * keep `/settings/serial-transfer` returning full settings JSON
-
-3. `src/main/resources/dashboard/views/printer-sd-card.js`
-
-   * render all returned upload status fields, including adaptive state and raw telemetry
-
-4. `src/main/resources/dashboard/dashboard.js`
-
-   * only if needed for polling/state handling adjustments
-   * likely minor or none
-
-5. `src/main/resources/dashboard/api.js`
-
-   * probably no change, unless endpoint shape changes
-
-6. `src/main/resources/dashboard/state.js`
-
-   * probably no change, unless you want extra normalization/defaults
-
-7. `src/main/resources/dashboard/dashboard.css`
-
-   * optional now for readability
-   * more important in Step G than Step F
-
-So the real core path is:
-
-`SdCardUploadService.java`
-`RemoteApiServer.java`
-`printer-sd-card.js`
-
-
----
-
-
-
-**Card 1 — Upload status**
-This is the operator card.
-It must answer fast:
-
-* is it running / success / error
-* how far is it
-* how fast is it
-* how much time remains
-* how many resend/errors happened
-
-So this card stays simple and visible first.
-
-Example content:
-
-* state badge
-* file name
-* confirmed lines / total lines
-* percent
-* bytes/sec
-* lines/sec
-* estimated remaining time
-* rejected/resend count
-* quality percent
-
-That is the “does it work?” card.
-
-**Card 2 — Adaptive tuning / transfer diagnostics**
-This is the analysis card.
-It answers:
-
-* what is the controller doing right now
-* what is configured in settings
-* what did runtime choose instead
-* is it degrading, stable, upgrading, or forced to min/single-send
-
-Example pairs:
-
-* `activeBatchSize` vs `configuredMaxBatchSize`
+* `configuredMaxBatchSize`
 * `configuredMinBatchSize`
+* `activeBatchSize`
 * `acceptedLinesSinceLastResend`
 * `recentResendCount`
-* `stableLinesForUpgrade`
-* `resendsBeforeDowngrade`
+* `recoveryCount`
 * `singleSendMode`
-* maybe current mode: `PIPELINED` / `MIN_BATCH` / `SINGLE_SEND`
+* `transportMode`
+* `lastAdaptationReason`
+* `lastAdaptationAt`
 
- 
+These values describe what the controller is actually doing now.
 
+## Important persistence rule
 
----
+The final runtime tuning value should **not** automatically overwrite the database setting after a successful transfer.
 
-Exactly. What you expect is correct.
+Reason:
 
-Right now you are showing mostly:
+* DB settings represent operator intent.
+* Runtime values represent one upload session.
+* A single upload may be affected by transient printer noise, cable behavior, firmware timing, or SD-card response.
+* Automatically saving runtime adaptation back to DB would mix configuration with temporary runtime behavior.
 
-* transfer progress
-* transfer speed
-* quality outcome
+For now:
 
-But for Step F you also want to show the **adaptive controller state** itself:
+* `sdUploadBatchSize` in DB remains the configured maximum batch size.
+* `activeBatchSize` remains runtime session state.
+* After upload completion, the final runtime values may remain visible as last-session telemetry, but they should not become new persistent settings automatically.
 
-* current active batch size
-* configured min/max
-* stable accepted lines counter
-* recent resend count
-* single-send mode or pipelined mode
-* maybe last adaptation reason
+A later feature may add:
 
-That is the real Step F observability.
+* “Promote last stable value to settings”
+* “Remember last good value per printer”
+* “Adaptive profile per printer”
 
-The important distinction is this:
+But that is not part of Step G.
 
-* **settings** are persistent operator configuration
-* **adaptive state** is runtime upload session state
+## Backend fields expected in upload status JSON
 
-So no, these values should not mainly come from `SerialTransferSettingsStore`.
-They should come from the **current upload progress/runtime state** inside `SdCardUploadService`.
+Endpoint:
 
-## What should be exposed
+```text
+GET /printers/{printerId}/sd-card/uploads/status
+```
 
-For your Step F controller, the status JSON should expose at least these extra fields:
+The response should expose both transfer telemetry and adaptive runtime state.
+
+### Transfer identity
+
+```text
+printerId
+printFileId
+originalFilename
+requestedTargetFilename
+state
+active
+detail
+startedAt
+updatedAt
+```
+
+### Progress counters
+
+```text
+uploadedLineCount
+totalLineCount
+totalByteCount
+rejectedLineCount
+percent
+qualityPercent
+```
+
+### Timing and speed
+
+```text
+bytesPerSecond
+linesPerSecond
+elapsedSeconds
+estimatedSecondsRemaining
+theoreticalMaxBytesPerSecond
+efficiencyPercent
+```
+
+### Adaptive controller state
 
 ```text
 configuredMaxBatchSize
@@ -305,117 +179,94 @@ stableLinesForUpgrade
 acceptedLinesSinceLastResend
 recentResendWindowLines
 recentResendCount
-resendsBeforeDowngrade
-recoveryEventsBeforeSingleSend
+resendThresholdForDowngrade
+recoveryThresholdForMinBatch
 singleSendMode
 transportMode
 lastAdaptationReason
 lastAdaptationAt
 ```
 
-If your current backend model does not yet track all of them, then expose the ones you already have now, and add the missing ones incrementally.
+If some fields are not yet implemented in the backend, expose the available ones first and add the missing fields incrementally.
 
-## The architecture point
+## Files to change
 
-You wrote:
+### 1. `src/main/java/printerhub/command/SdCardUploadService.java`
 
-> as i was thinking is that the backend is optimizing in real time the file management and store some value for that
+Add live adaptive/runtime fields to the upload progress model.
 
-Yes, but that “some value” should be split in two families.
+Likely work:
 
-### 1. Persistent settings
+* extend `UploadProgress`
+* populate adaptive values during upload
+* keep progress updated during upload
+* preserve final session telemetry after success/error
+* ensure fields are updated after resend, recovery, downgrade, upgrade, and single-send transition
 
-These are from `SerialTransferSettings`
+Expected runtime fields:
 
-Examples:
-
-* `sdUploadBatchSize` as configured ceiling
-* `sdUploadMinBatchSize`
-* `sdUploadBatchUpgradeStep`
-* `sdUploadBatchDowngradeStep`
-* `sdUploadStableLinesForUpgrade`
-* `sdUploadResendWindowLines`
-* `sdUploadResendThresholdForDowngrade`
-* `sdUploadRecoveryThresholdForMinBatch`
-
-These are operator-controlled.
-
-### 2. Runtime adaptive state
-
-These are per-upload live values
-
-Examples:
-
-* `activeBatchSize`
-* `acceptedLinesSinceLastResend`
-* `recentResendCount`
-* `singleSendMode`
-* `transportMode`
-* `lastAdaptationReason`
-
-These should live inside upload runtime state, not in DB settings.
-
-## What to change in backend
-
-Your `/printers/{id}/sd-card/uploads/status` endpoint already returns `UploadProgress`.
-
-That is the right place to add the adaptive fields.
-
-So the real work is:
-
-### A. extend `SdCardUploadService.UploadProgress`
-
-Add fields like:
-
-```java
-int configuredMaxBatchSize
-int configuredMinBatchSize
-int activeBatchSize
-int batchUpgradeStep
-int batchDowngradeStep
-int stableLinesForUpgrade
-long acceptedLinesSinceLastResend
-int recentResendWindowLines
-int recentResendCount
-int resendThresholdForDowngrade
-int recoveryThresholdForMinBatch
-boolean singleSendMode
-String transportMode
-String lastAdaptationReason
-Instant lastAdaptationAt
+```text
+configuredMaxBatchSize
+configuredMinBatchSize
+activeBatchSize
+acceptedLinesSinceLastResend
+recentResendCount
+recoveryCount
+singleSendMode
+transportMode
+lastAdaptationReason
+lastAdaptationAt
 ```
 
-### B. populate them from the live runtime controller state
+### 2. `src/main/java/printerhub/api/RemoteApiServer.java`
 
-When upload is running, update them continuously.
+Expose the new `UploadProgress` fields in:
 
-### C. expose them in `sdCardUploadProgressJson(...)`
-
-Like this:
-
-```java
-+ "\"configuredMaxBatchSize\":" + progress.configuredMaxBatchSize() + ","
-+ "\"configuredMinBatchSize\":" + progress.configuredMinBatchSize() + ","
-+ "\"activeBatchSize\":" + progress.activeBatchSize() + ","
-+ "\"batchUpgradeStep\":" + progress.batchUpgradeStep() + ","
-+ "\"batchDowngradeStep\":" + progress.batchDowngradeStep() + ","
-+ "\"stableLinesForUpgrade\":" + progress.stableLinesForUpgrade() + ","
-+ "\"acceptedLinesSinceLastResend\":" + progress.acceptedLinesSinceLastResend() + ","
-+ "\"recentResendWindowLines\":" + progress.recentResendWindowLines() + ","
-+ "\"recentResendCount\":" + progress.recentResendCount() + ","
-+ "\"resendThresholdForDowngrade\":" + progress.resendThresholdForDowngrade() + ","
-+ "\"recoveryThresholdForMinBatch\":" + progress.recoveryThresholdForMinBatch() + ","
-+ "\"singleSendMode\":" + progress.singleSendMode() + ","
-+ "\"transportMode\":" + nullableString(progress.transportMode()) + ","
-+ "\"lastAdaptationReason\":" + nullableString(progress.lastAdaptationReason()) + ","
-+ "\"lastAdaptationAt\":" + nullableString(
-        progress.lastAdaptationAt() == null ? null : progress.lastAdaptationAt().toString()
-) + ","
+```text
+/printers/{id}/sd-card/uploads/status
 ```
 
-## What to change in frontend
+Also keep:
 
-Your current frontend API is already fine:
+```text
+/settings/serial-transfer
+```
+
+returning the full persistent settings JSON.
+
+This endpoint must return valid JSON using `Locale.ROOT` formatting for decimal numbers. The earlier comma-decimal bug must not return:
+
+```json
+"bytesPerSecond":0,0
+```
+
+It must return:
+
+```json
+"bytesPerSecond":0.00
+```
+
+### 3. `src/main/resources/dashboard/views/printer-sd-card.js`
+
+Render all returned upload status fields in a simple readable way.
+
+At Step G, raw visibility is enough. The goal is to confirm that the fields reach the frontend and update during a real upload.
+
+### 4. `src/main/resources/dashboard/dashboard.js`
+
+Only adjust if polling/state handling needs it.
+
+Expected work:
+
+* probably no major change
+* confirm upload status polling reads the new JSON fields automatically
+* confirm the values update every poll
+
+### 5. `src/main/resources/dashboard/api.js`
+
+Probably no change.
+
+Current function already works:
 
 ```javascript
 export async function getPrinterSdUploadStatus(printerId) {
@@ -423,345 +274,606 @@ export async function getPrinterSdUploadStatus(printerId) {
 }
 ```
 
-That part does not need special adaptation. It already returns whatever JSON the backend sends.
+### 6. `src/main/resources/dashboard/state.js`
 
-So the real frontend work is only in:
+Probably no change.
 
-* status rendering
-* maybe settings page later
+The status object can remain generic and store all fields returned by the backend.
 
-## What to add in `renderSdUploadStatus`
+### 7. `src/main/resources/dashboard/dashboard.css`
 
-For Step F, I would add a second block under upload telemetry called:
+Optional in Step G.
 
-* **Adaptive transfer state**
+Only add minimal readability styling if necessary. The visual polish belongs mainly to Step I.
 
-Not pretty yet. Just raw and readable.
+## Expected result
 
-Use this helper:
+At the end of Step G:
 
-```javascript
-function renderAdaptiveMetricRow(label, value) {
-  return `
-    <div class="info-row">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value === null || value === undefined || value === "" ? "n/a" : String(value))}</strong>
-    </div>
-  `;
-}
-```
+* the REST status endpoint returns valid JSON
+* upload status JSON contains transfer progress, performance metrics, and adaptive runtime state
+* frontend receives the fields without parsing errors
+* dashboard can show raw runtime values during an upload
+* Step F adaptive behavior becomes verifiable from the browser
 
-Then inside `renderSdUploadStatus(uploadStatus)` add:
-
-```javascript
-const adaptiveHtml = `
-  <details class="events-section" open>
-    <summary class="events-header">Adaptive transfer state</summary>
-    <div class="info-list">
-      ${renderAdaptiveMetricRow("Configured max batch size", uploadStatus.configuredMaxBatchSize)}
-      ${renderAdaptiveMetricRow("Configured min batch size", uploadStatus.configuredMinBatchSize)}
-      ${renderAdaptiveMetricRow("Active batch size", uploadStatus.activeBatchSize)}
-      ${renderAdaptiveMetricRow("Batch upgrade step", uploadStatus.batchUpgradeStep)}
-      ${renderAdaptiveMetricRow("Batch downgrade step", uploadStatus.batchDowngradeStep)}
-      ${renderAdaptiveMetricRow("Stable lines for upgrade", uploadStatus.stableLinesForUpgrade)}
-      ${renderAdaptiveMetricRow("Accepted lines since last resend", uploadStatus.acceptedLinesSinceLastResend)}
-      ${renderAdaptiveMetricRow("Recent resend window lines", uploadStatus.recentResendWindowLines)}
-      ${renderAdaptiveMetricRow("Recent resend count", uploadStatus.recentResendCount)}
-      ${renderAdaptiveMetricRow("Resend threshold for downgrade", uploadStatus.resendThresholdForDowngrade)}
-      ${renderAdaptiveMetricRow("Recovery threshold for min batch", uploadStatus.recoveryThresholdForMinBatch)}
-      ${renderAdaptiveMetricRow("Single-send mode", uploadStatus.singleSendMode)}
-      ${renderAdaptiveMetricRow("Transport mode", uploadStatus.transportMode)}
-      ${renderAdaptiveMetricRow("Last adaptation reason", uploadStatus.lastAdaptationReason)}
-      ${renderAdaptiveMetricRow("Last adaptation at", uploadStatus.lastAdaptationAt)}
-    </div>
-  </details>
-`;
-```
-
-And return it with the other blocks:
-
-```javascript
-return `
-  <div class="empty-state">
-    <div class="section-header compact">
-      <div>
-        <h3>${escapeHtml(title)}</h3>
-        <p class="muted">${escapeHtml(uploadStatus.message || uploadStatus.detail || "")}</p>
-      </div>
-      <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
-    </div>
-
-    ${progressHtml}
-    ${qualityHtml}
-    ${performanceHtml}
-    ${adaptiveHtml}
-    <details class="events-section" open>
-      <summary class="events-header">Upload telemetry</summary>
-      <div class="info-list">
-        ${telemetryRows}
-      </div>
-    </details>
-  </div>
-`;
-```
-
-## What you should expect to see during a real Step F upload
-
-If the controller is really working, these values should move:
-
-* `activeBatchSize`
-* `acceptedLinesSinceLastResend`
-* `recentResendCount`
-* `singleSendMode`
-* `transportMode`
-* `lastAdaptationReason`
-* `lastAdaptationAt`
-
-Typical expected behavior:
-
-### stable phase
-
-* `acceptedLinesSinceLastResend` increases steadily
-* `recentResendCount` stays low
-* `activeBatchSize` may climb slowly
-* `transportMode = PIPELINED`
-
-### instability detected
-
-* resend occurs
-* `acceptedLinesSinceLastResend` resets
-* `recentResendCount` increases
-* `activeBatchSize` drops
-* `lastAdaptationReason` becomes something like:
-
-  * `downgraded after resend`
-  * `entered single-send mode after repeated recovery at minimum batch size`
-
-### degraded safe mode
-
-* `singleSendMode = true`
-* `transportMode = SINGLE_SEND`
-* `activeBatchSize` may effectively be 1
-
-That is exactly the kind of evidence Step F should make visible before Step G beautifies it.
-
-## The most important correction
-
-Do not mix this up with settings exposure alone.
-
-You asked:
-
-> could we already expose all our settings in the model, this would not be difficult
-
-Yes, and that is fine too. But exposing only settings is not enough for Step F.
-
-Because settings show:
-
-* what the controller is allowed to do
-
-But runtime adaptive state shows:
-
-* what the controller is actually doing now
-
-You need both.
-
-## Clean recommendation
-
-For Step F:
-
-* expose all serial transfer settings in `/settings/serial-transfer`
-* expose all runtime adaptation fields in `/printers/{id}/sd-card/uploads/status`
-* show both raw in frontend
-* verify during real upload that values move correctly
-
-For Step G:
-
-* make it pretty
-* active batch chip
-* green/orange/red quality badge
-* mode badge `PIPELINED` / `SINGLE_SEND`
-* adaptation timeline
-* progress + ETA + throughput cards
-
-So the next correct backend target is not the settings endpoint anymore. It is `SdCardUploadService.UploadProgress`.
-
-Send me that `UploadProgress` record/class and the place where it is built in `SdCardUploadService`, and I will align the exact backend fields with the frontend rendering.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###################################
 ---
-##########################################################
 
- 
-## The right Step F direction
+# 0.2.4 — Step H — functional two-card upload monitoring display
 
-You do **not** want a complicated “AI” controller first.
-You want a **safe hill-climbing controller with hysteresis**.
+Status: planned
 
-That means:
+## Goal
 
-* start from configured ceiling
-* reduce quickly on instability
-* increase slowly on proven stability
-* never jump wildly
-* never oscillate too fast
+Create a clear two-card dashboard structure for SD-card upload monitoring.
 
-## The algorithm for STEP F
+Step H is about usability and layout, not visual polish. The user should be able to upload a file and immediately understand whether it is working, while still having access to detailed adaptive diagnostics when needed.
 
-Use 5 runtime concepts:
+## UX principle
 
-* `configuredMaxBatchSize`
-* `configuredMinBatchSize`
-* `activeBatchSize`
-* `acceptedLinesSinceLastResend`
-* `recentResendCount`
+Do not mix normal operator progress with deep analysis.
 
-And 3 tuning thresholds:
+The dashboard should support two different user intentions:
 
-* `stableLinesForUpgrade`
-* `resendsBeforeDowngrade`
-* `recoveryEventsBeforeSingleSend`
+1. “I want to upload and see if it works.”
+2. “I want to observe and analyse what the adaptive controller is doing.”
 
-### Runtime behavior
+Therefore, use two cards.
 
-At upload start:
-
-* `activeBatchSize = configuredMaxBatchSize`
-* `acceptedLinesSinceLastResend = 0`
-* `recentResendCount = 0`
-* mode = `PIPELINED`
-
-When a batch succeeds cleanly:
-
-* add accepted line count to `acceptedLinesSinceLastResend`
-
-If `acceptedLinesSinceLastResend >= stableLinesForUpgrade`:
-
-* if `activeBatchSize < configuredMaxBatchSize`
-
-  * increase by `1`
-* reset `acceptedLinesSinceLastResend = 0`
-* record event like:
-
-  * `SD upload adaptation: increased active batch size from 2 to 3 after 300 stable lines`
-
-When a resend happens:
-
-* run buffered recovery as you already do
-* increment resend/recovery counters
-* reset `acceptedLinesSinceLastResend = 0`
-
-Then downgrade:
-
-* if `activeBatchSize > configuredMinBatchSize`
-
-  * reduce by `1`
-* else stay at min
-* if repeated recovery still happens at min batch:
-
-  * enter `singleSendMode`
-
-This is much better than immediate permanent collapse.
-
-## Why this works better
-
-Because it behaves like this:
-
-* printer is stable at 5 -> stays at 5
-* printer unstable at 5 but stable at 3 -> naturally settles near 3
-* printer unstable everywhere -> degrades to 1 safely
-* printer becomes stable again later -> climbs back slowly
-
-So the controller searches for a practical working point instead of behaving like a panic switch.
-
-## The important design rule
-
-Do **not** use `singleSendMode` as the primary state anymore.
-
-Use `activeBatchSize` as the main authority.
-
-Then:
-
-* `activeBatchSize == 1` means effectively single-send
-* `singleSendMode()` can just be derived from that
-
-That makes the model cleaner.
-
-## Concrete plan for Step F
-
-### 1. Expand `SdUploadRuntimeState`
-
-Add fields like:
-
-* `configuredMinBatchSize`
-* `stableLinesForUpgrade`
-* `resendsBeforeDowngrade`
-* `recoveryCount`
-* `acceptedLinesSinceLastResend`
-* `successfulBatchCount`
-* `lastResendLine`
-* `modeTransitionCount`
-
-Add methods like:
-
-* `registerAcceptedLines(int count)`
-* `registerRecovery()`
-* `registerResend(int resendLine)`
-* `shouldUpgradeBatch()`
-* `upgradeBatchIfEligible()`
-* `downgradeAfterRecovery()`
-* `currentModeLabel()`
-
-### 2. Let `SdCardUploadService` stop deciding policy itself
-
-It should only:
-
-* stream
-* detect resend
-* call recovery
-* tell runtime state what happened
-* ask runtime state what batch size to use next
-
-### 3. Persist adaptation events
-
-Very important for diagnostics.
-
-Examples:
-
-* upload entered recovery
-* batch size reduced from 5 to 4
-* batch size reduced from 2 to 1
-* batch size increased from 1 to 2 after 250 stable lines
-
-### 4. Only after backend behavior is stable, do Step G dashboard polish
-
-Because fancy UI before solid adaptive metrics is backward.
-
-## My recommended first thresholds
-
-Keep them simple first:
-
-* `configuredMinBatchSize = 1`
-* `stableLinesForUpgrade = 200`
-* `resendsBeforeDowngrade = 1`
-* downgrade step = `1`
-* upgrade step = `1`
-
-That is conservative and testable.
-
-## So, 
 ---
- 
+
+## Card 1 — Upload status
+
+This is the operator card.
+
+It must answer quickly:
+
+* is the upload running, successful, or failed
+* how far the upload is
+* how fast it is
+* how much time remains
+* whether resends/recovery are happening
+* whether transfer quality is good or degraded
+
+This card should always be visible when upload status exists.
+
+### Content
+
+Show:
+
+```text
+state
+file name
+confirmed lines / total lines
+percent
+uploaded bytes / total bytes if available
+bytes per second
+lines per second
+elapsed time
+estimated remaining time
+rejected/resend count
+quality percent
+detail message
+```
+
+### Example labels
+
+```text
+Upload state
+File
+Progress
+Lines
+Bytes
+Speed
+Line rate
+Elapsed
+Remaining
+Rejected lines
+Transfer quality
+Last detail
+```
+
+### Expected behavior
+
+During upload:
+
+* progress updates regularly
+* speed updates regularly
+* ETA updates regularly
+* rejected/resend count changes when recovery happens
+* quality percentage reflects resend pressure
+
+After upload:
+
+* card remains visible as last upload summary
+* state becomes `success` or `error`
+* progress remains inspectable
+* timing and quality remain visible
+
+---
+
+## Card 2 — Adaptive tuning / transfer diagnostics
+
+This is the analysis card.
+
+It should not dominate the normal upload flow. It can be placed below the upload status card and may be collapsible.
+
+It answers:
+
+* what is the adaptive controller doing now
+* what is configured
+* what runtime value was selected
+* whether the upload is stable, degraded, recovering, or in single-send mode
+
+### Content
+
+Show:
+
+```text
+configuredMaxBatchSize
+configuredMinBatchSize
+activeBatchSize
+batchUpgradeStep
+batchDowngradeStep
+stableLinesForUpgrade
+acceptedLinesSinceLastResend
+recentResendWindowLines
+recentResendCount
+resendThresholdForDowngrade
+recoveryThresholdForMinBatch
+singleSendMode
+transportMode
+lastAdaptationReason
+lastAdaptationAt
+```
+
+### Recommended grouping
+
+#### Current runtime decision
+
+```text
+Transport mode
+Active batch size
+Single-send mode
+Last adaptation reason
+Last adaptation at
+```
+
+#### Configured limits
+
+```text
+Configured max batch size
+Configured min batch size
+Batch upgrade step
+Batch downgrade step
+```
+
+#### Stability and resend pressure
+
+```text
+Stable lines for upgrade
+Accepted lines since last resend
+Recent resend window lines
+Recent resend count
+Resend threshold for downgrade
+Recovery threshold for min batch
+```
+
+## Files to change
+
+### Main file
+
+```text
+src/main/resources/dashboard/views/printer-sd-card.js
+```
+
+This file should own the first functional display because upload-to-SD actions already live there.
+
+### Possible helper split later
+
+If `printer-sd-card.js` becomes too large, extract rendering helpers later, for example:
+
+```text
+src/main/resources/dashboard/components/sd-upload-status-card.js
+src/main/resources/dashboard/components/sd-upload-tuning-card.js
+```
+
+But for Step H, keeping it in `printer-sd-card.js` is acceptable if the code remains readable.
+
+### Supporting files
+
+```text
+src/main/resources/dashboard/dashboard.js
+src/main/resources/dashboard/state.js
+src/main/resources/dashboard/api.js
+```
+
+Expected changes are minor or none.
+
+## Expected result
+
+At the end of Step H:
+
+* upload status appears as a clear operator card
+* adaptive tuning appears as a separate diagnostics card
+* the operator is not overwhelmed by analysis values
+* technical users can still observe Step F runtime behavior during long uploads
+* the display proves that adaptive fields are changing during the transfer
+
+---
+
+# 0.2.4 — Step I — modern upload monitoring UX and operator-grade visualization
+
+Status: planned
+
+## Goal
+
+Turn the functional Step H display into a polished monitoring interface.
+
+Step I is the dashboard design step. It should make transfer health, progress, speed, and adaptive tuning behavior understandable at a glance.
+
+## UX goal
+
+The operator should be able to see:
+
+* upload is healthy
+* upload is slow but stable
+* upload is recovering
+* upload is degraded
+* upload is in single-send fallback
+* adaptive batch size changed because of resend pressure
+* transfer quality is acceptable or dangerous
+
+## Card 1 — polished upload status card
+
+Improve the operator card with visual hierarchy.
+
+### Visual targets
+
+* prominent state badge
+* modern progress bar
+* segmented counters
+* ETA display
+* throughput display
+* quality meter
+* resend warning indicator
+* clear success/error state
+
+### Suggested display elements
+
+```text
+Upload state badge
+Large percent value
+Progress bar
+Lines uploaded / total
+Bytes uploaded / total
+Elapsed time
+Estimated remaining time
+Bytes/sec
+Lines/sec
+Transfer quality
+Rejected/resend count
+```
+
+### Transfer health indicator
+
+Create a simple health label:
+
+```text
+Healthy
+Recovering
+Degraded
+Fallback
+Failed
+```
+
+Possible rule:
+
+```text
+Healthy:
+  active && rejectedLineCount == 0 && qualityPercent >= 99
+
+Recovering:
+  active && recentResendCount > 0
+
+Degraded:
+  active && qualityPercent < 95
+
+Fallback:
+  singleSendMode == true || transportMode == SINGLE_SEND
+
+Failed:
+  state == error
+```
+
+This rule can be frontend-only at first.
+
+## Card 2 — polished adaptive tuning diagnostics
+
+Improve the diagnostics card so that it becomes useful without reading raw numbers line by line.
+
+### Visual targets
+
+* active batch size chip
+* configured max/min comparison
+* mode badge
+* stability progress toward next upgrade
+* resend pressure indicator
+* last adaptation message
+* optional timeline/list of adaptation events
+
+### Suggested sections
+
+#### Current controller state
+
+```text
+Mode: PIPELINED / SINGLE_SEND
+Active batch size: 3
+Configured range: 1–5
+Last decision: downgraded after resend
+```
+
+#### Stability toward upgrade
+
+Show:
+
+```text
+acceptedLinesSinceLastResend / stableLinesForUpgrade
+```
+
+Example:
+
+```text
+138 / 200 stable lines before next upgrade
+```
+
+This can become a small progress meter.
+
+#### Resend pressure
+
+Show:
+
+```text
+recentResendCount / resendThresholdForDowngrade
+```
+
+Example:
+
+```text
+1 / 1 resend threshold
+```
+
+This can become orange/red when pressure is high.
+
+#### Recovery/fallback pressure
+
+Show:
+
+```text
+recoveryCount / recoveryThresholdForMinBatch
+```
+
+or, if the current backend uses a different name:
+
+```text
+recovery events before single-send
+```
+
+## Optional trend display
+
+For Step I, optional small trend visualization may be useful:
+
+* active batch size over time
+* resend count over recent lines
+* throughput trend
+* quality trend
+
+This should not be implemented before the basic two-card display is stable.
+
+## Files to change
+
+### Main visual files
+
+```text
+src/main/resources/dashboard/views/printer-sd-card.js
+src/main/resources/dashboard/dashboard.css
+```
+
+### Possible extracted components
+
+If the file becomes too large:
+
+```text
+src/main/resources/dashboard/components/sd-upload-status-card.js
+src/main/resources/dashboard/components/sd-upload-tuning-card.js
+```
+
+### Possible compact display locations
+
+Later, a compact upload summary may be shown in:
+
+```text
+src/main/resources/dashboard/views/printer-home.js
+src/main/resources/dashboard/components/status-panels.js
+```
+
+But the main detailed monitoring should remain in the SD-card/upload area.
+
+## Expected result
+
+At the end of Step I:
+
+* upload monitoring looks modern and readable
+* the operator sees progress and health immediately
+* adaptive behavior is understandable without reading logs
+* resend/recovery pressure is visible
+* the project demonstrates protocol resilience plus operator-grade dashboard UX
+
+---
+
+# Architecture notes
+
+## Keep responsibilities separate
+
+### `SerialTransferSettings`
+
+Persistent operator settings.
+
+Stores configured limits, thresholds, and file streaming timing.
+
+### `SerialTransferSettingsStore`
+
+Database access for persistent settings.
+
+### `SdUploadRuntimeState`
+
+Runtime session state for the active upload.
+
+Should hold values like:
+
+```text
+activeBatchSize
+acceptedLinesSinceLastResend
+recentResendCount
+recoveryCount
+singleSendMode
+transportMode
+lastAdaptationReason
+lastAdaptationAt
+```
+
+### `AdaptiveTransferController`
+
+Policy helper for upgrade/downgrade decisions.
+
+Should decide:
+
+* when to increase batch size
+* when to downgrade
+* when to enter single-send fallback
+* what adaptation reason to record
+
+### `SdCardUploadService`
+
+Execution service.
+
+Should:
+
+* stream lines
+* detect resend requests
+* perform recovery
+* update runtime state
+* ask the controller/runtime state what batch size to use
+* expose `UploadProgress`
+
+It should not become a giant class that owns every detail of policy, UI telemetry, persistence, and transport behavior.
+
+---
+
+# Files most likely to become overloaded
+
+## `SdCardUploadService.java`
+
+Risk:
+
+* too much upload transport
+* too much adaptive policy
+* too much progress telemetry
+* too much event logic
+
+Recommendation:
+
+* keep transport execution here
+* move adaptive decision logic to helper classes when it grows
+
+## `RemoteApiServer.java`
+
+Risk:
+
+* already handles many endpoints
+* manual JSON building is error-prone
+
+Recommendation:
+
+* keep upload telemetry JSON grouped clearly
+* use `Locale.ROOT` formatting for all decimal values
+* avoid adding dashboard logic here
+
+## `printer-sd-card.js`
+
+Risk:
+
+* upload actions, SD-card files, registered targets, host files, upload telemetry, and tuning diagnostics can make the file large
+
+Recommendation:
+
+* Step H can keep rendering here
+* Step I may extract upload cards into components
+
+## `settings.js`
+
+Do not put live upload monitoring here.
+
+Settings should remain for persistent operator configuration. Runtime upload diagnostics belong near the upload workflow.
+
+---
+
+# Final implementation order
+
+## Step G order
+
+```text
+1. SdCardUploadService.java
+2. RemoteApiServer.java
+3. printer-sd-card.js
+4. dashboard.js if polling needs adjustment
+5. api.js only if endpoint shape changes
+6. state.js only if normalization is needed
+7. dashboard.css only for minimal readability
+```
+
+Core chain:
+
+```text
+SdCardUploadService.java
+RemoteApiServer.java
+printer-sd-card.js
+```
+
+## Step H order
+
+```text
+1. printer-sd-card.js
+2. dashboard.css minimal layout if needed
+3. dashboard.js if polling/render refresh needs adjustment
+```
+
+## Step I order
+
+```text
+1. decide final card layout
+2. polish printer-sd-card.js or extract components
+3. update dashboard.css
+4. optionally add compact upload summary to printer-home.js/status-panels.js
+5. manually verify with real upload
+```
+
+---
+
+# Summary
+
+Step G proves the data exists and reaches the browser.
+
+Step H makes the data usable with two clear cards:
+
+* upload status
+* adaptive tuning diagnostics
+
+Step I makes it visually strong and operator-grade.
+
+The most important design rule remains:
+
+```text
+Persistent settings are configuration.
+Runtime adaptive values are telemetry.
+Do not auto-save runtime adaptation back into DB settings after one successful upload.
+```
