@@ -537,6 +537,50 @@ progress::-moz-progress-bar {
   background: var(--danger);
 }
 
+.sd-upload-monitoring {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.sd-upload-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface-muted);
+}
+
+.sd-upload-card .info-list {
+  margin-top: 0.7rem;
+}
+
+.sd-upload-diagnostics-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sd-upload-diagnostics-card > summary {
+  cursor: pointer;
+}
+
+.sd-upload-metric-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sd-upload-metric-group h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.sd-upload-progress-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin: 0.6rem 0 0.45rem;
+}
+
 .card-badges,
 .badge-row,
 .action-row,

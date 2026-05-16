@@ -2223,11 +2223,20 @@ Expected result:
 The browser can verify Step F adaptive upload behavior during and after an upload: progress, quality, throughput, active batch size, resend/recovery pressure, transport mode, and the last controller decision are visible from the SD-card page.
 
  
-#### 0.2.4 — Step H —  
+#### 0.2.4 — Step H — Functional two-card upload monitoring display
 
-status: planned
+status: done
 
 Goals:
+
+* split upload monitoring into a normal operator card and a separate adaptive diagnostics card
+* keep the upload status card focused on state, file, progress, lines, bytes, speed, timing, rejected lines, quality, and detail
+* group adaptive diagnostics by current runtime decision, configured limits, and stability/resend pressure
+* keep the display functional and readable without applying the Step I visual polish layer yet
+
+Expected result:
+
+The SD-card page shows upload progress as a clear operator summary while keeping adaptive controller internals available in a separate diagnostics card for verifying runtime behavior during long uploads.
 
  
 #### 0.2.4 — Step I —  
@@ -2246,9 +2255,111 @@ Goals:
  
 
 ---
+## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+
+status: planned
 
 
-### 0.2.5 — Simulation upload more realistic
+### 0.2.6 — Runtime Recovery and Serial Device Robustness
+
+status: planned
+
+Goals:
+
+* improve recovery after real USB disconnect/reconnect
+* reduce problems caused by unstable `/dev/ttyUSB*` device names
+* make real-printer administration more robust
+* improve operator visibility for serial-port failures
+
+Minor CR / anomalies:
+
+* README banner and dashboard screenshot path currently points to `docs/assets/media-src/...`, not a final published-media location
+* dashboard.js: editing a disabled printer will re-enable it unintentionally (`enabled: true` always set even on update)
+
+Focus:
+
+* keep automatic retry behavior for recoverable monitoring failures
+* better distinguish between:
+
+  * disconnected device
+  * invalid configured port
+  * temporary communication failure
+* support or document use of stable serial paths such as:
+
+```text
+/dev/serial/by-id/...
+```
+
+* improve dashboard/API error clarity for real printer connection problems
+
+Expected result:
+
+* real printers recover more reliably after reconnect scenarios
+* operators can understand whether the failure is caused by cable disconnect, changed port path, or invalid configuration
+* local runtime administration becomes safer for real hardware use
+
+---
+
+### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
+
+status: planned
+
+Goals:
+
+* harden Mode 2 host-side handling of printable files used by file-backed jobs
+* clarify how PrinterHub transfers, selects, or exposes prepared `.gcode` files to the printer
+* improve validation and error reporting around missing, unreadable, or invalid print files
+* make print-file handling more reviewable in dashboard and API
+* avoid ambiguous failures during print activation caused by file-path or transfer problems
+
+Focus:
+
+* host-side printable file registry or controlled file reference handling
+* validation of file existence, readability, and allowed type
+* clearer distinction between:
+
+  * job exists but file missing
+  * file invalid
+  * file cannot be transferred, selected, or exposed
+  * printer-side print activation failed after transfer/selection
+* persist file-related diagnostics in job execution history
+
+Expected result:
+
+* file-backed print jobs become safer and more predictable
+* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
+* the runtime becomes more reliable for repeated real print activation
+
+---
+
+### 0.2.8 — Post-Print Review and Operational History Hardening
+
+status: planned
+
+Goals:
+
+* improve reviewability after completed, failed, or cancelled print jobs
+* strengthen operator visibility of final print outcome
+* correlate print job lifecycle, printer events, and execution diagnostics more clearly
+* make local troubleshooting easier after real print runs
+
+Focus:
+
+* better final job summaries
+* clearer per-step execution history in dashboard
+* stronger linkage between printer-side events and job-side state changes
+* clearer operator-facing failure narratives for real print attempts
+
+Expected result:
+
+* local print operations become easier to review after the fact
+* PrinterHub becomes more usable for repeated real-printer operations and troubleshooting
+* audit value improves beyond raw event storage
+ 
+
+---
+
+### 0.2.9 — Simulation upload more realistic
 
 status: planned
 
@@ -2369,102 +2480,7 @@ Tests:
 * `src/test/java/printerhub/api/RemoteApiServerTest.java`
 
 
-### 0.2.6 — Runtime Recovery and Serial Device Robustness
 
-status: planned
-
-Goals:
-
-* improve recovery after real USB disconnect/reconnect
-* reduce problems caused by unstable `/dev/ttyUSB*` device names
-* make real-printer administration more robust
-* improve operator visibility for serial-port failures
-
-Minor CR / anomalies:
-
-* README banner and dashboard screenshot path currently points to `docs/assets/media-src/...`, not a final published-media location
-* dashboard.js: editing a disabled printer will re-enable it unintentionally (`enabled: true` always set even on update)
-
-Focus:
-
-* keep automatic retry behavior for recoverable monitoring failures
-* better distinguish between:
-
-  * disconnected device
-  * invalid configured port
-  * temporary communication failure
-* support or document use of stable serial paths such as:
-
-```text
-/dev/serial/by-id/...
-```
-
-* improve dashboard/API error clarity for real printer connection problems
-
-Expected result:
-
-* real printers recover more reliably after reconnect scenarios
-* operators can understand whether the failure is caused by cable disconnect, changed port path, or invalid configuration
-* local runtime administration becomes safer for real hardware use
-
----
-
-### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
-
-status: planned
-
-Goals:
-
-* harden Mode 2 host-side handling of printable files used by file-backed jobs
-* clarify how PrinterHub transfers, selects, or exposes prepared `.gcode` files to the printer
-* improve validation and error reporting around missing, unreadable, or invalid print files
-* make print-file handling more reviewable in dashboard and API
-* avoid ambiguous failures during print activation caused by file-path or transfer problems
-
-Focus:
-
-* host-side printable file registry or controlled file reference handling
-* validation of file existence, readability, and allowed type
-* clearer distinction between:
-
-  * job exists but file missing
-  * file invalid
-  * file cannot be transferred, selected, or exposed
-  * printer-side print activation failed after transfer/selection
-* persist file-related diagnostics in job execution history
-
-Expected result:
-
-* file-backed print jobs become safer and more predictable
-* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
-* the runtime becomes more reliable for repeated real print activation
-
----
-
-### 0.2.8 — Post-Print Review and Operational History Hardening
-
-status: planned
-
-Goals:
-
-* improve reviewability after completed, failed, or cancelled print jobs
-* strengthen operator visibility of final print outcome
-* correlate print job lifecycle, printer events, and execution diagnostics more clearly
-* make local troubleshooting easier after real print runs
-
-Focus:
-
-* better final job summaries
-* clearer per-step execution history in dashboard
-* stronger linkage between printer-side events and job-side state changes
-* clearer operator-facing failure narratives for real print attempts
-
-Expected result:
-
-* local print operations become easier to review after the fact
-* PrinterHub becomes more usable for repeated real-printer operations and troubleshooting
-* audit value improves beyond raw event storage
- 
 
 
 ---

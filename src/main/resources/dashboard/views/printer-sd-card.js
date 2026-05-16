@@ -228,6 +228,9 @@ function renderSdUploadStatus(uploadStatus) {
   const uploadedLineCount = toNumber(uploadStatus.uploadedLineCount, 0);
   const rejectedLineCount = toNumber(uploadStatus.rejectedLineCount, 0);
   const totalByteCount = toNumber(uploadStatus.totalByteCount, 0);
+  const uploadedByteCount = totalByteCount > 0 && totalLineCount > 0
+    ? Math.min(totalByteCount, Math.floor((totalByteCount * uploadedLineCount) / totalLineCount))
+    : null;
 
   const percent = totalLineCount > 0
     ? Math.min(
@@ -249,75 +252,63 @@ function renderSdUploadStatus(uploadStatus) {
 
   const bytesPerSecond = toNullableNumber(uploadStatus.bytesPerSecond);
   const linesPerSecond = toNullableNumber(uploadStatus.linesPerSecond);
-  const efficiencyPercent = toNullableNumber(uploadStatus.efficiencyPercent);
   const elapsedSeconds = toNullableNumber(uploadStatus.elapsedSeconds);
   const estimatedSecondsRemaining = toNullableNumber(uploadStatus.estimatedSecondsRemaining);
-  const theoreticalMaxBytesPerSecond = toNullableNumber(uploadStatus.theoreticalMaxBytesPerSecond);
 
   const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
 
   const progressHtml = totalLineCount > 0
     ? `
-      <div class="info-row">
+      <div class="sd-upload-progress-header">
         <span>Progress</span>
-        <strong>${escapeHtml(String(uploadedLineCount))}/${escapeHtml(String(totalLineCount))} confirmed lines (${escapeHtml(String(percent))}%)</strong>
+        <strong>${escapeHtml(String(percent))}%</strong>
       </div>
       <progress max="100" value="${escapeHtml(String(percent))}"></progress>
     `
     : `
-      <div class="info-row">
+      <div class="sd-upload-progress-header">
         <span>Progress</span>
         <strong>${escapeHtml(String(uploadedLineCount))} confirmed lines</strong>
       </div>
     `;
 
-  const telemetryRows = [
-    renderMetricRow("Printer", uploadStatus.printerId),
-    renderMetricRow("Print file id", uploadStatus.printFileId),
-    renderMetricRow("Original filename", uploadStatus.originalFilename),
-    renderMetricRow("Target filename", uploadStatus.requestedTargetFilename),
-    renderMetricRow("Uploaded lines", uploadedLineCount),
-    renderMetricRow("Total lines", totalLineCount),
+  const transferRows = [
+    renderMetricRow("File", uploadStatus.originalFilename || uploadStatus.requestedTargetFilename),
+    renderMetricRow("Target", uploadStatus.requestedTargetFilename),
+    renderMetricRow("Lines", `${uploadedLineCount}/${totalLineCount || "n/a"}`),
+    renderMetricRow("Bytes", uploadedByteCount === null ? formatSize(totalByteCount) : `${formatSize(uploadedByteCount)} / ${formatSize(totalByteCount)}`),
+    renderMetricRow("Speed", bytesPerSecond === null ? null : `${formatDecimal(bytesPerSecond, 1)} bytes/s`),
+    renderMetricRow("Line rate", linesPerSecond === null ? null : `${formatDecimal(linesPerSecond, 2)} lines/s`),
+    renderMetricRow("Elapsed", elapsedSeconds === null ? null : formatTimeRemaining(elapsedSeconds)),
+    renderMetricRow("Remaining", estimatedSecondsRemaining === null ? null : formatTimeRemaining(estimatedSecondsRemaining)),
     renderMetricRow("Rejected lines", rejectedLineCount),
-    renderMetricRow("Total bytes", totalByteCount),
-    renderMetricRow("Percent", `${percent}%`),
-    renderMetricRow("Quality", `${qualityPercent}%`),
-    renderMetricRow("Bytes/sec", bytesPerSecond === null ? null : formatDecimal(bytesPerSecond, 1)),
-    renderMetricRow("Lines/sec", linesPerSecond === null ? null : formatDecimal(linesPerSecond, 2)),
-    renderMetricRow("Efficiency", efficiencyPercent === null ? null : `${formatDecimal(efficiencyPercent, 1)}%`),
-    renderMetricRow(
-      "Theoretical max bytes/sec",
-      theoreticalMaxBytesPerSecond === null ? null : formatDecimal(theoreticalMaxBytesPerSecond, 1)
-    ),
-    renderMetricRow(
-      "Elapsed",
-      elapsedSeconds === null ? null : `${formatTimeRemaining(elapsedSeconds)} (${formatDecimal(elapsedSeconds, 1)}s)`
-    ),
-    renderMetricRow(
-      "Estimated remaining",
-      estimatedSecondsRemaining === null ? null : `${formatTimeRemaining(estimatedSecondsRemaining)} (${formatDecimal(estimatedSecondsRemaining, 1)}s)`
-    ),
-    renderMetricRow("Started at", uploadStatus.startedAt),
-    renderMetricRow("Updated at", uploadStatus.updatedAt)
+    renderMetricRow("Transfer quality", `${qualityPercent}%`),
+    renderMetricRow("Last detail", uploadStatus.message || uploadStatus.detail)
   ].join("");
 
-  const adaptiveRows = [
+  const currentDecisionRows = [
+    renderMetricRow("Transport mode", uploadStatus.transportMode),
+    renderMetricRow("Active batch size", uploadStatus.activeBatchSize),
+    renderMetricRow("Single-send mode", uploadStatus.singleSendMode === undefined ? null : uploadStatus.singleSendMode ? "yes" : "no"),
+    renderMetricRow("Last adaptation reason", uploadStatus.lastAdaptationReason),
+    renderMetricRow("Last adaptation at", uploadStatus.lastAdaptationAt)
+  ].join("");
+
+  const configuredLimitRows = [
     renderMetricRow("Configured max batch size", uploadStatus.configuredMaxBatchSize),
     renderMetricRow("Configured min batch size", uploadStatus.configuredMinBatchSize),
-    renderMetricRow("Active batch size", uploadStatus.activeBatchSize),
     renderMetricRow("Batch upgrade step", uploadStatus.batchUpgradeStep),
-    renderMetricRow("Batch downgrade step", uploadStatus.batchDowngradeStep),
+    renderMetricRow("Batch downgrade step", uploadStatus.batchDowngradeStep)
+  ].join("");
+
+  const stabilityRows = [
     renderMetricRow("Stable lines for upgrade", uploadStatus.stableLinesForUpgrade),
     renderMetricRow("Accepted lines since last resend", uploadStatus.acceptedLinesSinceLastResend),
     renderMetricRow("Recent resend window lines", uploadStatus.recentResendWindowLines),
     renderMetricRow("Recent resend count", uploadStatus.recentResendCount),
     renderMetricRow("Resend threshold for downgrade", uploadStatus.resendThresholdForDowngrade),
     renderMetricRow("Recovery threshold for min batch", uploadStatus.recoveryThresholdForMinBatch),
-    renderMetricRow("Recovery count", uploadStatus.recoveryCount),
-    renderMetricRow("Single-send mode", uploadStatus.singleSendMode === undefined ? null : uploadStatus.singleSendMode ? "yes" : "no"),
-    renderMetricRow("Transport mode", uploadStatus.transportMode),
-    renderMetricRow("Last adaptation reason", uploadStatus.lastAdaptationReason),
-    renderMetricRow("Last adaptation at", uploadStatus.lastAdaptationAt)
+    renderMetricRow("Recovery count", uploadStatus.recoveryCount)
   ].join("");
 
   const qualityHtml = `
@@ -334,32 +325,44 @@ function renderSdUploadStatus(uploadStatus) {
   `;
 
   return `
-    <div class="empty-state">
-      <div class="section-header compact">
-        <div>
-          <h3>${escapeHtml(title)}</h3>
-          <p class="muted">${escapeHtml(uploadStatus.message || uploadStatus.detail || "")}</p>
+    <div class="sd-upload-monitoring">
+      <article class="sd-upload-card">
+        <div class="section-header compact">
+          <div>
+            <div class="kicker">Upload status</div>
+            <h3>${escapeHtml(title)}</h3>
+            <p class="muted">${escapeHtml(uploadStatus.message || uploadStatus.detail || "")}</p>
+          </div>
+          <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
         </div>
-        <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
-      </div>
 
-      ${progressHtml}
-      ${qualityHtml}
-
-      <details class="events-section" open>
-        <summary class="events-header">Upload telemetry</summary>
+        ${progressHtml}
+        ${qualityHtml}
         <div class="info-list">
-          ${telemetryRows}
+          ${transferRows}
         </div>
-      </details>
+      </article>
 
-      <details class="events-section" open>
-        <summary class="events-header">Adaptive runtime state</summary>
-        <div class="info-list">
-          ${adaptiveRows}
-        </div>
+      <details class="sd-upload-card sd-upload-diagnostics-card" open>
+        <summary class="events-header">
+          <span>Adaptive tuning / transfer diagnostics</span>
+        </summary>
+        ${renderMetricGroup("Current runtime decision", currentDecisionRows)}
+        ${renderMetricGroup("Configured limits", configuredLimitRows)}
+        ${renderMetricGroup("Stability and resend pressure", stabilityRows)}
       </details>
     </div>
+  `;
+}
+
+function renderMetricGroup(title, rowsHtml) {
+  return `
+    <section class="sd-upload-metric-group">
+      <h4>${escapeHtml(title)}</h4>
+      <div class="info-list">
+        ${rowsHtml}
+      </div>
+    </section>
   `;
 }
 
