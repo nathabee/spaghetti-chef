@@ -2,6 +2,7 @@ export const PRIMARY_VIEW_IDS = Object.freeze({
   FARM_HOME: "farm-home",
   PRINTERS: "printers",
   JOBS: "jobs",
+  MONITORING: "monitoring",
   HISTORY: "history",
   SETTINGS: "settings"
 });
@@ -27,12 +28,14 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  monitoringOverview: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
   jobCardSections: new Map(),
   printerSdCardFiles: new Map(),
   printerSdUploadStatus: new Map(),
+  uploadStatusSynchronization: new Set(),
   printerSdTargetFilters: new Map(),
   printerCommandResults: new Map(),
   message: "",
@@ -73,6 +76,10 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setMonitoringOverview(overview) {
+  state.monitoringOverview = overview || null;
 }
 
 export function setPrimaryView(viewId) {
@@ -152,6 +159,27 @@ export function getPrinterSdUploadStatus(printerId) {
   }
 
   return state.printerSdUploadStatus.get(printerId) ?? null;
+}
+
+export function setUploadStatusSynchronization(printerId, active) {
+  if (!printerId) {
+    return;
+  }
+
+  if (active) {
+    state.uploadStatusSynchronization.add(printerId);
+    return;
+  }
+
+  state.uploadStatusSynchronization.delete(printerId);
+}
+
+export function isUploadStatusSynchronized(printerId) {
+  if (!printerId) {
+    return false;
+  }
+
+  return state.uploadStatusSynchronization.has(printerId);
 }
 
 export function setPrinterSdTargetFilter(printerId, fieldName, value) {

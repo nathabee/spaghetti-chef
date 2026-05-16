@@ -173,6 +173,43 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getMonitoringReturnsGlobalRuntimeSnapshot() throws Exception {
+        TestContext context = createContext("monitoring-overview.db");
+
+        try {
+            HttpResponse<String> createPrinterResponse = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer One","portName":"COM1","mode":"simulated","enabled":true}
+                            """);
+            assertEquals(201, createPrinterResponse.statusCode());
+
+            HttpResponse<String> createJobResponse = context.request(
+                    "POST",
+                    "/jobs",
+                    """
+                            {"name":"Read firmware","type":"READ_FIRMWARE_INFO","printerId":"printer-1"}
+                            """);
+            assertEquals(201, createJobResponse.statusCode());
+
+            HttpResponse<String> response = context.get("/monitoring");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"generatedAt\":"));
+            assertTrue(response.body().contains("\"summary\":"));
+            assertTrue(response.body().contains("\"totalPrinters\":1"));
+            assertTrue(response.body().contains("\"enabledPrinters\":1"));
+            assertTrue(response.body().contains("\"activeJobs\":"));
+            assertTrue(response.body().contains("\"printers\":["));
+            assertTrue(response.body().contains("\"displayName\":\"Printer One\""));
+            assertTrue(response.body().contains("\"activeUploads\":["));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void putMonitoringSettingsUpdatesRules() throws Exception {
         TestContext context = createContext("monitoring-settings-put.db");
 

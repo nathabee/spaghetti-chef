@@ -15,6 +15,11 @@ next:
 
 ## 0.2.x — Local Runtime Administration and Job Management
 
+- 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+- 0.2.4 — Step J — Remote dashboard upload synchronization
+- 0.2.4 — Step I — Modern upload monitoring UX and operator-grade visualization
+- 0.2.4 — Step H — Functional two-card upload monitoring display
+- 0.2.4 — Step G — Backend-to-frontend upload telemetry exposure
 - 0.2.4 — Step F — adaptive throughput control and autonomous serial tuning 
 - 0.2.4 — Step E — transfer settings administration foundation
 - 0.2.4 — Remote — Operational bootstrap solution before the 1.0.0 remote farm management

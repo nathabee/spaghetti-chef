@@ -27,6 +27,8 @@ import printerhub.job.JobType;
 import printerhub.job.PrintJob;
 import printerhub.job.PrintJobService;
 import printerhub.job.PrinterResponseClassifier;
+import printerhub.monitoring.GlobalMonitoringService;
+import printerhub.monitoring.GlobalMonitoringSnapshot;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.MonitoringRules;
 import printerhub.persistence.MonitoringRulesStore;
@@ -75,6 +77,7 @@ public final class RemoteApiServer {
     private final AsyncPrintJobExecutor asyncPrintJobExecutor;
     private final PrintJobExecutionStepStore printJobExecutionStepStore;
     private final SdCardUploadService sdCardUploadService;
+    private final GlobalMonitoringService globalMonitoringService;
     private final PrinterResponseClassifier printerResponseClassifier;
     private final AutonomousPrintControlService autonomousPrintControlService;
 
@@ -167,6 +170,11 @@ public final class RemoteApiServer {
         this.printJobService = printJobService;
         this.asyncPrintJobExecutor = asyncPrintJobExecutor;
         this.printJobExecutionStepStore = printJobExecutionStepStore;
+        this.globalMonitoringService = new GlobalMonitoringService(
+                printerRegistry,
+                stateCache,
+                printJobService,
+                sdCardUploadService);
         this.printerResponseClassifier = new PrinterResponseClassifier();
         this.autonomousPrintControlService = new AutonomousPrintControlService(
                 printJobService,
@@ -189,6 +197,7 @@ public final class RemoteApiServer {
             server.createContext("/print-files", exchange -> safeHandle(exchange, this::handlePrintFiles));
             server.createContext("/printer-sd-files", exchange -> safeHandle(exchange, this::handlePrinterSdFiles));
             server.createContext("/jobs", exchange -> safeHandle(exchange, this::handleJobs));
+            server.createContext("/monitoring", exchange -> safeHandle(exchange, this::handleMonitoring));
             server.createContext("/settings/monitoring",
                     exchange -> safeHandle(exchange, this::handleMonitoringSettings));
             server.createContext("/settings/print-files",
@@ -430,6 +439,15 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 404, errorJson(OperationMessages.JOB_ENDPOINT_NOT_FOUND));
+    }
+
+    private void handleMonitoring(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        sendJson(exchange, 200, globalMonitoringSnapshotJson(globalMonitoringService.snapshot()));
     }
 
     private void handlePrintFiles(HttpExchange exchange) throws IOException {
@@ -1645,6 +1663,75 @@ public final class RemoteApiServer {
         return json.toString();
     }
 
+    private String globalMonitoringSnapshotJson(GlobalMonitoringSnapshot snapshot) {
+        StringBuilder json = new StringBuilder();
+        json.append("{")
+                .append("\"generatedAt\":\"").append(escapeJson(snapshot.generatedAt().toString())).append("\",")
+                .append("\"summary\":").append(globalMonitoringSummaryJson(snapshot.summary())).append(",")
+                .append("\"printers\":[");
+
+        boolean first = true;
+        for (GlobalMonitoringSnapshot.PrinterRuntime printer : snapshot.printers()) {
+            if (!first) {
+                json.append(",");
+            }
+            json.append(globalMonitoringPrinterJson(printer));
+            first = false;
+        }
+
+        json.append("],\"activeJobs\":[");
+        first = true;
+        for (PrintJob job : snapshot.activeJobs()) {
+            if (!first) {
+                json.append(",");
+            }
+            json.append(printJobJson(job));
+            first = false;
+        }
+
+        json.append("],\"activeUploads\":[");
+        first = true;
+        for (SdCardUploadService.UploadProgress upload : snapshot.activeUploads()) {
+            if (!first) {
+                json.append(",");
+            }
+            json.append(sdCardUploadProgressJson(upload));
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String globalMonitoringSummaryJson(GlobalMonitoringSnapshot.Summary summary) {
+        return "{"
+                + "\"totalPrinters\":" + summary.totalPrinters() + ","
+                + "\"enabledPrinters\":" + summary.enabledPrinters() + ","
+                + "\"disabledPrinters\":" + summary.disabledPrinters() + ","
+                + "\"busyPrinters\":" + summary.busyPrinters() + ","
+                + "\"errorPrinters\":" + summary.errorPrinters() + ","
+                + "\"activeJobs\":" + summary.activeJobs() + ","
+                + "\"activeUploads\":" + summary.activeUploads()
+                + "}";
+    }
+
+    private String globalMonitoringPrinterJson(GlobalMonitoringSnapshot.PrinterRuntime runtime) {
+        PrinterRuntimeNode node = runtime.printer();
+
+        return "{"
+                + "\"id\":\"" + escapeJson(node.id()) + "\","
+                + "\"displayName\":\"" + escapeJson(node.displayName()) + "\","
+                + "\"name\":\"" + escapeJson(node.displayName()) + "\","
+                + "\"enabled\":" + node.enabled() + ","
+                + "\"state\":\"" + escapeJson(runtime.state()) + "\","
+                + "\"busy\":" + runtime.busy() + ","
+                + "\"activeJobId\":" + nullableString(runtime.activeJobId()) + ","
+                + "\"errorMessage\":" + nullableString(runtime.errorMessage()) + ","
+                + "\"updatedAt\":"
+                + nullableString(runtime.updatedAt() == null ? null : runtime.updatedAt().toString())
+                + "}";
+    }
+
     private String printerJson(PrinterRuntimeNode node) {
         PrinterSnapshot snapshot = stateCache.findByPrinterId(node.id()).orElse(null);
 
@@ -2065,6 +2152,24 @@ public final class RemoteApiServer {
                 + "\"rejectedLineCount\":" + progress.rejectedLineCount() + ","
                 + "\"percent\":" + percent + ","
                 + "\"qualityPercent\":" + qualityPercent + ","
+                + "\"configuredMaxBatchSize\":" + progress.configuredMaxBatchSize() + ","
+                + "\"configuredMinBatchSize\":" + progress.configuredMinBatchSize() + ","
+                + "\"activeBatchSize\":" + progress.activeBatchSize() + ","
+                + "\"batchUpgradeStep\":" + progress.batchUpgradeStep() + ","
+                + "\"batchDowngradeStep\":" + progress.batchDowngradeStep() + ","
+                + "\"stableLinesForUpgrade\":" + progress.stableLinesForUpgrade() + ","
+                + "\"acceptedLinesSinceLastResend\":" + progress.acceptedLinesSinceLastResend() + ","
+                + "\"recentResendWindowLines\":" + progress.recentResendWindowLines() + ","
+                + "\"recentResendCount\":" + progress.recentResendCount() + ","
+                + "\"resendThresholdForDowngrade\":" + progress.resendThresholdForDowngrade() + ","
+                + "\"recoveryThresholdForMinBatch\":" + progress.recoveryThresholdForMinBatch() + ","
+                + "\"recoveryCount\":" + progress.recoveryCount() + ","
+                + "\"singleSendMode\":" + progress.singleSendMode() + ","
+                + "\"transportMode\":" + nullableString(progress.transportMode()) + ","
+                + "\"lastAdaptationReason\":" + nullableString(progress.lastAdaptationReason()) + ","
+                + "\"lastAdaptationAt\":"
+                + nullableString(progress.lastAdaptationAt() == null ? null : progress.lastAdaptationAt().toString())
+                + ","
                 + "\"startedAt\":"
                 + nullableString(progress.startedAt() == null ? null : progress.startedAt().toString()) + ","
                 + "\"updatedAt\":"

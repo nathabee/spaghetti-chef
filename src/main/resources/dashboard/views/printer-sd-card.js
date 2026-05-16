@@ -1,5 +1,10 @@
 import { escapeHtml } from "../dashboard.js";
-import { getPrinterSdTargetFilter, getPrinterSdUploadStatus, state } from "../state.js";
+import {
+  getPrinterSdTargetFilter,
+  getPrinterSdUploadStatus,
+  isUploadStatusSynchronized,
+  state
+} from "../state.js";
 
 export function renderPrinterSdCard(printer) {
   const data = state.printerSdCardFiles.get(printer.id);
@@ -9,6 +14,7 @@ export function renderPrinterSdCard(printer) {
   const filteredRegisteredFiles = filterRegisteredFiles(registeredFiles, registeredFilter);
   const uploadStatus = getPrinterSdUploadStatus(printer.id);
   const uploadActive = uploadStatus?.active === true;
+  const uploadSyncActive = isUploadStatusSynchronized(printer.id);
 
   return `
     <section class="section-card">
@@ -20,7 +26,22 @@ export function renderPrinterSdCard(printer) {
         </div>
         <div class="action-row">
           <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}" ${uploadActive ? "disabled" : ""}>Refresh files</button>
+          <button
+            type="button"
+            data-sync-sd-upload-status="${escapeHtml(printer.id)}"
+            ${uploadSyncActive ? "disabled" : ""}
+          >${uploadSyncActive ? "Synchronizing..." : "Synchronize"}</button>
+          <button
+            type="button"
+            class="secondary-button"
+            data-stop-sync-sd-upload-status="${escapeHtml(printer.id)}"
+            ${uploadSyncActive ? "" : "disabled"}
+          >Stop sync</button>
         </div>
+      </div>
+      <div class="sync-status-row">
+        <span class="sync-active-indicator ${uploadSyncActive ? "sync-active" : "sync-idle"}"></span>
+        <span>${uploadSyncActive ? "Live upload sync active" : "Manual refresh only"}</span>
       </div>
             ${renderSdUploadStatus(uploadStatus)}
 
@@ -228,6 +249,9 @@ function renderSdUploadStatus(uploadStatus) {
   const uploadedLineCount = toNumber(uploadStatus.uploadedLineCount, 0);
   const rejectedLineCount = toNumber(uploadStatus.rejectedLineCount, 0);
   const totalByteCount = toNumber(uploadStatus.totalByteCount, 0);
+  const uploadedByteCount = totalByteCount > 0 && totalLineCount > 0
+    ? Math.min(totalByteCount, Math.floor((totalByteCount * uploadedLineCount) / totalLineCount))
+    : null;
 
   const percent = totalLineCount > 0
     ? Math.min(
@@ -249,57 +273,81 @@ function renderSdUploadStatus(uploadStatus) {
 
   const bytesPerSecond = toNullableNumber(uploadStatus.bytesPerSecond);
   const linesPerSecond = toNullableNumber(uploadStatus.linesPerSecond);
-  const efficiencyPercent = toNullableNumber(uploadStatus.efficiencyPercent);
   const elapsedSeconds = toNullableNumber(uploadStatus.elapsedSeconds);
   const estimatedSecondsRemaining = toNullableNumber(uploadStatus.estimatedSecondsRemaining);
-  const theoreticalMaxBytesPerSecond = toNullableNumber(uploadStatus.theoreticalMaxBytesPerSecond);
+  const activeBatchSize = toNullableNumber(uploadStatus.activeBatchSize);
+  const configuredMinBatchSize = toNullableNumber(uploadStatus.configuredMinBatchSize);
+  const configuredMaxBatchSize = toNullableNumber(uploadStatus.configuredMaxBatchSize);
+  const acceptedLinesSinceLastResend = toNullableNumber(uploadStatus.acceptedLinesSinceLastResend);
+  const stableLinesForUpgrade = toNullableNumber(uploadStatus.stableLinesForUpgrade);
+  const recentResendCount = toNullableNumber(uploadStatus.recentResendCount);
+  const resendThresholdForDowngrade = toNullableNumber(uploadStatus.resendThresholdForDowngrade);
+  const recoveryCount = toNullableNumber(uploadStatus.recoveryCount);
+  const recoveryThresholdForMinBatch = toNullableNumber(uploadStatus.recoveryThresholdForMinBatch);
 
   const qualityClass = resolveUploadQualityClass(qualityPercent, rejectedLineCount);
+  const health = resolveUploadHealth(uploadStatus, rejectedLineCount, qualityPercent, recentResendCount);
 
   const progressHtml = totalLineCount > 0
     ? `
-      <div class="info-row">
-        <span>Progress</span>
-        <strong>${escapeHtml(String(uploadedLineCount))}/${escapeHtml(String(totalLineCount))} confirmed lines (${escapeHtml(String(percent))}%)</strong>
+      <div class="sd-upload-progress-block">
+        <div class="sd-upload-progress-header">
+          <span>Progress</span>
+          <strong>${escapeHtml(String(percent))}%</strong>
+        </div>
+        ${renderMeter("Upload progress", percent, "normal")}
       </div>
-      <progress max="100" value="${escapeHtml(String(percent))}"></progress>
     `
     : `
-      <div class="info-row">
+      <div class="sd-upload-progress-header">
         <span>Progress</span>
         <strong>${escapeHtml(String(uploadedLineCount))} confirmed lines</strong>
       </div>
     `;
 
-  const telemetryRows = [
-    renderMetricRow("Printer", uploadStatus.printerId),
-    renderMetricRow("Print file id", uploadStatus.printFileId),
-    renderMetricRow("Original filename", uploadStatus.originalFilename),
-    renderMetricRow("Target filename", uploadStatus.requestedTargetFilename),
-    renderMetricRow("Uploaded lines", uploadedLineCount),
-    renderMetricRow("Total lines", totalLineCount),
-    renderMetricRow("Rejected lines", rejectedLineCount),
-    renderMetricRow("Total bytes", totalByteCount),
-    renderMetricRow("Percent", `${percent}%`),
-    renderMetricRow("Quality", `${qualityPercent}%`),
-    renderMetricRow("Bytes/sec", bytesPerSecond === null ? null : formatDecimal(bytesPerSecond, 1)),
-    renderMetricRow("Lines/sec", linesPerSecond === null ? null : formatDecimal(linesPerSecond, 2)),
-    renderMetricRow("Efficiency", efficiencyPercent === null ? null : `${formatDecimal(efficiencyPercent, 1)}%`),
-    renderMetricRow(
-      "Theoretical max bytes/sec",
-      theoreticalMaxBytesPerSecond === null ? null : formatDecimal(theoreticalMaxBytesPerSecond, 1)
-    ),
-    renderMetricRow(
-      "Elapsed",
-      elapsedSeconds === null ? null : `${formatTimeRemaining(elapsedSeconds)} (${formatDecimal(elapsedSeconds, 1)}s)`
-    ),
-    renderMetricRow(
-      "Estimated remaining",
-      estimatedSecondsRemaining === null ? null : `${formatTimeRemaining(estimatedSecondsRemaining)} (${formatDecimal(estimatedSecondsRemaining, 1)}s)`
-    ),
-    renderMetricRow("Started at", uploadStatus.startedAt),
-    renderMetricRow("Updated at", uploadStatus.updatedAt)
+  const lineValue = `${uploadedLineCount}/${totalLineCount || "n/a"}`;
+  const byteValue = uploadedByteCount === null
+    ? formatSize(totalByteCount)
+    : `${formatSize(uploadedByteCount)} / ${formatSize(totalByteCount)}`;
+
+  const operatorStats = [
+    renderStatTile("Lines", lineValue, "Confirmed"),
+    renderStatTile("Bytes", byteValue, "Uploaded"),
+    renderStatTile("ETA", estimatedSecondsRemaining === null ? "n/a" : formatTimeRemaining(estimatedSecondsRemaining), "Remaining"),
+    renderStatTile("Quality", `${qualityPercent}%`, rejectedLineCount > 0 ? `${rejectedLineCount} resend${rejectedLineCount === 1 ? "" : "s"}` : "No resends")
   ].join("");
+
+  const throughputStats = [
+    renderStatTile("Bytes/sec", bytesPerSecond === null ? "n/a" : formatDecimal(bytesPerSecond, 1), "Throughput"),
+    renderStatTile("Lines/sec", linesPerSecond === null ? "n/a" : formatDecimal(linesPerSecond, 2), "Line rate"),
+    renderStatTile("Elapsed", elapsedSeconds === null ? "n/a" : formatTimeRemaining(elapsedSeconds), "Runtime")
+  ].join("");
+
+  const currentDecisionRows = [
+    renderMetricRow("Mode", uploadStatus.transportMode),
+    renderMetricRow("Configured range", configuredMinBatchSize === null || configuredMaxBatchSize === null ? null : `${configuredMinBatchSize}-${configuredMaxBatchSize}`),
+    renderMetricRow("Active batch size", activeBatchSize),
+    renderMetricRow("Single-send mode", uploadStatus.singleSendMode === undefined ? null : uploadStatus.singleSendMode ? "yes" : "no"),
+    renderMetricRow("Last adaptation at", uploadStatus.lastAdaptationAt)
+  ].join("");
+
+  const configuredLimitRows = [
+    renderMetricRow("Configured max batch size", uploadStatus.configuredMaxBatchSize),
+    renderMetricRow("Configured min batch size", uploadStatus.configuredMinBatchSize),
+    renderMetricRow("Batch upgrade step", uploadStatus.batchUpgradeStep),
+    renderMetricRow("Batch downgrade step", uploadStatus.batchDowngradeStep)
+  ].join("");
+
+  const stabilityRows = [
+    renderMetricRow("Stable lines toward upgrade", acceptedLinesSinceLastResend === null || stableLinesForUpgrade === null ? null : `${acceptedLinesSinceLastResend}/${stableLinesForUpgrade}`),
+    renderMetricRow("Recent resend window lines", uploadStatus.recentResendWindowLines),
+    renderMetricRow("Recent resend pressure", recentResendCount === null || resendThresholdForDowngrade === null ? null : `${recentResendCount}/${resendThresholdForDowngrade}`),
+    renderMetricRow("Recovery pressure", recoveryCount === null || recoveryThresholdForMinBatch === null ? null : `${recoveryCount}/${recoveryThresholdForMinBatch}`)
+  ].join("");
+
+  const stabilityPercent = calculateRatioPercent(acceptedLinesSinceLastResend, stableLinesForUpgrade);
+  const resendPercent = calculateRatioPercent(recentResendCount, resendThresholdForDowngrade);
+  const recoveryPercent = calculateRatioPercent(recoveryCount, recoveryThresholdForMinBatch);
 
   const qualityHtml = `
     <div class="upload-quality ${qualityClass}">
@@ -307,33 +355,107 @@ function renderSdUploadStatus(uploadStatus) {
         <span>Transfer quality</span>
         <strong>${escapeHtml(String(qualityPercent))}%</strong>
       </div>
-      <div class="quality-bar" aria-label="Transfer quality">
-        <span style="width: ${escapeHtml(String(qualityPercent))}%"></span>
-      </div>
+      ${renderMeter("Transfer quality", qualityPercent, qualityPercent >= 99 ? "good" : qualityPercent >= 95 ? "warn" : "bad")}
       <p class="muted">${escapeHtml(String(rejectedLineCount))} rejected/resend request${rejectedLineCount === 1 ? "" : "s"} for ${escapeHtml(String(uploadedLineCount))} confirmed line${uploadedLineCount === 1 ? "" : "s"}.</p>
     </div>
   `;
 
   return `
-    <div class="empty-state">
-      <div class="section-header compact">
-        <div>
-          <h3>${escapeHtml(title)}</h3>
-          <p class="muted">${escapeHtml(uploadStatus.message || uploadStatus.detail || "")}</p>
+    <div class="sd-upload-monitoring">
+      <article class="sd-upload-card sd-upload-status-card sd-upload-health-${escapeHtml(health.key)}">
+        <div class="sd-upload-hero">
+          <div>
+            <div class="kicker">Upload status</div>
+            <h3>${escapeHtml(title)}</h3>
+            <p class="muted">${escapeHtml(uploadStatus.originalFilename || uploadStatus.requestedTargetFilename || "No file name reported")}</p>
+          </div>
+          <div class="sd-upload-state-stack">
+            <span class="sd-upload-health-badge">${escapeHtml(health.label)}</span>
+            <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
+          </div>
         </div>
-        <span class="badge ${badgeClass}">${escapeHtml(stateLabel.toUpperCase())}</span>
-      </div>
 
-      ${progressHtml}
-      ${qualityHtml}
-
-      <details class="events-section" open>
-        <summary class="events-header">Upload telemetry</summary>
-        <div class="info-list">
-          ${telemetryRows}
+        ${progressHtml}
+        ${qualityHtml}
+        <div class="sd-upload-stat-grid">
+          ${operatorStats}
         </div>
+        <div class="sd-upload-stat-grid compact">
+          ${throughputStats}
+        </div>
+        <div class="sd-upload-detail-line">
+          <span>Last detail</span>
+          <strong>${escapeHtml(uploadStatus.message || uploadStatus.detail || "n/a")}</strong>
+        </div>
+      </article>
+
+      <details class="sd-upload-card sd-upload-diagnostics-card" open>
+        <summary class="events-header">
+          <span>Adaptive tuning / transfer diagnostics</span>
+          <span class="sd-upload-mode-badge">${escapeHtml(uploadStatus.transportMode || "n/a")}</span>
+        </summary>
+        <div class="sd-upload-controller-strip">
+          <span class="sd-upload-batch-chip">Batch ${escapeHtml(String(activeBatchSize ?? "n/a"))}</span>
+          <span>${escapeHtml(configuredMinBatchSize === null || configuredMaxBatchSize === null ? "Range n/a" : `Range ${configuredMinBatchSize}-${configuredMaxBatchSize}`)}</span>
+          <strong>${escapeHtml(uploadStatus.lastAdaptationReason || "No adaptation recorded")}</strong>
+        </div>
+        <div class="sd-upload-pressure-grid">
+          ${renderPressurePanel("Stability to upgrade", acceptedLinesSinceLastResend, stableLinesForUpgrade, stabilityPercent, "good", "stable lines")}
+          ${renderPressurePanel("Resend pressure", recentResendCount, resendThresholdForDowngrade, resendPercent, resendPercent >= 100 ? "bad" : resendPercent > 0 ? "warn" : "good", "resends")}
+          ${renderPressurePanel("Recovery pressure", recoveryCount, recoveryThresholdForMinBatch, recoveryPercent, recoveryPercent >= 100 ? "bad" : recoveryPercent > 0 ? "warn" : "good", "recoveries")}
+        </div>
+        ${renderMetricGroup("Current runtime decision", currentDecisionRows)}
+        ${renderMetricGroup("Configured limits", configuredLimitRows)}
+        ${renderMetricGroup("Stability and resend pressure", stabilityRows)}
       </details>
     </div>
+  `;
+}
+
+function renderStatTile(label, value, hint) {
+  return `
+    <div class="sd-upload-stat-tile">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <small>${escapeHtml(hint)}</small>
+    </div>
+  `;
+}
+
+function renderPressurePanel(title, value, max, percent, tone, caption) {
+  const displayValue = value === null || max === null ? "n/a" : `${value}/${max}`;
+  return `
+    <div class="sd-upload-pressure-panel tone-${escapeHtml(tone)}">
+      <div class="sd-upload-pressure-header">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(displayValue)}</strong>
+      </div>
+      ${renderMeter(title, percent, tone)}
+      <small>${escapeHtml(caption)}</small>
+    </div>
+  `;
+}
+
+function renderMeter(label, percent, tone) {
+  const normalizedPercent = Number.isFinite(Number(percent))
+    ? Math.max(0, Math.min(100, Number(percent)))
+    : 0;
+
+  return `
+    <div class="sd-upload-meter tone-${escapeHtml(tone)}" aria-label="${escapeHtml(label)}">
+      <span style="width: ${escapeHtml(String(normalizedPercent))}%"></span>
+    </div>
+  `;
+}
+
+function renderMetricGroup(title, rowsHtml) {
+  return `
+    <section class="sd-upload-metric-group">
+      <h4>${escapeHtml(title)}</h4>
+      <div class="info-list">
+        ${rowsHtml}
+      </div>
+    </section>
   `;
 }
 
@@ -364,6 +486,17 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
   }
 
   return Math.max(0, Math.min(100, Math.floor((uploaded * 100) / (uploaded + rejected))));
+}
+
+function calculateRatioPercent(value, max) {
+  const numericValue = Number(value);
+  const numericMax = Number(max);
+
+  if (!Number.isFinite(numericValue) || !Number.isFinite(numericMax) || numericMax <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.floor((numericValue * 100) / numericMax)));
 }
 
 function toNumber(value, fallback = 0) {
@@ -422,6 +555,32 @@ function resolveUploadQualityClass(qualityPercent, rejectedLineCount) {
     return "upload-quality-warn";
   }
   return "upload-quality-bad";
+}
+
+function resolveUploadHealth(uploadStatus, rejectedLineCount, qualityPercent, recentResendCount) {
+  const state = String(uploadStatus.state || "").toLowerCase();
+  const transportMode = String(uploadStatus.transportMode || "").toUpperCase();
+
+  if (state === "error") {
+    return { key: "failed", label: "Failed" };
+  }
+  if (uploadStatus.singleSendMode === true || transportMode === "SINGLE_SEND") {
+    return { key: "fallback", label: "Fallback" };
+  }
+  if (uploadStatus.active === true && qualityPercent < 95) {
+    return { key: "degraded", label: "Degraded" };
+  }
+  if (uploadStatus.active === true && toNumber(recentResendCount, 0) > 0) {
+    return { key: "recovering", label: "Recovering" };
+  }
+  if (uploadStatus.active === true && rejectedLineCount === 0 && qualityPercent >= 99) {
+    return { key: "healthy", label: "Healthy" };
+  }
+  if (state === "success") {
+    return { key: "complete", label: "Complete" };
+  }
+
+  return { key: "idle", label: "Idle" };
 }
  
 

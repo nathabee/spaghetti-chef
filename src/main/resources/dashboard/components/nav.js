@@ -5,6 +5,7 @@ const PRIMARY_ITEMS = [
   { id: PRIMARY_VIEW_IDS.FARM_HOME, label: "Farm Home", meta: () => `${state.printers.length} printers` },
   { id: PRIMARY_VIEW_IDS.PRINTERS, label: "Printers", meta: () => state.selectedPrinterId ? "Printer work area" : "Select a printer" },
   { id: PRIMARY_VIEW_IDS.JOBS, label: "Jobs", meta: () => `${state.jobs.length} tracked` },
+  { id: PRIMARY_VIEW_IDS.MONITORING, label: "Monitoring", meta: () => `${state.monitoringOverview?.summary?.activeJobs ?? 0} active jobs` },
   { id: PRIMARY_VIEW_IDS.HISTORY, label: "History", meta: () => "Events and audit" },
   { id: PRIMARY_VIEW_IDS.SETTINGS, label: "Settings", meta: () => "Monitoring and runtime" }
 ];

@@ -1895,10 +1895,19 @@ public final class SdCardUploadService {
             int activeBatchSize,
             int configuredMaxBatchSize,
             int configuredMinBatchSize,
+            int batchUpgradeStep,
+            int batchDowngradeStep,
+            int stableLinesForUpgrade,
             long acceptedLinesSinceLastResend,
+            int recentResendWindowLines,
             int recentResendCount,
-            int recentRecoveryCount,
+            int resendThresholdForDowngrade,
+            int recoveryThresholdForMinBatch,
+            int recoveryCount,
             boolean singleSendMode,
+            String transportMode,
+            String lastAdaptationReason,
+            Instant lastAdaptationAt,
             Instant startedAt,
             Instant updatedAt,
             String detail) {
@@ -1982,10 +1991,19 @@ public final class SdCardUploadService {
                     activeBatchSize,
                     configuredMaxBatchSize,
                     configuredMinBatchSize,
+                    batchUpgradeStep,
+                    batchDowngradeStep,
+                    stableLinesForUpgrade,
                     acceptedLinesSinceLastResend,
+                    recentResendWindowLines,
                     recentResendCount,
-                    recentRecoveryCount,
+                    resendThresholdForDowngrade,
+                    recoveryThresholdForMinBatch,
+                    recoveryCount,
                     singleSendMode,
+                    transportMode,
+                    lastAdaptationReason,
+                    lastAdaptationAt,
                     startedAt,
                     Instant.now(),
                     detail);
@@ -2011,19 +2029,37 @@ public final class SdCardUploadService {
         int activeBatchSize = 1;
         int configuredMaxBatchSize = 1;
         int configuredMinBatchSize = 1;
+        int batchUpgradeStep = 1;
+        int batchDowngradeStep = 1;
+        int stableLinesForUpgrade = 1;
         long acceptedLinesSinceLastResend = 0L;
+        int recentResendWindowLines = 1;
         int recentResendCount = 0;
-        int recentRecoveryCount = 0;
+        int resendThresholdForDowngrade = 1;
+        int recoveryThresholdForMinBatch = 1;
+        int recoveryCount = 0;
         boolean singleSendMode = true;
+        String transportMode = "SINGLE_SEND";
+        String lastAdaptationReason = null;
+        Instant lastAdaptationAt = null;
 
         if (runtimeState != null) {
             activeBatchSize = runtimeState.activeBatchSize();
             configuredMaxBatchSize = runtimeState.configuredMaxBatchSize();
             configuredMinBatchSize = runtimeState.configuredMinBatchSize();
+            batchUpgradeStep = runtimeState.batchUpgradeStep();
+            batchDowngradeStep = runtimeState.batchDowngradeStep();
+            stableLinesForUpgrade = runtimeState.stableLinesForUpgrade();
             acceptedLinesSinceLastResend = runtimeState.acceptedLinesSinceLastResend();
+            recentResendWindowLines = runtimeState.resendWindowLines();
             recentResendCount = runtimeState.recentResendCount();
-            recentRecoveryCount = runtimeState.recentRecoveryCount();
+            resendThresholdForDowngrade = runtimeState.resendThresholdForDowngrade();
+            recoveryThresholdForMinBatch = runtimeState.recoveryThresholdForMinBatch();
+            recoveryCount = runtimeState.recentRecoveryCount();
             singleSendMode = runtimeState.singleSendMode();
+            transportMode = runtimeState.transportMode();
+            lastAdaptationReason = runtimeState.lastAdaptationReason();
+            lastAdaptationAt = runtimeState.lastAdaptationAt();
         }
 
         return new UploadProgress(
@@ -2040,10 +2076,19 @@ public final class SdCardUploadService {
                 activeBatchSize,
                 configuredMaxBatchSize,
                 configuredMinBatchSize,
+                batchUpgradeStep,
+                batchDowngradeStep,
+                stableLinesForUpgrade,
                 acceptedLinesSinceLastResend,
+                recentResendWindowLines,
                 recentResendCount,
-                recentRecoveryCount,
+                resendThresholdForDowngrade,
+                recoveryThresholdForMinBatch,
+                recoveryCount,
                 singleSendMode,
+                transportMode,
+                lastAdaptationReason,
+                lastAdaptationAt,
                 startedAt == null ? now : startedAt,
                 now,
                 detail);

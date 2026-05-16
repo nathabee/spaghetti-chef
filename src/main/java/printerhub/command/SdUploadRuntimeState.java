@@ -2,6 +2,8 @@ package printerhub.command;
 
 import printerhub.persistence.SerialTransferSettings;
 
+import java.time.Instant;
+
 public final class SdUploadRuntimeState {
 
     private final boolean debugWireTracingEnabled;
@@ -33,6 +35,8 @@ public final class SdUploadRuntimeState {
     private int recentRecoveryCount;
     private int consecutiveIdenticalResends;
     private int modeTransitionCount;
+    private String lastAdaptationReason;
+    private Instant lastAdaptationAt;
 
     public SdUploadRuntimeState(
             boolean debugWireTracingEnabled,
@@ -90,6 +94,8 @@ public final class SdUploadRuntimeState {
         this.recentRecoveryCount = 0;
         this.consecutiveIdenticalResends = 0;
         this.modeTransitionCount = 0;
+        this.lastAdaptationReason = "initialized";
+        this.lastAdaptationAt = Instant.now();
     }
 
     public static SdUploadRuntimeState from(
@@ -218,6 +224,18 @@ public final class SdUploadRuntimeState {
         return modeTransitionCount;
     }
 
+    public String transportMode() {
+        return singleSendMode ? "SINGLE_SEND" : "PIPELINED";
+    }
+
+    public String lastAdaptationReason() {
+        return lastAdaptationReason;
+    }
+
+    public Instant lastAdaptationAt() {
+        return lastAdaptationAt;
+    }
+
     public void recordAcceptedLine() {
         acceptedLinesSinceLastResend++;
         totalAcceptedLines++;
@@ -234,14 +252,17 @@ public final class SdUploadRuntimeState {
     public void recordResend() {
         recentResendCount++;
         acceptedLinesSinceLastResend = 0L;
+        recordAdaptation("resend requested");
     }
 
     public void recordRecovery() {
         recentRecoveryCount++;
+        recordAdaptation("recovery started");
     }
 
     public void resetRecentRecoveryCount() {
         recentRecoveryCount = 0;
+        recordAdaptation("recovery completed");
     }
 
     public void recordIdenticalResend() {
@@ -268,20 +289,24 @@ public final class SdUploadRuntimeState {
     }
 
     public void downgradeBatch() {
-        setActiveBatchSize(Math.max(configuredMinBatchSize, activeBatchSize - batchDowngradeStep));
+        setActiveBatchSize(
+                Math.max(configuredMinBatchSize, activeBatchSize - batchDowngradeStep),
+                "downgraded after resend pressure");
     }
 
     public void upgradeBatch() {
-        setActiveBatchSize(Math.min(configuredMaxBatchSize, activeBatchSize + batchUpgradeStep));
+        setActiveBatchSize(
+                Math.min(configuredMaxBatchSize, activeBatchSize + batchUpgradeStep),
+                "upgraded after stable lines");
         acceptedLinesSinceLastResend = 0L;
     }
 
     public void forceMinBatch() {
-        setActiveBatchSize(configuredMinBatchSize);
+        setActiveBatchSize(configuredMinBatchSize, "forced minimum batch after recovery pressure");
     }
 
     public void enableSingleSendMode() {
-        setActiveBatchSize(1);
+        setActiveBatchSize(1, "entered single-send fallback");
     }
 
     public void disableSingleSendModeIfPossible() {
@@ -291,6 +316,10 @@ public final class SdUploadRuntimeState {
     }
 
     public void setActiveBatchSize(int activeBatchSize) {
+        setActiveBatchSize(activeBatchSize, "active batch size changed");
+    }
+
+    private void setActiveBatchSize(int activeBatchSize, String reason) {
         int normalized = requirePositive(activeBatchSize, "activeBatchSize");
 
         if (normalized < configuredMinBatchSize) {
@@ -302,10 +331,16 @@ public final class SdUploadRuntimeState {
 
         if (this.activeBatchSize != normalized) {
             modeTransitionCount++;
+            recordAdaptation(reason);
         }
 
         this.activeBatchSize = normalized;
         this.singleSendMode = this.activeBatchSize <= 1;
+    }
+
+    private void recordAdaptation(String reason) {
+        this.lastAdaptationReason = reason == null || reason.isBlank() ? "runtime state updated" : reason;
+        this.lastAdaptationAt = Instant.now();
     }
 
     private static int requirePositive(int value, String fieldName) {

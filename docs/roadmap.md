@@ -359,7 +359,7 @@ Example local run:
 mvn exec:java \
 -Dprinterhub.api.port=18080 \
 -Dexec.mainClass="printerhub.Main"
-````
+```
 
 Example verification:
 
@@ -917,7 +917,7 @@ PrinterRuntimeNode
 PrinterRuntimeStateCache
 SerialConnection
 SimulatedPrinterPort
-````
+```
 
 Expected behavior:
 
@@ -1337,7 +1337,7 @@ Expected result:
 
 ### 0.2.3 — Local Audit, History Views, and Controlled Job Actions
 
-status: in progress
+status: done
 
 * step A, B, C, D : done
 
@@ -2206,43 +2206,197 @@ PrinterHub should recover from resend instability safely, climb back up after st
 
 ---
 
-#### 0.2.4 — Step G — upload telemetry and operator dashboard visualization
+#### 0.2.4 — Step G — Backend-to-frontend upload telemetry exposure
+
+status: done
+
+Goals:
+
+* expose SD-card upload transfer telemetry through `GET /printers/{printerId}/sd-card/uploads/status`
+* keep persistent `SerialTransferSettings` separate from per-upload adaptive runtime state
+* publish runtime adaptive values such as configured batch limits, active batch size, resend pressure, recovery pressure, transport mode, and last adaptation reason/time
+* render the returned fields in the SD-card dashboard view as raw readable telemetry for verification
+* preserve final upload-session telemetry after success or error without writing runtime tuning values back to database settings
+
+Expected result:
+
+The browser can verify Step F adaptive upload behavior during and after an upload: progress, quality, throughput, active batch size, resend/recovery pressure, transport mode, and the last controller decision are visible from the SD-card page.
+
+ 
+#### 0.2.4 — Step H — Functional two-card upload monitoring display
+
+status: done
+
+Goals:
+
+* split upload monitoring into a normal operator card and a separate adaptive diagnostics card
+* keep the upload status card focused on state, file, progress, lines, bytes, speed, timing, rejected lines, quality, and detail
+* group adaptive diagnostics by current runtime decision, configured limits, and stability/resend pressure
+* keep the display functional and readable without applying the Step I visual polish layer yet
+
+Expected result:
+
+The SD-card page shows upload progress as a clear operator summary while keeping adaptive controller internals available in a separate diagnostics card for verifying runtime behavior during long uploads.
+
+ 
+#### 0.2.4 — Step I — Modern upload monitoring UX and operator-grade visualization
+
+status: done
+
+Goals:
+
+* add a frontend transfer-health indicator for healthy, recovering, degraded, fallback, failed, complete, and idle states
+* make upload progress, throughput, ETA, line/byte counters, resend count, and transfer quality readable at a glance
+* add color-coded quality, resend, recovery, and stability pressure meters
+* show adaptive controller decisions with a mode badge, active batch chip, configured range, and last adaptation reason/time
+* keep runtime telemetry display near the SD-card upload workflow while leaving persistent transfer settings in settings
+
+Expected result:
+
+The SD-card page now reads like an operator monitoring panel: progress and alarms are visually prominent, adaptive changes are called out, and resend/recovery pressure can be interpreted without scanning raw logs.
+
+ 
+#### 0.2.4 — Step J — Remote dashboard upload synchronization
+
+status: done
+
+Goals:
+
+* add `Synchronize` and `Stop sync` controls beside the SD-card file refresh action
+* reuse selected-printer upload-status polling so another browser can follow an upload started elsewhere
+* poll only `GET /printers/{id}/sd-card/uploads/status`, without refreshing SD-card files or touching printer serial traffic
+* keep the last visible upload card when synchronization is stopped
+* show whether the selected printer is in live upload sync or manual-refresh mode
+
+Expected result:
+
+A second operator can open the dashboard from another PC, select the same printer, click `Synchronize`, and watch the existing upload telemetry card update live until they stop synchronization or leave the page.
+
+
+---
+## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+
+status: done
+
+Purpose:
+
+Add a global Monitoring workspace for observing runtime activity across all configured printers without first selecting one printer.
+
+Goals:
+
+* add a global `Monitoring` dashboard menu entry
+* add `GET /monitoring` as a backend runtime aggregation endpoint
+* summarize configured, enabled, disabled, busy, and error printers
+* show active/recent jobs across the local farm
+* show active or last-known SD upload telemetry across printers
+* expose adaptive upload diagnostics globally without replacing the selected-printer SD Card workflow
+* provide follow/synchronize actions that jump from the global page to the focused selected-printer workspace
+
+Expected result:
+
+Operators can open one global Monitoring page to see farm runtime health, active jobs, and SD upload telemetry across printers, then follow a specific upload or job into the detailed printer page when they need deeper control.
+
+
+### 0.2.6 — Runtime Recovery and Serial Device Robustness
 
 status: planned
 
 Goals:
 
-* make upload progress visible as a modern operator card instead of only raw text/log style state
-* expose real-time session telemetry for active SD uploads
-* show transfer progress, timing, recovery pressure, and active tuned parameters clearly
-* make adaptive behavior understandable to the operator
+* improve recovery after real USB disconnect/reconnect
+* reduce problems caused by unstable `/dev/ttyUSB*` device names
+* make real-printer administration more robust
+* improve operator visibility for serial-port failures
 
-Dashboard targets:
+Minor CR / anomalies:
 
-* current upload phase
-* elapsed time
-* estimated remaining time
-* completed lines / total lines
-* completed bytes / total bytes if available
-* current active batch size
-* configured maximum batch size
-* current transfer mode
-* resend count / resend threshold
-* recovery count / recovery threshold
-* stability streak
-* transfer health indicator
-* optional tiny trend bars / meter / progress segments
+* README banner and dashboard screenshot path currently points to `docs/assets/media-src/...`, not a final published-media location
+* dashboard.js: editing a disabled printer will re-enable it unintentionally (`enabled: true` always set even on update)
+
+Focus:
+
+* keep automatic retry behavior for recoverable monitoring failures
+* better distinguish between:
+
+  * disconnected device
+  * invalid configured port
+  * temporary communication failure
+* support or document use of stable serial paths such as:
+
+```text
+/dev/serial/by-id/...
+```
+
+* improve dashboard/API error clarity for real printer connection problems
 
 Expected result:
 
-* operator can see not only that an upload is running, but how well it is running
-* adaptive runtime decisions become auditable and understandable
-* project demonstrates both protocol resilience and operator-grade monitoring UX
+* real printers recover more reliably after reconnect scenarios
+* operators can understand whether the failure is caused by cable disconnect, changed port path, or invalid configuration
+* local runtime administration becomes safer for real hardware use
 
 ---
 
+### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
 
-### 0.2.5 — Simulation upload more realistic
+status: planned
+
+Goals:
+
+* harden Mode 2 host-side handling of printable files used by file-backed jobs
+* clarify how PrinterHub transfers, selects, or exposes prepared `.gcode` files to the printer
+* improve validation and error reporting around missing, unreadable, or invalid print files
+* make print-file handling more reviewable in dashboard and API
+* avoid ambiguous failures during print activation caused by file-path or transfer problems
+
+Focus:
+
+* host-side printable file registry or controlled file reference handling
+* validation of file existence, readability, and allowed type
+* clearer distinction between:
+
+  * job exists but file missing
+  * file invalid
+  * file cannot be transferred, selected, or exposed
+  * printer-side print activation failed after transfer/selection
+* persist file-related diagnostics in job execution history
+
+Expected result:
+
+* file-backed print jobs become safer and more predictable
+* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
+* the runtime becomes more reliable for repeated real print activation
+
+---
+
+### 0.2.8 — Post-Print Review and Operational History Hardening
+
+status: planned
+
+Goals:
+
+* improve reviewability after completed, failed, or cancelled print jobs
+* strengthen operator visibility of final print outcome
+* correlate print job lifecycle, printer events, and execution diagnostics more clearly
+* make local troubleshooting easier after real print runs
+
+Focus:
+
+* better final job summaries
+* clearer per-step execution history in dashboard
+* stronger linkage between printer-side events and job-side state changes
+* clearer operator-facing failure narratives for real print attempts
+
+Expected result:
+
+* local print operations become easier to review after the fact
+* PrinterHub becomes more usable for repeated real-printer operations and troubleshooting
+* audit value improves beyond raw event storage
+ 
+
+---
+
+### 0.2.9 — Simulation upload more realistic
 
 status: planned
 
@@ -2363,102 +2517,7 @@ Tests:
 * `src/test/java/printerhub/api/RemoteApiServerTest.java`
 
 
-### 0.2.6 — Runtime Recovery and Serial Device Robustness
 
-status: planned
-
-Goals:
-
-* improve recovery after real USB disconnect/reconnect
-* reduce problems caused by unstable `/dev/ttyUSB*` device names
-* make real-printer administration more robust
-* improve operator visibility for serial-port failures
-
-Minor CR / anomalies:
-
-* README banner and dashboard screenshot path currently points to `docs/assets/media-src/...`, not a final published-media location
-* dashboard.js: editing a disabled printer will re-enable it unintentionally (`enabled: true` always set even on update)
-
-Focus:
-
-* keep automatic retry behavior for recoverable monitoring failures
-* better distinguish between:
-
-  * disconnected device
-  * invalid configured port
-  * temporary communication failure
-* support or document use of stable serial paths such as:
-
-```text
-/dev/serial/by-id/...
-```
-
-* improve dashboard/API error clarity for real printer connection problems
-
-Expected result:
-
-* real printers recover more reliably after reconnect scenarios
-* operators can understand whether the failure is caused by cable disconnect, changed port path, or invalid configuration
-* local runtime administration becomes safer for real hardware use
-
----
-
-### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
-
-status: planned
-
-Goals:
-
-* harden Mode 2 host-side handling of printable files used by file-backed jobs
-* clarify how PrinterHub transfers, selects, or exposes prepared `.gcode` files to the printer
-* improve validation and error reporting around missing, unreadable, or invalid print files
-* make print-file handling more reviewable in dashboard and API
-* avoid ambiguous failures during print activation caused by file-path or transfer problems
-
-Focus:
-
-* host-side printable file registry or controlled file reference handling
-* validation of file existence, readability, and allowed type
-* clearer distinction between:
-
-  * job exists but file missing
-  * file invalid
-  * file cannot be transferred, selected, or exposed
-  * printer-side print activation failed after transfer/selection
-* persist file-related diagnostics in job execution history
-
-Expected result:
-
-* file-backed print jobs become safer and more predictable
-* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
-* the runtime becomes more reliable for repeated real print activation
-
----
-
-### 0.2.8 — Post-Print Review and Operational History Hardening
-
-status: planned
-
-Goals:
-
-* improve reviewability after completed, failed, or cancelled print jobs
-* strengthen operator visibility of final print outcome
-* correlate print job lifecycle, printer events, and execution diagnostics more clearly
-* make local troubleshooting easier after real print runs
-
-Focus:
-
-* better final job summaries
-* clearer per-step execution history in dashboard
-* stronger linkage between printer-side events and job-side state changes
-* clearer operator-facing failure narratives for real print attempts
-
-Expected result:
-
-* local print operations become easier to review after the fact
-* PrinterHub becomes more usable for repeated real-printer operations and troubleshooting
-* audit value improves beyond raw event storage
- 
 
 
 ---
