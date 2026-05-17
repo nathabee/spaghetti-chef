@@ -1502,6 +1502,7 @@ function updateLivePrinterFields(container, printer) {
     bedTemperature: formatTemperature(printer.bedTemperature),
     updatedAt: formatDateTime(printer.updatedAt),
     lastResponse: printer.lastResponse || "n/a",
+    serialFailureType: printer.serialFailureType || "none",
     errorMessage: printer.errorMessage || "none"
   };
 

@@ -3,6 +3,8 @@ package printerhub.monitoring;
 import printerhub.OperationMessages;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
+import printerhub.SerialCommunicationException;
+import printerhub.SerialFailureType;
 import printerhub.config.PrinterProtocolDefaults;
 import printerhub.job.JobState;
 import printerhub.job.JobType;
@@ -221,6 +223,7 @@ public final class PrinterMonitoringTask implements Runnable {
             }
 
             String message = safeMessage(exception);
+            SerialFailureType failureType = classifySerialFailure(exception);
 
             PrinterSnapshot snapshot = PrinterSnapshot.error(
                     PrinterState.ERROR,
@@ -228,6 +231,7 @@ public final class PrinterMonitoringTask implements Runnable {
                     previousSnapshot.bedTemperature(),
                     previousSnapshot.lastResponse(),
                     message,
+                    failureType,
                     Instant.now(clock)
             );
 
@@ -405,6 +409,17 @@ public final class PrinterMonitoringTask implements Runnable {
     }
 
     private String classifyException(Exception exception) {
+        SerialFailureType failureType = classifySerialFailure(exception);
+        if (failureType == SerialFailureType.READ_TIMEOUT || failureType == SerialFailureType.CONNECT_TIMEOUT) {
+            return OperationMessages.EVENT_PRINTER_TIMEOUT;
+        }
+        if (failureType == SerialFailureType.DEVICE_DISCONNECTED
+                || failureType == SerialFailureType.DEVICE_PATH_NOT_FOUND
+                || failureType == SerialFailureType.DEVICE_PERMISSION_DENIED
+                || failureType == SerialFailureType.DEVICE_BUSY) {
+            return OperationMessages.EVENT_PRINTER_DISCONNECTED;
+        }
+
         String message = safeMessage(exception).toLowerCase(Locale.ROOT);
 
         if (message.contains("timeout")
@@ -420,6 +435,40 @@ public final class PrinterMonitoringTask implements Runnable {
         }
 
         return OperationMessages.EVENT_PRINTER_ERROR;
+    }
+
+    private SerialFailureType classifySerialFailure(Exception exception) {
+        if (exception instanceof SerialCommunicationException serialException) {
+            return serialException.failureType();
+        }
+
+        String message = safeMessage(exception).toLowerCase(Locale.ROOT);
+
+        if (message.contains("permission denied") || message.contains("access denied")) {
+            return SerialFailureType.DEVICE_PERMISSION_DENIED;
+        }
+        if (message.contains("no such file")
+                || message.contains("path not found")
+                || message.contains("does not exist")) {
+            return SerialFailureType.DEVICE_PATH_NOT_FOUND;
+        }
+        if (message.contains("busy") || message.contains("in use")) {
+            return SerialFailureType.DEVICE_BUSY;
+        }
+        if (message.contains("timeout") || message.contains("no response")) {
+            return SerialFailureType.READ_TIMEOUT;
+        }
+        if (message.contains("disconnected")
+                || message.contains("not connected")
+                || message.contains("not open")
+                || message.contains("failed to open serial port")) {
+            return SerialFailureType.DEVICE_DISCONNECTED;
+        }
+        if (message.contains("unexpected") || message.contains("malformed") || message.contains("protocol")) {
+            return SerialFailureType.PROTOCOL_ERROR;
+        }
+
+        return SerialFailureType.UNKNOWN_SERIAL_FAILURE;
     }
 
     private String safeMessage(Exception exception) {

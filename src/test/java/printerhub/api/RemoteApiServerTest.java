@@ -628,7 +628,8 @@ class RemoteApiServerTest {
             assertEquals(200, response.statusCode());
             assertEquals(
                     "{\"state\":\"UNKNOWN\",\"hotendTemperature\":null,\"bedTemperature\":null,"
-                            + "\"lastResponse\":null,\"errorMessage\":null,\"updatedAt\":null}",
+                            + "\"lastResponse\":null,\"errorMessage\":null,"
+                            + "\"serialFailureType\":null,\"updatedAt\":null}",
                     response.body());
         } finally {
             context.close();

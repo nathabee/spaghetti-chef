@@ -18,6 +18,7 @@ export function renderPrinterInfo(printer) {
         <div class="info-row"><span>Port</span><strong>${escapeHtml(printer.portName || "n/a")}</strong></div>
         <div class="info-row"><span>Mode</span><strong>${escapeHtml(printer.mode || "n/a")}</strong></div>
         <div class="info-row"><span>Last response</span><strong>${escapeHtml(printer.lastResponse || "n/a")}</strong></div>
+        <div class="info-row"><span>Serial failure type</span><strong>${escapeHtml(printer.serialFailureType || "none")}</strong></div>
         <div class="message-block">
           <span class="message-label">Current error</span>
           <div class="message-value">${escapeHtml(printer.errorMessage || "none")}</div>

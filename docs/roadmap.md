@@ -2274,7 +2274,7 @@ A second operator can open the dashboard from another PC, select the same printe
 
 
 ---
-## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+### 0.2.5 — Global monitoring workspace and cross-printer runtime observability
 
 status: done
 
@@ -2328,6 +2328,23 @@ Focus:
 ```
 
 * improve dashboard/API error clarity for real printer connection problems
+
+* now the job synchronization is basic : It jumps to the printer Print page and refreshes monitoring, but it does not yet start a dedicated job-status poller because there is no separate job live poller like the upload poller. So we beed a full live job polling.
+
+#### 0.2.6.A — Serial disconnect classification and recovery behavior
+
+status: done
+
+Goals:
+
+* classify serial communication failures with structured `serialFailureType` values
+* distinguish device path, permission, busy/disconnected, timeout, write, protocol, temporary, and unknown serial failures
+* keep monitoring retry behavior intact after a classified failure
+* expose the classification through printer status, printer info, selected-printer home, and global Monitoring runtime views
+* preserve the existing human-readable error message and event history behavior
+
+
+
 
 Expected result:
 

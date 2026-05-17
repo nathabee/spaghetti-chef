@@ -111,6 +111,7 @@ public final class GlobalMonitoringService {
                     busy,
                     node.activeJobId(),
                     snapshot == null ? null : snapshot.errorMessage(),
+                    snapshot == null ? null : snapshot.serialFailureType(),
                     snapshot == null ? null : snapshot.updatedAt()));
 
             sdCardUploadService.uploadProgress(node.id())

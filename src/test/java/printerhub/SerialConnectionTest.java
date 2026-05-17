@@ -99,13 +99,14 @@ class SerialConnectionTest {
 
         SerialConnection connection = new SerialConnection("COM1", 115200, adapter);
 
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
+        SerialCommunicationException exception = assertThrows(
+                SerialCommunicationException.class,
                 connection::connect);
 
         assertEquals(
                 "Failed to open serial port 'COM1'. Possible causes: device path is wrong, permission is missing, or the port is already in use.",
                 exception.getMessage());
+        assertEquals(SerialFailureType.DEVICE_BUSY, exception.failureType());
     }
 
     @Test
@@ -115,11 +116,12 @@ class SerialConnectionTest {
 
         SerialConnection connection = new SerialConnection("COM1", 115200, adapter);
 
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
+        SerialCommunicationException exception = assertThrows(
+                SerialCommunicationException.class,
                 connection::connect);
 
         assertEquals("Failed to initialize serial streams for port: COM1", exception.getMessage());
+        assertEquals(SerialFailureType.UNKNOWN_SERIAL_FAILURE, exception.failureType());
         assertTrue(adapter.closePortCalls >= 1);
     }
 

@@ -40,6 +40,7 @@ export function renderPrinterStatusPanel(printer) {
           <div class="info-row"><span>Printer ID</span><strong>${escapeHtml(printer.id)}</strong></div>
           <div class="info-row"><span>Port</span><strong>${escapeHtml(printer.portName || "n/a")}</strong></div>
           <div class="info-row"><span>Mode</span><strong>${escapeHtml(printer.mode || "n/a")}</strong></div>
+          <div class="info-row"><span>Serial failure</span><strong data-live-printer-field="serialFailureType">${escapeHtml(printer.serialFailureType || "none")}</strong></div>
           <div class="info-row"><span>Last response</span><strong data-live-printer-field="lastResponse">${escapeHtml(printer.lastResponse || "n/a")}</strong></div>
         </div>
 

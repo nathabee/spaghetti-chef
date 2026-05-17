@@ -1727,6 +1727,8 @@ public final class RemoteApiServer {
                 + "\"busy\":" + runtime.busy() + ","
                 + "\"activeJobId\":" + nullableString(runtime.activeJobId()) + ","
                 + "\"errorMessage\":" + nullableString(runtime.errorMessage()) + ","
+                + "\"serialFailureType\":"
+                + nullableString(runtime.serialFailureType() == null ? null : runtime.serialFailureType().name()) + ","
                 + "\"updatedAt\":"
                 + nullableString(runtime.updatedAt() == null ? null : runtime.updatedAt().toString())
                 + "}";
@@ -1748,6 +1750,10 @@ public final class RemoteApiServer {
                 + "\"bedTemperature\":" + nullableNumber(snapshot == null ? null : snapshot.bedTemperature()) + ","
                 + "\"lastResponse\":" + nullableString(snapshot == null ? null : snapshot.lastResponse()) + ","
                 + "\"errorMessage\":" + nullableString(snapshot == null ? null : snapshot.errorMessage()) + ","
+                + "\"serialFailureType\":"
+                + nullableString(snapshot == null || snapshot.serialFailureType() == null
+                        ? null
+                        : snapshot.serialFailureType().name()) + ","
                 + "\"updatedAt\":" + nullableString(snapshot == null ? null : String.valueOf(snapshot.updatedAt()))
                 + "}";
     }
@@ -1760,6 +1766,7 @@ public final class RemoteApiServer {
                     + "\"bedTemperature\":null,"
                     + "\"lastResponse\":null,"
                     + "\"errorMessage\":null,"
+                    + "\"serialFailureType\":null,"
                     + "\"updatedAt\":null"
                     + "}";
         }
@@ -1770,6 +1777,8 @@ public final class RemoteApiServer {
                 + "\"bedTemperature\":" + nullableNumber(snapshot.bedTemperature()) + ","
                 + "\"lastResponse\":" + nullableString(snapshot.lastResponse()) + ","
                 + "\"errorMessage\":" + nullableString(snapshot.errorMessage()) + ","
+                + "\"serialFailureType\":"
+                + nullableString(snapshot.serialFailureType() == null ? null : snapshot.serialFailureType().name()) + ","
                 + "\"updatedAt\":" + nullableString(String.valueOf(snapshot.updatedAt()))
                 + "}";
     }

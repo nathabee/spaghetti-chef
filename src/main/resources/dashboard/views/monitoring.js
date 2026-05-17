@@ -230,6 +230,7 @@ function renderPrintersTable(printers) {
             <th>State</th>
             <th>Busy</th>
             <th>Active job</th>
+            <th>Serial failure</th>
             <th>Updated</th>
             <th>Error</th>
           </tr>
@@ -242,6 +243,7 @@ function renderPrintersTable(printers) {
               <td><span class="badge ${resolveStateBadgeClass(printer.state)}">${escapeHtml(printer.state || "UNKNOWN")}</span></td>
               <td>${escapeHtml(printer.busy === true ? "yes" : "no")}</td>
               <td>${escapeHtml(printer.activeJobId || "none")}</td>
+              <td>${escapeHtml(printer.serialFailureType || "none")}</td>
               <td>${escapeHtml(formatDateTime(printer.updatedAt))}</td>
               <td>${escapeHtml(printer.errorMessage || "none")}</td>
             </tr>
