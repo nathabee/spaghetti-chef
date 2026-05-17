@@ -675,7 +675,9 @@ async function handleSavePrinter(form) {
   const printerModeInput = form.querySelector("#printerModeInput");
 
   const printerId = printerIdInput.value.trim();
-  const existingPrinter = state.printers.find((printer) => printer.id === printerId);
+  const editingPrinterId = form.dataset.editingPrinterId || "";
+  const targetPrinterId = editingPrinterId || printerId;
+  const existingPrinter = state.printers.find((printer) => printer.id === targetPrinterId);
   const payload = {
     id: printerId,
     displayName: printerNameInput.value.trim(),
@@ -686,8 +688,8 @@ async function handleSavePrinter(form) {
 
   try {
     if (existingPrinter) {
-      await updatePrinter(printerId, payload);
-      setMessage(`Saved printer ${printerId}.`);
+      await updatePrinter(targetPrinterId, payload);
+      setMessage(`Saved printer ${targetPrinterId}.`);
     } else {
       await createPrinter(payload);
       setMessage(`Created printer ${printerId}.`);
@@ -1375,6 +1377,7 @@ function fillPrinterForm(printer) {
   printerNameInput.value = printer.displayName || printer.name || "";
   printerPortInput.value = printer.portName || "";
   printerModeInput.value = printer.mode || "real";
+  form.dataset.editingPrinterId = printer.id || "";
 }
 
 function clearPrinterForm() {
@@ -1386,6 +1389,7 @@ function clearPrinterForm() {
   }
 
   form.reset();
+  delete form.dataset.editingPrinterId;
 
   if (printerModeInput) {
     printerModeInput.value = "real";

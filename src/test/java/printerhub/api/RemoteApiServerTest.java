@@ -741,6 +741,32 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void putPrinterWithoutEnabledPreservesExistingEnabledState() throws Exception {
+        TestContext context = createContext("printer-put-preserve-enabled.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Old Printer", "SIM_PORT", "sim", false));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Old Printer", "SIM_PORT", "sim", false));
+
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/printers/printer-1",
+                    """
+                            {"displayName":"Updated Printer","portName":"SIM_PORT_2","mode":"sim-error"}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"displayName\":\"Updated Printer\""));
+            assertTrue(response.body().contains("\"enabled\":false"));
+            assertFalse(context.printerRegistry.findById("printer-1").orElseThrow().enabled());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void putPrinterReturns404WhenMissing() throws Exception {
         TestContext context = createContext("printer-put-404.db");
 

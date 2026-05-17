@@ -2355,6 +2355,17 @@ Goals:
 * show configured port, path type, stability, and guidance in Settings, Info, and Monitoring views
 * document stable serial path discovery in install, quickstart, and dashboard docs
 
+#### 0.2.6.C — Safer printer update behavior
+
+status: done
+
+Goals:
+
+* preserve the existing enabled/disabled state when editing printer display name, mode, or port
+* keep enable/disable as an explicit operator action
+* make the dashboard edit form remember which printer is being edited, even if the visible ID field changes before save
+* verify the API preserves the existing enabled state when a PUT update omits `enabled`
+
 
 
 
