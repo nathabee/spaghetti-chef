@@ -1,5 +1,6 @@
 import { escapeHtml, isSimulatedMode } from "../dashboard.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
+import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { state } from "../state.js";
 
  export function renderSettingsPage() {
@@ -169,7 +170,8 @@ import { state } from "../state.js";
 
           <label>
             Port
-            <input id="printerPortInput" name="portName" type="text" placeholder="/dev/ttyUSB0 or SIM_PORT" required>
+            <input id="printerPortInput" name="portName" type="text" placeholder="/dev/serial/by-id/... or COM3 or SIM_PORT" required>
+            <span class="field-hint">For Linux real printers, prefer a stable /dev/serial/by-id/... path instead of /dev/ttyUSB0.</span>
           </label>
 
           <label>
@@ -220,6 +222,9 @@ import { state } from "../state.js";
 }
 
 function renderConfiguredPrinter(printer) {
+  const portKind = printer.serialPortKind || serialPortKind(printer.mode, printer.portName);
+  const stablePath = stableSerialPath(printer.mode, printer.portName, printer.stableSerialPath);
+
   return `
     <article class="config-card">
       <div class="section-header compact">
@@ -230,8 +235,10 @@ function renderConfiguredPrinter(printer) {
         <div class="badge-row">
           <span class="badge ${printer.enabled ? "badge-enabled" : "badge-disabled"}">${printer.enabled ? "enabled" : "disabled"}</span>
           <span class="badge ${isSimulatedMode(printer.mode) ? "badge-simulated" : "badge-real"}">${isSimulatedMode(printer.mode) ? "simulated" : "real"}</span>
+          <span class="badge ${stablePath ? "badge-enabled" : "badge-simulated"}">${escapeHtml(portKind)}</span>
         </div>
       </div>
+      ${renderSerialPathNotice(printer)}
       <div class="action-row">
         <button type="button" class="secondary-button" data-config-action="edit" data-printer-id="${escapeHtml(printer.id)}">Edit</button>
         <button type="button" class="secondary-button" data-config-action="enable" data-printer-id="${escapeHtml(printer.id)}">Enable</button>

@@ -312,6 +312,50 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void postPrintersReturnsStableSerialPathGuidance() throws Exception {
+        TestContext context = createContext("printers-post-stable-serial-path.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0","mode":"real","enabled":true}
+                            """);
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"portName\":\"/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0\""));
+            assertTrue(response.body().contains("\"serialPortKind\":\"STABLE_LINUX_BY_ID\""));
+            assertTrue(response.body().contains("\"stableSerialPath\":true"));
+            assertTrue(response.body().contains("\"serialPathWarning\":null"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrintersWarnsForUnstableLinuxUsbSerialPath() throws Exception {
+        TestContext context = createContext("printers-post-unstable-serial-path.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"/dev/ttyUSB0","mode":"real","enabled":true}
+                            """);
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"portName\":\"/dev/ttyUSB0\""));
+            assertTrue(response.body().contains("\"serialPortKind\":\"UNSTABLE_LINUX_USB\""));
+            assertTrue(response.body().contains("\"stableSerialPath\":false"));
+            assertTrue(response.body().contains("Prefer /dev/serial/by-id/..."));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void optionsPrintersAllowsDashboardPreflight() throws Exception {
         TestContext context = createContext("printers-options.db");
 

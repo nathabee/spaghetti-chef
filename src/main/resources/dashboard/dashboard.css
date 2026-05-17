@@ -128,6 +128,13 @@ label {
   font-weight: 600;
 }
 
+.field-hint {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 input,
 select,
 textarea {
@@ -896,6 +903,22 @@ progress::-moz-progress-bar {
   gap: 0.35rem;
   padding: 0.8rem 0;
   border-top: 1px solid var(--border-soft);
+}
+
+.serial-path-notice {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(245, 182, 111, 0.34);
+  border-radius: var(--radius-small);
+  background: var(--warn-soft);
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.serial-path-notice strong {
+  color: var(--warn);
 }
 
 .message-value,

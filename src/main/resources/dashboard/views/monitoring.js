@@ -1,4 +1,5 @@
 import { escapeHtml } from "../dashboard.js";
+import { serialPathWarning, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { state } from "../state.js";
 
 export function renderMonitoringPage() {
@@ -226,6 +227,7 @@ function renderPrintersTable(printers) {
         <thead>
           <tr>
             <th>Printer</th>
+            <th>Port</th>
             <th>Enabled</th>
             <th>State</th>
             <th>Busy</th>
@@ -239,6 +241,11 @@ function renderPrintersTable(printers) {
           ${printers.map((printer) => `
             <tr>
               <td>${escapeHtml(printer.displayName || printer.id)}</td>
+              <td>
+                ${escapeHtml(printer.portName || "n/a")}
+                <br><span class="muted">${escapeHtml(printer.serialPortKind || serialPortKind(printer.mode, printer.portName))}</span>
+                ${stableSerialPath(printer.mode, printer.portName, printer.stableSerialPath) ? "" : `<br><span class="status-warn">${escapeHtml(serialPathWarning(printer.mode, printer.portName, printer.serialPathWarning) || "Unstable serial path")}</span>`}
+              </td>
               <td>${escapeHtml(printer.enabled === true ? "yes" : "no")}</td>
               <td><span class="badge ${resolveStateBadgeClass(printer.state)}">${escapeHtml(printer.state || "UNKNOWN")}</span></td>
               <td>${escapeHtml(printer.busy === true ? "yes" : "no")}</td>

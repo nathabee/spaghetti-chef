@@ -2343,6 +2343,18 @@ Goals:
 * expose the classification through printer status, printer info, selected-printer home, and global Monitoring runtime views
 * preserve the existing human-readable error message and event history behavior
 
+#### 0.2.6.B — Stable serial path support and operator guidance
+
+status: done
+
+Goals:
+
+* allow real-printer `portName` values to use stable `/dev/serial/by-id/...` paths without rewriting the configured value
+* expose serial path metadata through printer and global Monitoring API responses
+* warn operators when a real Linux printer uses unstable `/dev/ttyUSB*` or `/dev/ttyACM*` names
+* show configured port, path type, stability, and guidance in Settings, Info, and Monitoring views
+* document stable serial path discovery in install, quickstart, and dashboard docs
+
 
 
 
@@ -2354,7 +2366,48 @@ Expected result:
 
 ---
 
-### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
+### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+
+status: planned
+
+Goals:
+
+* distinguish read-only monitoring actions from state-changing printer actions
+* protect dangerous operations behind explicit confirmation
+* introduce local operator/admin role separation
+* prevent accidental execution of risky commands from the dashboard
+* define safety wording for heating, movement, SD delete, cancel, and streamed execution
+* add audit entries for all operator-triggered state-changing actions
+* prepare authentication boundaries before central VPS integration
+
+Risky action groups:
+
+```text
+heating
+movement
+homing
+fan control
+SD delete
+file upload/overwrite
+print start
+pause/resume/cancel
+emergency stop
+streamed G-code execution
+raw command execution
+```
+
+Expected result:
+
+* PrinterHub becomes safer for real hardware operation
+* operator actions are traceable
+* central VPS integration later has a clean local permission model
+
+
+---
+
+
+
+### 0.4.1 — Print Asset Transfer and Printer File Handling Hardening
 
 status: planned
 
@@ -2386,7 +2439,7 @@ Expected result:
 
 ---
 
-### 0.2.8 — Post-Print Review and Operational History Hardening
+### 0.4.2 — Post-Print Review and Operational History Hardening
 
 status: planned
 
@@ -2413,7 +2466,7 @@ Expected result:
 
 ---
 
-### 0.2.9 — Simulation upload more realistic
+### 0.4.3 — Simulation upload more realistic
 
 status: planned
 
@@ -2539,7 +2592,7 @@ Tests:
 
 ---
 
-### 0.3.0 — Streamed G-code Job Execution
+### 0.5.0 — Streamed G-code Job Execution
 
 status: planned
 
@@ -2583,44 +2636,6 @@ Expected result:
 * mini jobs and future calibration workflows can be controlled line by line
 * autonomous print mode remains available for normal printer-side file execution
 * local 0.2.x printing supports both architecture models without moving central monitoring into scope
-
----
-
-### 0.4.0 — Local Security, Roles, and Dangerous Action Guards
-
-status: planned
-
-Goals:
-
-* distinguish read-only monitoring actions from state-changing printer actions
-* protect dangerous operations behind explicit confirmation
-* introduce local operator/admin role separation
-* prevent accidental execution of risky commands from the dashboard
-* define safety wording for heating, movement, SD delete, cancel, and streamed execution
-* add audit entries for all operator-triggered state-changing actions
-* prepare authentication boundaries before central VPS integration
-
-Risky action groups:
-
-```text
-heating
-movement
-homing
-fan control
-SD delete
-file upload/overwrite
-print start
-pause/resume/cancel
-emergency stop
-streamed G-code execution
-raw command execution
-```
-
-Expected result:
-
-* PrinterHub becomes safer for real hardware operation
-* operator actions are traceable
-* central VPS integration later has a clean local permission model
 
 
 ---

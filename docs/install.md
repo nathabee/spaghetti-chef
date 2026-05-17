@@ -88,6 +88,16 @@ Check:
 groups
 ```
 
+### Stable Linux Serial Paths
+
+For real printers, prefer the stable path from:
+
+```bash
+ls -l /dev/serial/by-id/
+```
+
+Use the full `/dev/serial/by-id/...` value as the printer `portName`. Paths such as `/dev/ttyUSB0` and `/dev/ttyACM0` are accepted, but they can change after reconnect or reboot. The dashboard shows a warning when a real printer is configured with one of those unstable Linux USB names.
+
 ---
 
 ## Windows Package
@@ -236,4 +246,3 @@ documentation.
 The admin package contains the PowerShell helper scripts and example runtime
 configuration used to bootstrap and operate a remote Windows PrinterHub host
 through OpenSSH.
-

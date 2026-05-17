@@ -503,11 +503,14 @@ It is intended for:
 
 * printer identity
 * port
+* serial path type and stability guidance
 * mode
 * current state
 * last response
 * current error
 * firmware-oriented information as the backend grows
+
+For real Linux printers, the dashboard accepts the configured path exactly as entered and does not rewrite it. Prefer `/dev/serial/by-id/...` for stable identity. If a real printer uses `/dev/ttyUSB*` or `/dev/ttyACM*`, Settings and Info show guidance because those names may change after reconnect or reboot.
 
 Firmware information is currently available through controlled job or command flows rather than as a dedicated profile endpoint.
 

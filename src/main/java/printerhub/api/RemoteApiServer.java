@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import printerhub.OperationMessages;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
+import printerhub.SerialPortGuidance;
 import printerhub.command.PrinterCommandService;
 import printerhub.command.SdCardFile;
 import printerhub.command.SdCardFileList;
@@ -1722,6 +1723,12 @@ public final class RemoteApiServer {
                 + "\"id\":\"" + escapeJson(node.id()) + "\","
                 + "\"displayName\":\"" + escapeJson(node.displayName()) + "\","
                 + "\"name\":\"" + escapeJson(node.displayName()) + "\","
+                + "\"portName\":\"" + escapeJson(node.portName()) + "\","
+                + "\"mode\":\"" + escapeJson(node.mode()) + "\","
+                + "\"serialPortKind\":\"" + escapeJson(SerialPortGuidance.kind(node.mode(), node.portName())) + "\","
+                + "\"stableSerialPath\":" + SerialPortGuidance.stable(node.mode(), node.portName()) + ","
+                + "\"serialPathWarning\":"
+                + nullableString(SerialPortGuidance.warning(node.mode(), node.portName())) + ","
                 + "\"enabled\":" + node.enabled() + ","
                 + "\"state\":\"" + escapeJson(runtime.state()) + "\","
                 + "\"busy\":" + runtime.busy() + ","
@@ -1743,6 +1750,10 @@ public final class RemoteApiServer {
                 + "\"name\":\"" + escapeJson(node.displayName()) + "\","
                 + "\"portName\":\"" + escapeJson(node.portName()) + "\","
                 + "\"mode\":\"" + escapeJson(node.mode()) + "\","
+                + "\"serialPortKind\":\"" + escapeJson(SerialPortGuidance.kind(node.mode(), node.portName())) + "\","
+                + "\"stableSerialPath\":" + SerialPortGuidance.stable(node.mode(), node.portName()) + ","
+                + "\"serialPathWarning\":"
+                + nullableString(SerialPortGuidance.warning(node.mode(), node.portName())) + ","
                 + "\"enabled\":" + node.enabled() + ","
                 + "\"state\":\"" + (snapshot == null ? "UNKNOWN" : snapshot.state()) + "\","
                 + "\"hotendTemperature\":" + nullableNumber(snapshot == null ? null : snapshot.hotendTemperature())
