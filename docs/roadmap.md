@@ -2425,6 +2425,18 @@ Expected result:
 * operator actions are traceable
 * central VPS integration later has a clean local permission model
 
+#### 0.3.0.A — Local role and permission model
+
+status: done
+
+Goals:
+
+* define built-in local roles: `VIEWER`, `OPERATOR`, and `ADMIN`
+* define explicit backend permissions for dashboard viewing, printer visibility, monitoring, job control, SD-card/file operations, command execution, runtime configuration, and security management
+* provide built-in role profiles that map each role to its default permission set
+* add a lightweight `AuthorizationService` that can answer and enforce permission checks before API endpoint guards are wired in later steps
+* keep the first implementation local and persistence-free so Step B can store the profiles cleanly
+
 
 ---
 

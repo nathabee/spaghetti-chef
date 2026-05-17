@@ -13,7 +13,17 @@ next:
 
 ## Version (done)
 
+
+
+
+
+## 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+
+- 0.3.0.A — Local role and permission model
+
+
 ## 0.2.x — Local Runtime Administration and Job Management
+
 
 
 - 0.2.6.D — Full live job synchronization from Monitoring
