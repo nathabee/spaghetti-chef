@@ -128,6 +128,10 @@ export async function getJobs() {
   return Array.isArray(data.jobs) ? data.jobs : [];
 }
 
+export async function getJob(jobId) {
+  return requestJson(`/jobs/${encodeURIComponent(jobId)}`);
+}
+
 export async function getPrintFiles() {
   const data = await requestJson("/print-files");
   return Array.isArray(data.printFiles) ? data.printFiles : [];

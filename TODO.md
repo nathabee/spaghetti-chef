@@ -1,369 +1,397 @@
- 
-### 0.2.6 — Runtime Recovery and Serial Device Robustness
+### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
 status: planned
 
 Purpose:
 
-Harden PrinterHub for real USB-connected printer operation after the upload-monitoring and global runtime observability work from `0.2.4` and `0.2.5`.
+Introduce a local authorization and safety model before PrinterHub grows into
+central VPS / multi-farm operation.
 
-This step focuses on recovery, serial-port reliability, clearer operator diagnostics, and live job synchronization from the global Monitoring workspace.
+This step does not yet implement full enterprise identity management. It creates
+the local permission model, role profiles, backend guards, dashboard visibility,
+dangerous-action confirmation, and audit behavior needed for safe real-printer
+operation.
 
 Goals:
 
-* improve recovery after real USB disconnect/reconnect
-* reduce problems caused by unstable `/dev/ttyUSB*` device names
-* make real-printer administration safer
-* improve operator visibility for serial-port failures
-* add full live job-follow polling from the global Monitoring page
-* fix minor dashboard/documentation anomalies found during `0.2.5`
+* distinguish read-only monitoring from state-changing printer operations
+* introduce local role profiles such as `VIEWER`, `OPERATOR`, and `ADMIN`
+* map roles to explicit backend permissions
+* enforce permissions in the API, not only in the dashboard
+* protect dangerous actions behind explicit confirmation
+* add audit entries for operator-triggered state-changing actions
+* prepare the security boundary needed before central VPS integration
 
 ---
 
-#### 0.2.6.A — Serial disconnect classification and recovery behavior
+#### 0.3.0.A — Local role and permission model
 
-Goal:
+status: planned
 
-Make real-printer failures easier to classify and recover from.
+Goals:
 
-Current problem:
-
-A real printer can fail for different reasons that currently look too similar from the dashboard:
-
-* USB cable unplugged
-* printer powered off
-* `/dev/ttyUSB0` changed to `/dev/ttyUSB1`
-* configured port no longer exists
-* serial port exists but cannot be opened
-* command timeout during communication
-* printer returns malformed or unexpected serial response
-
-Required behavior:
-
-* keep automatic retry behavior for recoverable monitoring failures
-* do not permanently disable a printer because of one temporary communication failure
-* classify connection failures more explicitly
-* expose clear failure detail in API and dashboard
-
-Suggested backend classifications:
+* define built-in local roles:
 
 ```text
-DEVICE_PATH_NOT_FOUND
-DEVICE_PERMISSION_DENIED
-DEVICE_BUSY
-DEVICE_DISCONNECTED
-CONNECT_TIMEOUT
-READ_TIMEOUT
-WRITE_FAILURE
-PROTOCOL_ERROR
-TEMPORARY_COMMUNICATION_FAILURE
-UNKNOWN_SERIAL_FAILURE
+VIEWER
+OPERATOR
+ADMIN
 ````
 
+* define explicit permissions for printer viewing, printer configuration, monitoring configuration, job control, SD-card operations, command execution, and security management
+* keep roles human-readable while enforcing permission checks internally
+* keep the first implementation local and lightweight
+
+Initial role intent:
+
+```text
+VIEWER   -> read-only monitoring and diagnostics
+OPERATOR -> normal printer operation and prepared job control
+ADMIN    -> runtime configuration, printer administration, and security settings
+```
+
 Expected result:
 
-* operators can distinguish between cable/power problems, invalid path configuration, and temporary printer communication failure
-* monitoring can continue retrying recoverable failures
-* dashboard and event history become more useful during real hardware debugging
+* PrinterHub has a clear local access model
+* dangerous and administrative actions are no longer treated the same as read-only dashboard viewing
 
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/SerialConnection.java
-src/main/java/printerhub/PrinterPort.java
-src/main/java/printerhub/monitoring/PrinterMonitoringTask.java
-src/main/java/printerhub/runtime/PrinterRuntimeStateCache.java
-src/main/java/printerhub/PrinterSnapshot.java
+src/main/java/printerhub/security/LocalRole.java
+src/main/java/printerhub/security/Permission.java
+src/main/java/printerhub/security/RoleProfile.java
+src/main/java/printerhub/security/AuthorizationService.java
 src/main/java/printerhub/OperationMessages.java
-src/main/java/printerhub/persistence/PrinterEventStore.java
-src/main/java/printerhub/api/RemoteApiServer.java
-```
-
-Tests:
-
-```text
-src/test/java/printerhub/SerialConnectionTest.java
-src/test/java/printerhub/monitoring/PrinterMonitoringTaskTest.java
-src/test/java/printerhub/api/RemoteApiServerTest.java
 ```
 
 ---
 
-#### 0.2.6.B — Stable serial path support and operator guidance
+#### 0.3.0.B — Persist local security settings and role profiles
 
-Goal:
+status: planned
 
-Make real-printer configuration less fragile than `/dev/ttyUSB0`.
+Goals:
 
-Problem:
+* persist local security settings in SQLite
+* initialize built-in role profiles with default permissions
+* expose local security configuration through API
+* avoid user-account complexity in the first version
 
-Linux USB serial names such as:
-
-```text
-/dev/ttyUSB0
-/dev/ttyUSB1
-```
-
-note in windows it is somethink like "COM3"
-
-can change after unplug/replug, reboot, or connecting another USB serial device.
-
-Preferred stable path style:
+Suggested persisted model:
 
 ```text
-/dev/serial/by-id/...
+security_settings
+├── security_enabled
+├── default_role
+├── require_dangerous_action_confirmation
+├── created_at
+└── updated_at
 ```
 
-Required behavior:
+```text
+role_profiles
+├── role_name
+├── permissions_json
+├── built_in
+├── created_at
+└── updated_at
+```
 
-* allow configured printer port names to use stable `/dev/serial/by-id/...` paths
-* validate and display the configured path clearly
-* document how operators should find and use stable serial paths
-* optionally show a warning when a real printer uses an unstable `/dev/ttyUSB*` path
+Suggested API:
 
-Dashboard/API behavior:
-
-* keep the configured port visible
-* show a clear warning for unstable paths
-* show a clearer error when the configured path does not exist
-* do not silently rewrite the configured path
+```text
+GET /security/profile
+GET /security/roles
+PUT /security/roles
+GET /settings/security
+PUT /settings/security
+```
 
 Expected result:
 
-* operators can configure real printers using stable serial paths
-* reconnect/reboot scenarios become more predictable
-* support/debug work becomes easier because port identity is explicit
+* role behavior is no longer hardcoded only in Java
+* local security defaults survive restart
+* later authentication can reuse the same role/permission model
 
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/runtime/PrinterRuntimeNodeFactory.java
-src/main/java/printerhub/persistence/PrinterConfigurationStore.java
+src/main/java/printerhub/persistence/SecuritySettingsStore.java
+src/main/java/printerhub/persistence/RoleProfileStore.java
+src/main/java/printerhub/persistence/DatabaseInitializer.java
 src/main/java/printerhub/api/RemoteApiServer.java
-src/main/resources/dashboard/views/settings.js
-src/main/resources/dashboard/views/printer-info.js
-src/main/resources/dashboard/views/printer-home.js
-src/main/resources/dashboard/dashboard.css
-docs/install.md
-docs/quickstart.md
-docs/dashboard.md
-```
-
-Tests:
-
-```text
-src/test/java/printerhub/api/RemoteApiServerTest.java
-src/test/java/printerhub/persistence/PrinterConfigurationStoreTest.java
-```
-
----
-
-#### 0.2.6.C — Safer printer update behavior
-
-Goal:
-
-Fix unintended dashboard behavior when editing disabled printers.
-
-Current anomaly:
-
-When editing a disabled printer in the dashboard, the frontend can unintentionally send:
-
-```javascript
-enabled: true
-```
-
-or otherwise restore the printer to enabled state during update.
-
-Required behavior:
-
-* editing printer identity, display name, mode, or port must preserve the existing enabled/disabled state
-* enabling/disabling remains an explicit operator action
-* update behavior must not surprise the operator
-
-Expected result:
-
-* disabled printers stay disabled after edit
-* printer update is safer during hardware troubleshooting
-
-Likely impacted files:
-
-```text
-src/main/resources/dashboard/dashboard.js
-src/main/resources/dashboard/views/settings.js
-src/main/java/printerhub/api/RemoteApiServer.java
-```
-
-Tests:
-
-```text
-src/test/java/printerhub/api/RemoteApiServerTest.java
-```
-
-Manual verification:
-
-```text
-1. create printer
-2. disable printer
-3. edit printer name or port
-4. save
-5. verify printer remains disabled
-```
-
----
-
-#### 0.2.6.D — Full live job synchronization from Monitoring
-
-Goal:
-
-Complete the job-follow behavior introduced in `0.2.5`.
-
-Current behavior:
-
-The Monitoring page can follow a job by jumping to the selected printer Print page, but it does not yet start a dedicated live job-status poller.
-
-Required behavior:
-
-* add a job synchronization mode similar to upload synchronization
-* allow Monitoring → job follow to:
-
-  * select the printer
-  * open selected printer / Print
-  * start live polling for that job
-* refresh job state, events, and execution steps while synchronization is active
-* provide a Stop sync control
-* preserve expanded diagnostics/history panels where possible
-
-Suggested polling endpoints:
-
-```text
-GET /jobs/{id}
-GET /jobs/{id}/events
-GET /jobs/{id}/execution-steps
-```
-
-or, if simpler for now:
-
-```text
-GET /jobs
-GET /jobs/{id}/events
-GET /jobs/{id}/execution-steps
-```
-
-Recommended first implementation:
-
-* poll every 2–3 seconds (nothing hard coded we have config files, mostly manage in settinsg frontend dashboard also)
-* stop automatically when job reaches a terminal state:
-
-```text
-COMPLETED
-FAILED
-CANCELLED
-```
-
-* keep manual refresh available
-* do not refresh unrelated full dashboard state more than necessary
-
-Expected result:
-
-* from the global Monitoring page, an operator can follow a running job live
-* selected-printer Print becomes a real job observation page, not only a static job list
-* job follow reaches parity with upload follow
-
-Likely impacted files:
-
-```text
-src/main/resources/dashboard/dashboard.js
+src/main/resources/dashboard/api.js
 src/main/resources/dashboard/state.js
+src/main/resources/dashboard/views/settings.js
+```
+
+---
+
+#### 0.3.0.C — Backend authorization guard for API endpoints
+
+status: planned
+
+Goals:
+
+* enforce authorization in backend API handlers
+* keep dashboard button visibility as UX only, not as the security boundary
+* reject forbidden actions with clear API errors
+* classify endpoint permissions consistently
+
+Permission examples:
+
+```text
+PRINTER_VIEW
+PRINTER_CONFIGURE
+MONITORING_VIEW
+MONITORING_CONFIGURE
+JOB_VIEW
+JOB_CREATE
+JOB_START
+JOB_PAUSE
+JOB_RESUME
+JOB_CANCEL
+JOB_RESTART
+JOB_DELETE
+SD_VIEW
+SD_REFRESH
+SD_UPLOAD
+SD_DELETE
+SD_RECOVERY_CLOSE_UPLOAD
+COMMAND_READ
+COMMAND_SAFE_CONTROL
+COMMAND_DANGEROUS_CONTROL
+COMMAND_RAW
+SETTINGS_VIEW
+SETTINGS_UPDATE
+SECURITY_VIEW
+SECURITY_MANAGE
+```
+
+Example endpoint mapping:
+
+```text
+GET /printers                         -> PRINTER_VIEW
+POST /printers                        -> PRINTER_CONFIGURE
+PUT /printers/{id}                    -> PRINTER_CONFIGURE
+DELETE /printers/{id}                 -> PRINTER_CONFIGURE
+PUT /settings/monitoring              -> MONITORING_CONFIGURE
+POST /jobs/{id}/start                 -> JOB_START
+POST /jobs/{id}/pause                 -> JOB_PAUSE
+POST /jobs/{id}/resume                -> JOB_RESUME
+POST /jobs/{id}/cancel                -> JOB_CANCEL
+POST /printers/{id}/sd-card/uploads   -> SD_UPLOAD
+DELETE /printer-sd-files/{id}         -> SD_DELETE
+POST /printers/{id}/commands          -> command-specific permission
+```
+
+Expected result:
+
+* unauthorized state-changing requests are blocked even if called directly through curl
+* API responses clearly explain forbidden actions
+* central VPS integration later can reuse the same authorization boundary
+
+Likely impacted files:
+
+```text
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/java/printerhub/security/AuthorizationService.java
+src/main/java/printerhub/security/ActionPermissionResolver.java
+src/test/java/printerhub/api/RemoteApiServerTest.java
+```
+
+---
+
+#### 0.3.0.D — Dangerous action confirmation model
+
+status: planned
+
+Goals:
+
+* require explicit confirmation for risky printer actions
+* avoid accidental heating, movement, file deletion, print start, cancel, recovery close, raw command, and future streamed execution
+* return a clear confirmation-required API error when confirmation is missing
+* make the dashboard wording explicit about physical printer effects
+
+Risky action groups:
+
+```text
+HEATING
+MOVEMENT
+HOMING
+SD_DELETE
+FILE_UPLOAD_OVERWRITE
+PRINT_START
+PRINT_CANCEL
+RECOVERY_CLOSE_UPLOAD
+RAW_COMMAND
+STREAMED_GCODE_EXECUTION
+```
+
+Suggested request behavior:
+
+```json
+{
+  "confirmed": true,
+  "confirmationReason": "Operator confirmed nozzle heating"
+}
+```
+
+Suggested rejection behavior:
+
+```json
+{
+  "error": "confirmation_required",
+  "requiredConfirmation": "HEATING"
+}
+```
+
+Expected result:
+
+* dangerous operations require intentional operator acknowledgement
+* safety behavior is enforced by backend, not only by frontend wording
+
+Likely impacted files:
+
+```text
+src/main/java/printerhub/security/DangerousAction.java
+src/main/java/printerhub/security/DangerousActionGuard.java
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/resources/dashboard/dashboard.js
+src/main/resources/dashboard/views/printer-prepare.js
+src/main/resources/dashboard/views/printer-control.js
+src/main/resources/dashboard/views/printer-sd-card.js
+src/main/resources/dashboard/components/job-card.js
+```
+
+---
+
+#### 0.3.0.E — Dashboard role-aware controls
+
+status: planned
+
+Goals:
+
+* show current local role/security mode in the dashboard
+* hide or disable actions the current role cannot execute
+* show clear reason text for disabled controls
+* keep dangerous actions visually distinct
+* add local security settings to Settings
+
+Dashboard behavior:
+
+```text
+VIEWER:
+  dashboard remains useful for monitoring, but action buttons are disabled or hidden
+
+OPERATOR:
+  normal job and SD-card operation buttons remain available
+
+ADMIN:
+  configuration, settings, and security management controls are available
+```
+
+Expected result:
+
+* the UI communicates what the current operator can do
+* fewer accidental action attempts happen before API rejection
+* local role behavior is understandable without reading backend code
+
+Likely impacted files:
+
+```text
+src/main/resources/dashboard/views/settings.js
 src/main/resources/dashboard/views/monitoring.js
 src/main/resources/dashboard/views/printer-print.js
+src/main/resources/dashboard/views/printer-sd-card.js
+src/main/resources/dashboard/views/printer-prepare.js
+src/main/resources/dashboard/views/printer-control.js
 src/main/resources/dashboard/components/job-card.js
-src/main/resources/dashboard/api.js
+src/main/resources/dashboard/components/nav.js
 src/main/resources/dashboard/dashboard.css
-```
-
-Possible backend impact:
-
-```text
-src/main/java/printerhub/api/RemoteApiServer.java
-```
-
-Only needed if `GET /jobs/{id}` is missing, incomplete, or does not return enough detail.
-
-Tests:
-
-```text
-src/test/java/printerhub/api/RemoteApiServerTest.java
-```
-
-Manual verification:
-
-```text
-1. create or select a running job
-2. open Monitoring
-3. click follow/synchronize for that job
-4. verify dashboard opens selected printer / Print
-5. verify job state updates without pressing Refresh now
-6. verify events/diagnostics update while sync is active
-7. verify sync stops or becomes inactive after terminal job state
 ```
 
 ---
 
-#### 0.2.6.E — Documentation and media path cleanup
+#### 0.3.0.F — Audit events for authorized and rejected state-changing actions
 
-Goal:
+status: planned
 
-Clean minor documentation inconsistencies that became visible during dashboard updates.
+Goals:
 
-Known anomalies:
+* persist audit entries for operator-triggered state-changing actions
+* record whether the action was accepted or rejected by authorization/confirmation guards
+* include role, permission, action type, printer/job/file target, result, and failure reason
+* keep audit useful even before real user accounts exist
 
-* README banner and screenshot paths should point to final published media locations, not temporary source-media paths
-* dashboard screenshots should not duplicate the same image for different sections
-* dashboard documentation should mention Monitoring and synchronization behavior consistently
-
-Required behavior:
-
-* keep README global and concise
-* keep detailed dashboard behavior in `docs/dashboard.md`
-* keep version and roadmap details in `docs/version.md` and `docs/roadmap.md`
-* avoid turning README into another roadmap/status file
-
-Likely impacted files:
+Initial actor model:
 
 ```text
-README.md
-docs/dashboard.md
-docs/install.md
-docs/quickstart.md
-docs/assets/...
+actor = local-dashboard
+role = current/default local role
+```
+
+Later actor model:
+
+```text
+actor = authenticated user
+role = resolved user role
 ```
 
 Expected result:
 
-* README remains a stable project overview
-* dashboard documentation reflects the current UI structure
-* media paths are consistent and publishable
+* local printer operations become traceable
+* rejected dangerous or unauthorized actions are visible
+* later authentication can enrich the same audit trail instead of replacing it
+
+Likely impacted files:
+
+```text
+src/main/java/printerhub/persistence/PrinterEventStore.java
+src/main/java/printerhub/persistence/OperatorAuditStore.java
+src/main/java/printerhub/security/AuthorizationService.java
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/resources/dashboard/views/printer-history.js
+src/main/resources/dashboard/views/monitoring.js
+```
 
 ---
 
-## Expected result for 0.2.6
+## Expected result for 0.3.0
 
-After this step, PrinterHub should be more reliable for real hardware operation.
+After this step, PrinterHub has a real local safety and authorization boundary.
 
 Expected improvements:
 
-* real printers recover more predictably after USB reconnect scenarios
-* operators can understand whether a failure is caused by cable disconnect, changed port path, invalid configuration, permission problem, timeout, or printer response problem
-* stable serial paths such as `/dev/serial/by-id/...` are supported and documented
-* disabled printers are not accidentally re-enabled by editing their configuration
-* global Monitoring can follow both uploads and jobs live
-* dashboard documentation and media paths are cleaned up without turning README into a status log
+* read-only monitoring is separated from printer control
+* state-changing actions require suitable permissions
+* dangerous physical actions require explicit confirmation
+* dashboard controls reflect the current local role
+* API endpoints reject unauthorized direct calls
+* operator-triggered actions are auditable
+* the local runtime is better prepared for central VPS authentication later
 
 Non-goals:
 
-* no central/VPS orchestration yet
-* no slicer integration
-* no full production print supervision
-* no automatic remapping from `/dev/ttyUSB*` to `/dev/serial/by-id/...`
-* no automatic persistent tuning of runtime batch size back into operator settings
+* no central user database yet
+* no OAuth/OIDC yet
+* no multi-farm identity model yet
+* no internet-facing authentication design yet
+* no per-tenant enterprise access model yet
  
+
+
+## My recommendation for implementation order
+
+Do it in this order:
+
+```text
+1. Permission enum + built-in role profiles
+2. SecuritySettingsStore + RoleProfileStore
+3. AuthorizationService
+4. Apply guards in RemoteApiServer
+5. Add confirmation-required model for dangerous actions
+6. Add dashboard role-aware controls
+7. Add audit entries
+``` 

@@ -2366,6 +2366,18 @@ Goals:
 * make the dashboard edit form remember which printer is being edited, even if the visible ID field changes before save
 * verify the API preserves the existing enabled state when a PUT update omits `enabled`
 
+#### 0.2.6.D — Full live job synchronization from Monitoring
+
+status: done
+
+Goals:
+
+* add a selected-job synchronization poller that refreshes job state, history, and execution diagnostics
+* let Monitoring job synchronization jump to Selected Printer / Print and start live job follow
+* show live job sync state and a Stop sync control on the selected-printer Print page
+* stop synchronization automatically when a job reaches `COMPLETED`, `FAILED`, or `CANCELLED`
+* keep manual job controls and existing upload synchronization behavior unchanged
+
 
 
 

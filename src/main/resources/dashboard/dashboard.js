@@ -7,6 +7,7 @@ import {
   deleteJob,
   deletePrinter,
   executePrinterCommand,
+  getJob,
   getJobEvents,
   getJobExecutionSteps,
   getJobs,
@@ -57,6 +58,8 @@ import {
   setJobEvents,
   setJobCardSectionOpen,
   setJobExecutionSteps,
+  setJob,
+  setJobSynchronization,
   setJobs,
   setLastRefreshLabel,
   setMessage,
@@ -89,6 +92,8 @@ const lastRefreshElement = document.getElementById("lastRefresh");
 let printerRefreshInterval = null;
 let pendingPrinterFormFill = null;
 const uploadStatusPollers = new Map();
+const jobStatusPollers = new Map();
+const JOB_STATUS_POLLING_INTERVAL_MS = 2500;
 
 async function boot() {
   bindGlobalListeners();
@@ -440,6 +445,13 @@ function bindGlobalListeners() {
     const stopSyncUploadStatusButton = event.target.closest("[data-stop-sync-sd-upload-status]");
     if (stopSyncUploadStatusButton) {
       handleStopUploadStatusSynchronization(stopSyncUploadStatusButton.dataset.stopSyncSdUploadStatus);
+      renderApp();
+      return;
+    }
+
+    const stopSyncJobButton = event.target.closest("[data-stop-sync-job]");
+    if (stopSyncJobButton) {
+      handleStopJobSynchronization(stopSyncJobButton.dataset.stopSyncJob);
       renderApp();
       return;
     }
@@ -974,8 +986,57 @@ async function handleMonitoringSyncJob(printerId, jobId) {
   setSelectedPrinter(printerId);
   setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
   setPrinterView(PRINTER_VIEW_IDS.PRINT);
-  await refreshMonitoringOverview({ silent: true });
+  handleStartJobSynchronization(jobId);
   setMessage(`Following job ${jobId || ""} on ${printerId}.`);
+}
+
+function handleStartJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  setJobSynchronization(jobId, true);
+  setJobCardSectionOpen(jobId, "history", true);
+  setJobCardSectionOpen(jobId, "diagnostics", true);
+  startJobStatusPolling(jobId);
+  refreshJobSynchronization(jobId).catch(() => {
+    setMessage(`Failed to synchronize job ${jobId}.`);
+    handleStopJobSynchronization(jobId);
+    renderApp();
+  });
+}
+
+function handleStopJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  setJobSynchronization(jobId, false);
+  stopJobStatusPolling(jobId);
+  setMessage(`Stopped job synchronization for ${jobId}.`);
+}
+
+function startJobStatusPolling(jobId) {
+  stopJobStatusPolling(jobId);
+
+  const intervalId = window.setInterval(() => {
+    refreshJobSynchronization(jobId).catch(() => {
+      // Keep the last visible job state if one poll fails.
+    });
+  }, JOB_STATUS_POLLING_INTERVAL_MS);
+
+  jobStatusPollers.set(jobId, intervalId);
+}
+
+function stopJobStatusPolling(jobId) {
+  const intervalId = jobStatusPollers.get(jobId);
+
+  if (!intervalId) {
+    return;
+  }
+
+  window.clearInterval(intervalId);
+  jobStatusPollers.delete(jobId);
 }
 
 function stopManualUploadStatusSynchronizations() {
@@ -984,6 +1045,43 @@ function stopManualUploadStatusSynchronizations() {
   }
 
   state.uploadStatusSynchronization.clear();
+}
+
+function stopJobSynchronizations() {
+  for (const jobId of state.jobSynchronization) {
+    stopJobStatusPolling(jobId);
+  }
+
+  state.jobSynchronization.clear();
+}
+
+async function refreshJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  const [job, events, executionSteps] = await Promise.all([
+    getJob(jobId),
+    getJobEvents(jobId),
+    getJobExecutionSteps(jobId)
+  ]);
+
+  setJob(job);
+  setJobEvents(jobId, events);
+  setJobExecutionSteps(jobId, executionSteps);
+  setLastRefreshLabel(new Date().toLocaleTimeString());
+
+  if (isTerminalJobState(job.state)) {
+    setJobSynchronization(jobId, false);
+    stopJobStatusPolling(jobId);
+    setMessage(`Job ${jobId} reached ${job.state}; synchronization stopped.`);
+  }
+
+  renderApp();
+}
+
+function isTerminalJobState(stateValue) {
+  return ["COMPLETED", "FAILED", "CANCELLED"].includes(String(stateValue || "").toUpperCase());
 }
 
 async function refreshUploadStatus(printerId) {
@@ -1364,12 +1462,13 @@ async function runPrinterCommand(printerId, command) {
 }
 
 function fillPrinterForm(printer) {
+  const form = document.getElementById("printerConfigForm");
   const printerIdInput = document.getElementById("printerIdInput");
   const printerNameInput = document.getElementById("printerNameInput");
   const printerPortInput = document.getElementById("printerPortInput");
   const printerModeInput = document.getElementById("printerModeInput");
 
-  if (!printerIdInput || !printerNameInput || !printerPortInput || !printerModeInput) {
+  if (!form || !printerIdInput || !printerNameInput || !printerPortInput || !printerModeInput) {
     return;
   }
 

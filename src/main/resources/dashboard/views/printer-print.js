@@ -2,9 +2,10 @@ import { renderJobCard } from "../components/job-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { escapeHtml, formatDateTime } from "../dashboard.js";
-import { getPrinterSdUploadStatus, isJobCardSectionOpen, state } from "../state.js";
+import { getPrinterSdUploadStatus, isJobCardSectionOpen, isJobSynchronized, state } from "../state.js";
 
 export function renderPrinterPrint(printer, jobsForPrinter) {
+  const synchronizedJobs = jobsForPrinter.filter((job) => isJobSynchronized(job.id));
   const jobsHtml = jobsForPrinter.length === 0
     ? `<div class="empty-state"><h3>No jobs assigned</h3><p class="muted">Create a job below or leave placeholders visible for the later production workflow.</p></div>`
     : jobsForPrinter.map((job) => renderJobCard(job, {
@@ -24,6 +25,8 @@ export function renderPrinterPrint(printer, jobsForPrinter) {
           <p class="lead">Current backend jobs stay visible here and this page is prepared to evolve toward piece-oriented production jobs later.</p>
         </div>
       </div>
+
+      ${renderJobSynchronizationControls(synchronizedJobs)}
 
       <form id="jobForm" class="form-grid">
         <label>
@@ -101,6 +104,29 @@ export function renderPrinterPrint(printer, jobsForPrinter) {
         ]
       )}
     </section>
+  `;
+}
+
+function renderJobSynchronizationControls(jobs) {
+  if (jobs.length === 0) {
+    return `
+      <div class="sync-status-row">
+        <span class="sync-active-indicator sync-idle"></span>
+        <span class="muted">Manual job refresh only.</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="sync-status-row">
+      <span class="sync-active-indicator sync-active"></span>
+      <strong>Live job sync active</strong>
+      ${jobs.map((job) => `
+        <button type="button" class="secondary-button small-button" data-stop-sync-job="${escapeHtml(job.id)}">
+          Stop sync ${escapeHtml(job.name || job.id)}
+        </button>
+      `).join("")}
+    </div>
   `;
 }
 
