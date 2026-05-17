@@ -16,6 +16,8 @@ import {
   getPrintFileContent,
   getPrintFileSettings,
   getSerialTransferSettings,
+  getSecurityRoles,
+  getSecuritySettings,
   getPrintFiles,
   getPrinterEvents,
   getPrinterSdCardFiles,
@@ -31,6 +33,7 @@ import {
   saveMonitoringRules,
   savePrintFileSettings,
   saveSerialTransferSettings,
+  saveSecuritySettings,
   setPrinterSdFileEnabled,
   setPrinterEnabled,
   startJob,
@@ -69,6 +72,8 @@ import {
   setPrintFiles,
   setPrinterSdFiles,
   setSerialTransferSettings,
+  setSecurityRoles,
+  setSecuritySettings,
   setPrinterCommandResult,
   setPrinterEvents,
   setPrinterSdCardFiles,
@@ -113,6 +118,8 @@ async function refreshAllData(options = {}) {
       monitoringRules,
       printFileSettings,
       serialTransferSettings,
+      securitySettings,
+      securityRoles,
       monitoringOverview
     ] = await Promise.all([
       getPrinters(),
@@ -122,6 +129,8 @@ async function refreshAllData(options = {}) {
       getMonitoringRules(),
       getPrintFileSettings(),
       getSerialTransferSettings(),
+      getSecuritySettings(),
+      getSecurityRoles(),
       getMonitoringOverview()
     ]);
 
@@ -132,6 +141,8 @@ async function refreshAllData(options = {}) {
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
     setSerialTransferSettings(serialTransferSettings);
+    setSecuritySettings(securitySettings);
+    setSecurityRoles(securityRoles);
     setMonitoringOverview(monitoringOverview);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
@@ -621,6 +632,15 @@ function bindPageListeners() {
     });
   }
 
+  const securitySettingsForm = document.getElementById("securitySettingsForm");
+  if (securitySettingsForm) {
+    securitySettingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await handleSaveSecuritySettings(securitySettingsForm);
+      renderApp();
+    });
+  }
+
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
     jobForm.addEventListener("submit", async (event) => {
@@ -795,6 +815,22 @@ async function handleSavePrintFileSettings(form) {
     await refreshAllData({ silent: true });
   } catch (error) {
     setMessage(`Failed to save print file settings: ${error.message}`);
+  }
+}
+
+async function handleSaveSecuritySettings(form) {
+  const payload = {
+    securityEnabled: form.querySelector("#securityEnabledInput").checked,
+    defaultRole: form.querySelector("#securityDefaultRoleInput").value,
+    requireDangerousActionConfirmation: form.querySelector("#securityDangerousConfirmationInput").checked
+  };
+
+  try {
+    await saveSecuritySettings(payload);
+    setMessage("Saved local security settings.");
+    await refreshAllData({ silent: true });
+  } catch (error) {
+    setMessage(`Failed to save local security settings: ${error.message}`);
   }
 }
 

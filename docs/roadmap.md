@@ -2437,6 +2437,18 @@ Goals:
 * add a lightweight `AuthorizationService` that can answer and enforce permission checks before API endpoint guards are wired in later steps
 * keep the first implementation local and persistence-free so Step B can store the profiles cleanly
 
+#### 0.3.0.B — Persist local security settings and role profiles
+
+status: done
+
+Goals:
+
+* persist local security settings in SQLite with `securityEnabled`, `defaultRole`, and dangerous-action confirmation behavior
+* persist built-in role profiles with permission JSON for `VIEWER`, `OPERATOR`, and `ADMIN`
+* seed built-in role profiles during database initialization without changing user-modified profile permissions
+* expose local security defaults through `/settings/security`, `/security/profile`, and `/security/roles`
+* surface the first local security settings card and role profile summary in the dashboard Settings page
+
 
 ---
 

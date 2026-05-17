@@ -38,12 +38,18 @@ import printerhub.persistence.PrintFileSettingsStore;
 import printerhub.persistence.PrinterConfigurationStore;
 import printerhub.persistence.PrinterEvent;
 import printerhub.persistence.PrinterEventStore;
+import printerhub.persistence.RoleProfileStore;
+import printerhub.persistence.SecuritySettings;
+import printerhub.persistence.SecuritySettingsStore;
 import printerhub.persistence.SerialTransferSettings;
 import printerhub.persistence.SerialTransferSettingsStore;
 import printerhub.runtime.PrinterRegistry;
 import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeNodeFactory;
 import printerhub.runtime.PrinterRuntimeStateCache;
+import printerhub.security.LocalRole;
+import printerhub.security.Permission;
+import printerhub.security.RoleProfile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +60,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -69,6 +76,8 @@ public final class RemoteApiServer {
     private final MonitoringRulesStore monitoringRulesStore;
     private final PrintFileSettingsStore printFileSettingsStore;
     private final SerialTransferSettingsStore serialTransferSettingsStore;
+    private final SecuritySettingsStore securitySettingsStore;
+    private final RoleProfileStore roleProfileStore;
     private final PrinterEventStore printerEventStore;
     private final PrinterCommandService printerCommandService;
     private final SdCardService sdCardService;
@@ -162,6 +171,8 @@ public final class RemoteApiServer {
         this.monitoringRulesStore = monitoringRulesStore;
         this.printFileSettingsStore = printFileSettingsStore;
         this.serialTransferSettingsStore = serialTransferSettingsStore;
+        this.securitySettingsStore = new SecuritySettingsStore();
+        this.roleProfileStore = new RoleProfileStore();
         this.printerEventStore = printerEventStore;
         this.printerCommandService = printerCommandService;
         this.sdCardService = sdCardService;
@@ -205,6 +216,9 @@ public final class RemoteApiServer {
                     exchange -> safeHandle(exchange, this::handlePrintFileSettings));
             server.createContext("/settings/serial-transfer",
                     exchange -> safeHandle(exchange, this::handleSerialTransferSettings));
+            server.createContext("/settings/security",
+                    exchange -> safeHandle(exchange, this::handleSecuritySettings));
+            server.createContext("/security", exchange -> safeHandle(exchange, this::handleSecurity));
             server.createContext("/dashboard", exchange -> safeHandle(exchange, this::handleDashboard));
             server.start();
 
@@ -410,6 +424,29 @@ public final class RemoteApiServer {
         sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
     }
 
+    private void handleSecuritySettings(HttpExchange exchange) throws IOException {
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 200, securitySettingsJson(securitySettingsStore.load()));
+            return;
+        }
+
+        if ("PUT".equalsIgnoreCase(exchange.getRequestMethod())) {
+            String body = readBody(exchange);
+            SecuritySettings currentSettings = securitySettingsStore.load();
+            SecuritySettings updatedSettings = new SecuritySettings(
+                    optionalJsonBoolean(body, "securityEnabled", currentSettings.securityEnabled()),
+                    optionalJsonLocalRole(body, "defaultRole", currentSettings.defaultRole()),
+                    optionalJsonBoolean(
+                            body,
+                            "requireDangerousActionConfirmation",
+                            currentSettings.requireDangerousActionConfirmation()));
+            sendJson(exchange, 200, securitySettingsJson(securitySettingsStore.save(updatedSettings)));
+            return;
+        }
+
+        sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+    }
+
     private void handlePrinters(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
 
@@ -440,6 +477,41 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 404, errorJson(OperationMessages.JOB_ENDPOINT_NOT_FOUND));
+    }
+
+    private void handleSecurity(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+
+        if ("/security/profile".equals(path)) {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            SecuritySettings settings = securitySettingsStore.load();
+            RoleProfile profile = roleProfileStore.loadAll().get(settings.defaultRole());
+            sendJson(exchange, 200, securityProfileJson(settings, profile));
+            return;
+        }
+
+        if ("/security/roles".equals(path)) {
+            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 200, roleProfilesJson(roleProfileStore.loadAll()));
+                return;
+            }
+
+            if ("PUT".equalsIgnoreCase(exchange.getRequestMethod())) {
+                RoleProfile profile = roleProfileFromJson(readBody(exchange));
+                roleProfileStore.save(profile);
+                sendJson(exchange, 200, roleProfilesJson(roleProfileStore.loadAll()));
+                return;
+            }
+
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
     }
 
     private void handleMonitoring(HttpExchange exchange) throws IOException {
@@ -1445,6 +1517,56 @@ public final class RemoteApiServer {
                 + "}";
     }
 
+    private String securitySettingsJson(SecuritySettings settings) {
+        return "{"
+                + "\"securityEnabled\":" + settings.securityEnabled() + ","
+                + "\"defaultRole\":\"" + escapeJson(settings.defaultRole().name()) + "\","
+                + "\"requireDangerousActionConfirmation\":"
+                + settings.requireDangerousActionConfirmation()
+                + "}";
+    }
+
+    private String securityProfileJson(SecuritySettings settings, RoleProfile profile) {
+        return "{"
+                + "\"settings\":" + securitySettingsJson(settings) + ","
+                + "\"roleProfile\":" + roleProfileJson(profile)
+                + "}";
+    }
+
+    private String roleProfilesJson(Map<LocalRole, RoleProfile> profiles) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"roleProfiles\":[");
+
+        boolean first = true;
+        for (LocalRole role : LocalRole.values()) {
+            RoleProfile profile = profiles.get(role);
+            if (profile == null) {
+                continue;
+            }
+            if (!first) {
+                json.append(",");
+            }
+            json.append(roleProfileJson(profile));
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String roleProfileJson(RoleProfile profile) {
+        if (profile == null) {
+            return "null";
+        }
+
+        return "{"
+                + "\"role\":\"" + escapeJson(profile.role().name()) + "\","
+                + "\"displayName\":\"" + escapeJson(profile.displayName()) + "\","
+                + "\"builtIn\":" + profile.builtIn() + ","
+                + "\"permissions\":" + RoleProfileStore.permissionsJson(profile.permissions())
+                + "}";
+    }
+
     private String commandExecutionJson(PrinterCommandService.CommandExecutionResult result) {
         return "{"
                 + "\"printerId\":\"" + escapeJson(result.printerId()) + "\","
@@ -2017,6 +2139,37 @@ public final class RemoteApiServer {
         }
 
         return MonitoringRules.parseErrorPersistenceBehavior(value);
+    }
+
+    private LocalRole optionalJsonLocalRole(String body, String fieldName, LocalRole fallback) {
+        String value = optionalJsonString(body, fieldName, null);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+
+        return LocalRole.valueOf(value.trim().toUpperCase(Locale.ROOT));
+    }
+
+    private RoleProfile roleProfileFromJson(String body) {
+        LocalRole role = optionalJsonLocalRole(body, "role", null);
+        if (role == null) {
+            throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("role"));
+        }
+
+        return new RoleProfile(
+                role,
+                optionalJsonString(body, "displayName", role.displayName()),
+                permissionsFromJsonBody(body),
+                true);
+    }
+
+    private java.util.Set<Permission> permissionsFromJsonBody(String body) {
+        Matcher matcher = Pattern.compile("\"permissions\"\\s*:\\s*\\[(.*?)]", Pattern.DOTALL).matcher(body);
+        if (!matcher.find()) {
+            return java.util.EnumSet.noneOf(Permission.class);
+        }
+
+        return RoleProfileStore.parsePermissions("[" + matcher.group(1) + "]");
     }
 
     private JobType parseJobType(String value) {

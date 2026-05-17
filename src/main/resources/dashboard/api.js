@@ -93,6 +93,15 @@ export async function getSerialTransferSettings() {
   return requestJson("/settings/serial-transfer");
 }
 
+export async function getSecuritySettings() {
+  return requestJson("/settings/security");
+}
+
+export async function getSecurityRoles() {
+  const data = await requestJson("/security/roles");
+  return Array.isArray(data.roleProfiles) ? data.roleProfiles : [];
+}
+
 export async function saveMonitoringRules(rules) {
   return requestJson("/settings/monitoring", {
     method: "PUT",
@@ -115,6 +124,16 @@ export async function savePrintFileSettings(settings) {
 
 export async function saveSerialTransferSettings(settings) {
   return requestJson("/settings/serial-transfer", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(settings)
+  });
+}
+
+export async function saveSecuritySettings(settings) {
+  return requestJson("/settings/security", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json"

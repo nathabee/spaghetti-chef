@@ -110,6 +110,10 @@ public final class OperationMessages {
     public static final String FAILED_TO_SAVE_PRINT_FILE_SETTINGS = "Failed to save print file settings";
     public static final String FAILED_TO_LOAD_SERIAL_TRANSFER_SETTINGS = "Failed to load serial transfer settings";
     public static final String FAILED_TO_SAVE_SERIAL_TRANSFER_SETTINGS = "Failed to save serial transfer settings";
+    public static final String FAILED_TO_LOAD_SECURITY_SETTINGS = "Failed to load security settings";
+    public static final String FAILED_TO_SAVE_SECURITY_SETTINGS = "Failed to save security settings";
+    public static final String FAILED_TO_LOAD_ROLE_PROFILES = "Failed to load role profiles";
+    public static final String FAILED_TO_SAVE_ROLE_PROFILES = "Failed to save role profiles";
 
     public static final String SERIAL_CONNECTION_IS_NOT_OPEN = "Serial port is not open.";
     public static final String INTERRUPTED_WHILE_READING_RESPONSE = "Interrupted while reading response from serial port.";

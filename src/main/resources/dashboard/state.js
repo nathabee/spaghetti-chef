@@ -28,6 +28,8 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  securitySettings: null,
+  securityRoles: [],
   monitoringOverview: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
@@ -91,6 +93,14 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setSecuritySettings(settings) {
+  state.securitySettings = settings;
+}
+
+export function setSecurityRoles(roles) {
+  state.securityRoles = Array.isArray(roles) ? roles : [];
 }
 
 export function setMonitoringOverview(overview) {

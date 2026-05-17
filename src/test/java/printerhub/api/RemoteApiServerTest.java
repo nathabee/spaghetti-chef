@@ -287,6 +287,77 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getSecuritySettingsReturnsDefaults() throws Exception {
+        TestContext context = createContext("security-settings-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/settings/security");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"securityEnabled\":false"));
+            assertTrue(response.body().contains("\"defaultRole\":\"ADMIN\""));
+            assertTrue(response.body().contains("\"requireDangerousActionConfirmation\":true"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putSecuritySettingsUpdatesSettings() throws Exception {
+        TestContext context = createContext("security-settings-put.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"OPERATOR","requireDangerousActionConfirmation":false}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"securityEnabled\":true"));
+            assertTrue(response.body().contains("\"defaultRole\":\"OPERATOR\""));
+            assertTrue(response.body().contains("\"requireDangerousActionConfirmation\":false"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getSecurityRolesReturnsBuiltInProfiles() throws Exception {
+        TestContext context = createContext("security-roles-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/security/roles");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"role\":\"VIEWER\""));
+            assertTrue(response.body().contains("\"role\":\"OPERATOR\""));
+            assertTrue(response.body().contains("\"role\":\"ADMIN\""));
+            assertTrue(response.body().contains("\"permissions\":["));
+            assertTrue(response.body().contains("\"MANAGE_SECURITY\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getSecurityProfileReturnsDefaultRoleProfile() throws Exception {
+        TestContext context = createContext("security-profile-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/security/profile");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"settings\":"));
+            assertTrue(response.body().contains("\"roleProfile\":"));
+            assertTrue(response.body().contains("\"role\":\"ADMIN\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void postPrintersCreatesPrinter() throws Exception {
         TestContext context = createContext("printers-post.db");
 

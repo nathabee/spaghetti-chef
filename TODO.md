@@ -381,7 +381,6 @@ Non-goals:
 * no per-tenant enterprise access model yet
  
 
-
 ## My recommendation for implementation order
 
 Do it in this order:
@@ -395,3 +394,12 @@ Do it in this order:
 6. Add dashboard role-aware controls
 7. Add audit entries
 ``` 
+
+
+---
+
+
+# 0.3.1
+Local users, password hash storage, login screen, sessions, /auth/me, dashboard role rendering.
+
+
