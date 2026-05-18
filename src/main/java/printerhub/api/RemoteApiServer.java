@@ -53,6 +53,9 @@ import printerhub.security.RoleProfile;
 import printerhub.security.ActionPermissionResolver;
 import printerhub.security.AuthorizationException;
 import printerhub.security.AuthorizationService;
+import printerhub.security.ConfirmationRequiredException;
+import printerhub.security.DangerousAction;
+import printerhub.security.DangerousActionGuard;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -94,6 +97,7 @@ public final class RemoteApiServer {
     private final PrinterResponseClassifier printerResponseClassifier;
     private final AutonomousPrintControlService autonomousPrintControlService;
     private final ActionPermissionResolver actionPermissionResolver;
+    private final DangerousActionGuard dangerousActionGuard;
 
     private HttpServer server;
 
@@ -198,6 +202,7 @@ public final class RemoteApiServer {
                 monitoringScheduler,
                 printJobExecutionStepStore);
         this.actionPermissionResolver = new ActionPermissionResolver();
+        this.dangerousActionGuard = new DangerousActionGuard();
     }
 
     public void start() {
@@ -252,8 +257,12 @@ public final class RemoteApiServer {
 
         try {
             byte[] requestBodyBytes = cacheRequestBody(exchange);
-            authorize(exchange, new String(requestBodyBytes, StandardCharsets.UTF_8));
+            String requestBody = new String(requestBodyBytes, StandardCharsets.UTF_8);
+            guardDangerousAction(exchange, requestBody);
+            authorize(exchange, requestBody);
             handler.handle(exchange);
+        } catch (ConfirmationRequiredException exception) {
+            sendJson(exchange, 428, confirmationRequiredJson(exception.requiredConfirmation()));
         } catch (AuthorizationException exception) {
             sendJson(exchange, 403, errorJson(safeMessage(exception)));
         } catch (IllegalArgumentException exception) {
@@ -310,6 +319,19 @@ public final class RemoteApiServer {
         new AuthorizationService(roleProfileStore.loadAll()).require(role, permission.get());
     }
 
+    private void guardDangerousAction(HttpExchange exchange, String requestBody) {
+        SecuritySettings settings = securitySettingsStore.load();
+        if (!settings.requireDangerousActionConfirmation()) {
+            return;
+        }
+
+        Optional<DangerousAction> dangerousAction = dangerousActionGuard.resolve(
+                exchange.getRequestMethod(),
+                exchange.getRequestURI().getPath(),
+                requestBody);
+        dangerousAction.ifPresent(action -> dangerousActionGuard.requireConfirmed(action, requestBody));
+    }
+
     private Optional<LocalRole> requestRole(HttpExchange exchange) {
         String value = exchange.getRequestHeaders().getFirst("X-PrinterHub-Role");
         if (value == null || value.isBlank()) {
@@ -323,7 +345,7 @@ public final class RemoteApiServer {
         Headers headers = exchange.getResponseHeaders();
         headers.set("Access-Control-Allow-Origin", "*");
         headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        headers.set("Access-Control-Allow-Headers", "Content-Type");
+        headers.set("Access-Control-Allow-Headers", "Content-Type, X-PrinterHub-Role");
     }
 
     private void handleHealth(HttpExchange exchange) throws IOException {
@@ -1996,6 +2018,13 @@ public final class RemoteApiServer {
 
     private String errorJson(String message) {
         return "{\"error\":" + nullableString(message) + "}";
+    }
+
+    private String confirmationRequiredJson(DangerousAction action) {
+        return "{"
+                + "\"error\":\"confirmation_required\","
+                + "\"requiredConfirmation\":" + nullableString(action.name())
+                + "}";
     }
 
     private String nullableNumber(Double value) {

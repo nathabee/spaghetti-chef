@@ -903,6 +903,15 @@ async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename)
   const hostFile = state.printFiles.find((file) => file.id === printFileId);
   const hostLabel = hostFile?.originalFilename || hostFile?.path || printFileId;
 
+  const confirmation = requireDangerousActionConfirmation(
+    "FILE_UPLOAD_OVERWRITE",
+    `Upload ${hostLabel} to ${printerId}. This writes to the printer SD card and may overwrite an existing target file.`
+  );
+  if (!confirmation) {
+    setMessage(`Cancelled SD upload for ${hostLabel}.`);
+    return;
+  }
+
   setPrinterSdUploadStatus(printerId, {
     state: "running",
     active: true,
@@ -916,7 +925,7 @@ async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename)
   startUploadStatusPolling(printerId);
 
   try {
-    const response = await uploadPrinterSdFile(printerId, printFileId, targetFilename);
+    const response = await uploadPrinterSdFile(printerId, printFileId, targetFilename, confirmation);
 
     setPrinterSdUploadStatus(printerId, {
       state: "success",
@@ -1178,7 +1187,16 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
   }
 
   try {
-    const response = await closePrinterSdUploadSession(printerId);
+    const confirmation = requireDangerousActionConfirmation(
+      "RECOVERY_CLOSE_UPLOAD",
+      `Close the active SD upload session for ${printerId}. This sends recovery G-code to the printer.`
+    );
+    if (!confirmation) {
+      setMessage(`Cancelled SD upload recovery close for ${printerId}.`);
+      return;
+    }
+
+    const response = await closePrinterSdUploadSession(printerId, confirmation);
 
     setPrinterSdUploadStatus(printerId, {
       state: "success",
@@ -1256,7 +1274,16 @@ async function handleDeletePrinterSdFile(printerSdFileId) {
   }
 
   try {
-    const response = await deletePrinterSdFile(printerSdFileId);
+    const confirmation = requireDangerousActionConfirmation(
+      "SD_DELETE",
+      `Delete SD target ${printerSdFileId}. This removes PrinterHub's registered printer-side file record.`
+    );
+    if (!confirmation) {
+      setMessage(`Cancelled SD target deletion for ${printerSdFileId}.`);
+      return;
+    }
+
+    const response = await deletePrinterSdFile(printerSdFileId, confirmation);
     setMessage(`Deleted SD target ${response.displayName}.`);
     await refreshAllData({ silent: true });
   } catch (error) {
@@ -1271,7 +1298,16 @@ async function handleJobAction(action, jobId) {
 
   try {
     if (action === "start") {
-      const response = await startJob(jobId);
+      const confirmation = requireDangerousActionConfirmation(
+        "PRINT_START",
+        `Start job ${jobId}. This can heat, move, and begin printer-side execution.`
+      );
+      if (!confirmation) {
+        setMessage(`Cancelled start for job ${jobId}.`);
+        return;
+      }
+
+      const response = await startJob(jobId, confirmation);
       const stateLabel = response.job?.state || "UNKNOWN";
       const wireCommand = response.execution?.wireCommand || "n/a";
       const outcome = response.execution?.outcome || (response.execution?.success ? "SUCCESS" : "UNKNOWN");
@@ -1306,7 +1342,16 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "cancel") {
-      await cancelJob(jobId);
+      const confirmation = requireDangerousActionConfirmation(
+        "PRINT_CANCEL",
+        `Cancel job ${jobId}. This sends an abort/control request to the printer.`
+      );
+      if (!confirmation) {
+        setMessage(`Cancelled cancel request for job ${jobId}.`);
+        return;
+      }
+
+      await cancelJob(jobId, confirmation);
       setMessage(`Cancelled job ${jobId}.`);
       await refreshAllData({ silent: true });
       await loadJobEventsIntoState(jobId);
@@ -1480,7 +1525,20 @@ async function runPrinterCommand(printerId, command) {
   renderApp();
 
   try {
-    const response = await executePrinterCommand(printerId, command);
+    const dangerousAction = dangerousActionForCommand(command);
+    const confirmation = dangerousAction
+      ? requireDangerousActionConfirmation(
+        dangerousAction,
+        `Execute ${command} on ${printerId}. This command can affect physical printer state.`
+      )
+      : {};
+    if (!confirmation) {
+      setPrinterCommandResult(printerId, `Cancelled ${command}.`);
+      setMessage(`Cancelled ${command} on ${printerId}.`);
+      return;
+    }
+
+    const response = await executePrinterCommand(printerId, command, confirmation);
     const printerResponse = response.response ?? "no response";
     const successMessage = `${response.sentCommand}: ${printerResponse}`;
 
@@ -1781,6 +1839,42 @@ function removeNullFields(object) {
       delete object[key];
     }
   }
+}
+
+function requireDangerousActionConfirmation(requiredConfirmation, message) {
+  const enabled = state.securitySettings?.requireDangerousActionConfirmation !== false;
+  if (!enabled) {
+    return {};
+  }
+
+  const confirmed = window.confirm(`${message}\n\nConfirm this dangerous action?`);
+  if (!confirmed) {
+    return null;
+  }
+
+  return {
+    confirmed: true,
+    confirmationReason: `Operator confirmed ${requiredConfirmation}`
+  };
+}
+
+function dangerousActionForCommand(command) {
+  const normalized = String(command || "").trim().toUpperCase();
+  if (normalized.startsWith("M104") || normalized.startsWith("M109")
+      || normalized.startsWith("M140") || normalized.startsWith("M190")) {
+    return "HEATING";
+  }
+  if (normalized.startsWith("G28")) {
+    return "HOMING";
+  }
+  if (normalized.startsWith("G0") || normalized.startsWith("G1")) {
+    return "MOVEMENT";
+  }
+  if (normalized.startsWith("M105") || normalized.startsWith("M114") || normalized.startsWith("M115")) {
+    return null;
+  }
+
+  return "RAW_COMMAND";
 }
 
 boot();

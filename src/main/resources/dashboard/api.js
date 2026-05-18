@@ -58,13 +58,13 @@ export async function setPrinterEnabled(printerId, enabled) {
   });
 }
 
-export async function executePrinterCommand(printerId, command) {
+export async function executePrinterCommand(printerId, command, confirmation = {}) {
   return requestJson(`/printers/${encodeURIComponent(printerId)}/commands`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ command })
+    body: JSON.stringify({ command, ...confirmation })
   });
 }
 
@@ -178,13 +178,17 @@ export async function setPrinterSdFileEnabled(printerSdFileId, enabled) {
   });
 }
 
-export async function deletePrinterSdFile(printerSdFileId) {
+export async function deletePrinterSdFile(printerSdFileId, confirmation = {}) {
   return requestJson(`/printer-sd-files/${encodeURIComponent(printerSdFileId)}`, {
-    method: "DELETE"
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(confirmation)
   });
 }
 
-export async function uploadPrinterSdFile(printerId, printFileId, targetFilename = "") {
+export async function uploadPrinterSdFile(printerId, printFileId, targetFilename = "", confirmation = {}) {
   return requestJson(`/printers/${encodeURIComponent(printerId)}/sd-card/uploads`, {
     method: "POST",
     headers: {
@@ -192,7 +196,8 @@ export async function uploadPrinterSdFile(printerId, printFileId, targetFilename
     },
     body: JSON.stringify({
       printFileId,
-      targetFilename
+      targetFilename,
+      ...confirmation
     })
   });
 }
@@ -238,9 +243,13 @@ export async function createJob(job) {
   });
 }
 
-export async function startJob(jobId) {
+export async function startJob(jobId, confirmation = {}) {
   return requestJson(`/jobs/${encodeURIComponent(jobId)}/start`, {
-    method: "POST"
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(confirmation)
   });
 }
 
@@ -256,9 +265,13 @@ export async function resumeJob(jobId) {
   });
 }
 
-export async function cancelJob(jobId) {
+export async function cancelJob(jobId, confirmation = {}) {
   return requestJson(`/jobs/${encodeURIComponent(jobId)}/cancel`, {
-    method: "POST"
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(confirmation)
   });
 }
 
@@ -274,9 +287,13 @@ export async function deleteJob(jobId) {
   });
 }
 
-export async function closePrinterSdUploadSession(printerId) {
+export async function closePrinterSdUploadSession(printerId, confirmation = {}) {
   return requestJson(`/printers/${encodeURIComponent(printerId)}/sd-card/recovery/close-upload`, {
-    method: "POST"
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(confirmation)
   });
 }
 
