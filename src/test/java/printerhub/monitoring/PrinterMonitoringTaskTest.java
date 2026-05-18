@@ -6,6 +6,8 @@ import org.junit.jupiter.api.io.TempDir;
 import printerhub.PrinterPort;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
+import printerhub.SerialCommunicationException;
+import printerhub.SerialFailureType;
 import printerhub.SerialIOMode;
 import printerhub.job.JobState;
 import printerhub.job.JobType;
@@ -240,10 +242,51 @@ class PrinterMonitoringTaskTest {
         PrinterSnapshot snapshot = stateCache.findByPrinterId("printer-1").orElseThrow();
         assertEquals(PrinterState.ERROR, snapshot.state());
         assertEquals("Simulated printer is disconnected: SIM_PORT", snapshot.errorMessage());
+        assertEquals(SerialFailureType.DEVICE_DISCONNECTED, snapshot.serialFailureType());
 
         assertEquals(1, countRows("printer_events"));
         assertEquals("PRINTER_DISCONNECTED", firstEventType());
         assertEquals("Simulated printer is disconnected: SIM_PORT", firstEventMessage());
+    }
+
+    @Test
+    void classifiedSerialFailureIsStoredInSnapshot() throws Exception {
+        useDatabase("classified-serial-failure.db");
+
+        MutableClock clock = new MutableClock(Instant.parse("2026-04-29T10:04:30Z"));
+        PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache(clock);
+
+        StubPrinterPort port = new StubPrinterPort();
+        port.connectException = new SerialCommunicationException(
+                SerialFailureType.DEVICE_PATH_NOT_FOUND,
+                "Configured serial path does not exist");
+
+        PrinterRuntimeNode node = new PrinterRuntimeNode(
+                "printer-1",
+                "Printer 1",
+                "/dev/serial/by-id/missing",
+                "real",
+                port,
+                true);
+
+        PrinterMonitoringTask task = new PrinterMonitoringTask(
+                node,
+                stateCache,
+                new PrinterSnapshotStore(),
+                new PrinterEventStore(),
+                clock,
+                "M105",
+                () -> false,
+                new MonitoringEventPolicy(clock, Duration.ofSeconds(60)),
+                MonitoringRules.defaults());
+
+        task.run();
+
+        PrinterSnapshot snapshot = stateCache.findByPrinterId("printer-1").orElseThrow();
+        assertEquals(PrinterState.ERROR, snapshot.state());
+        assertEquals("Configured serial path does not exist", snapshot.errorMessage());
+        assertEquals(SerialFailureType.DEVICE_PATH_NOT_FOUND, snapshot.serialFailureType());
+        assertEquals("PRINTER_DISCONNECTED", firstEventType());
     }
 
     @Test

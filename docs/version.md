@@ -13,8 +13,22 @@ next:
 
 ## Version (done)
 
+
+
+
+
+## 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+
+- 0.3.0.A — Local role and permission model
+
+
 ## 0.2.x — Local Runtime Administration and Job Management
 
+
+
+- 0.2.6.D — Full live job synchronization from Monitoring
+- 0.2.6.B and C — Safer printer update behavior 
+- 0.2.6.A — Serial disconnect classification and recovery behavior
 - 0.2.5 — Global monitoring workspace and cross-printer runtime observability
 - 0.2.4 — Step J — Remote dashboard upload synchronization
 - 0.2.4 — Step I — Modern upload monitoring UX and operator-grade visualization

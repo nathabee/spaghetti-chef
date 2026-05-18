@@ -28,11 +28,14 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  securitySettings: null,
+  securityRoles: [],
   monitoringOverview: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
   jobCardSections: new Map(),
+  jobSynchronization: new Set(),
   printerSdCardFiles: new Map(),
   printerSdUploadStatus: new Map(),
   uploadStatusSynchronization: new Set(),
@@ -58,6 +61,20 @@ export function setJobs(jobs) {
   state.jobs = Array.isArray(jobs) ? jobs : [];
 }
 
+export function setJob(job) {
+  if (!job || !job.id) {
+    return;
+  }
+
+  const index = state.jobs.findIndex((candidate) => candidate.id === job.id);
+  if (index === -1) {
+    state.jobs = [job, ...state.jobs];
+    return;
+  }
+
+  state.jobs = state.jobs.map((candidate) => candidate.id === job.id ? job : candidate);
+}
+
 export function setPrintFiles(printFiles) {
   state.printFiles = Array.isArray(printFiles) ? printFiles : [];
 }
@@ -76,6 +93,14 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setSecuritySettings(settings) {
+  state.securitySettings = settings;
+}
+
+export function setSecurityRoles(roles) {
+  state.securityRoles = Array.isArray(roles) ? roles : [];
 }
 
 export function setMonitoringOverview(overview) {
@@ -131,6 +156,27 @@ export function setJobCardSectionOpen(jobId, sectionId, open) {
   }
 
   state.jobCardSections.set(`${jobId}:${sectionId}`, open === true);
+}
+
+export function setJobSynchronization(jobId, active) {
+  if (!jobId) {
+    return;
+  }
+
+  if (active) {
+    state.jobSynchronization.add(jobId);
+    return;
+  }
+
+  state.jobSynchronization.delete(jobId);
+}
+
+export function isJobSynchronized(jobId) {
+  if (!jobId) {
+    return false;
+  }
+
+  return state.jobSynchronization.has(jobId);
 }
 
 export function isJobCardSectionOpen(jobId, sectionId) {

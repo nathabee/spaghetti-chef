@@ -1,8 +1,10 @@
 package printerhub.persistence;
 
 import printerhub.OperationMessages;
+import printerhub.security.RoleProfile;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -23,6 +25,8 @@ public final class DatabaseInitializer {
             createMonitoringRulesTable(statement);
             createPrintFileSettingsTable(statement);
             createSerialTransferSettingsTable(statement);
+            createSecuritySettingsTable(statement);
+            createRoleProfilesTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
             ensureColumn(connection, "print_jobs", "printer_sd_file_id", "TEXT");
@@ -78,6 +82,18 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT 1");
             ensureColumn(connection, "serial_transfer_settings", "file_streaming_recovery_replay_delay_ms",
                     "INTEGER NOT NULL DEFAULT 15");
+            ensureColumn(connection, "security_settings", "security_enabled", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "security_settings", "default_role", "TEXT NOT NULL DEFAULT 'ADMIN'");
+            ensureColumn(connection, "security_settings", "require_dangerous_action_confirmation",
+                    "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "security_settings", "created_at", "TEXT");
+            ensureColumn(connection, "security_settings", "updated_at", "TEXT");
+            ensureColumn(connection, "role_profiles", "permissions_json", "TEXT NOT NULL DEFAULT '[]'");
+            ensureColumn(connection, "role_profiles", "built_in", "INTEGER NOT NULL DEFAULT 1");
+            ensureColumn(connection, "role_profiles", "created_at", "TEXT");
+            ensureColumn(connection, "role_profiles", "updated_at", "TEXT");
+
+            ensureBuiltInRoleProfiles(connection);
 
             System.out.println(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
         } catch (SQLException exception) {
@@ -293,5 +309,58 @@ public final class DatabaseInitializer {
                 """;
 
         statement.execute(sql);
+    }
+
+    private void createSecuritySettingsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS security_settings (
+                    id TEXT PRIMARY KEY,
+                    security_enabled INTEGER NOT NULL DEFAULT 0,
+                    default_role TEXT NOT NULL DEFAULT 'ADMIN',
+                    require_dangerous_action_confirmation INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createRoleProfilesTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS role_profiles (
+                    role_name TEXT PRIMARY KEY,
+                    permissions_json TEXT NOT NULL DEFAULT '[]',
+                    built_in INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void ensureBuiltInRoleProfiles(Connection connection) throws SQLException {
+        String sql = """
+                INSERT INTO role_profiles (
+                    role_name,
+                    permissions_json,
+                    built_in,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(role_name) DO NOTHING;
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (RoleProfile profile : RoleProfile.builtInProfiles().values()) {
+                statement.setString(1, profile.role().name());
+                statement.setString(2, RoleProfileStore.permissionsJson(profile.permissions()));
+                statement.addBatch();
+            }
+
+            statement.executeBatch();
+        }
     }
 }

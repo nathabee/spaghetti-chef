@@ -2274,7 +2274,7 @@ A second operator can open the dashboard from another PC, select the same printe
 
 
 ---
-## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+### 0.2.5 — Global monitoring workspace and cross-printer runtime observability
 
 status: done
 
@@ -2329,6 +2329,58 @@ Focus:
 
 * improve dashboard/API error clarity for real printer connection problems
 
+* now the job synchronization is basic : It jumps to the printer Print page and refreshes monitoring, but it does not yet start a dedicated job-status poller because there is no separate job live poller like the upload poller. So we beed a full live job polling.
+
+#### 0.2.6.A — Serial disconnect classification and recovery behavior
+
+status: done
+
+Goals:
+
+* classify serial communication failures with structured `serialFailureType` values
+* distinguish device path, permission, busy/disconnected, timeout, write, protocol, temporary, and unknown serial failures
+* keep monitoring retry behavior intact after a classified failure
+* expose the classification through printer status, printer info, selected-printer home, and global Monitoring runtime views
+* preserve the existing human-readable error message and event history behavior
+
+#### 0.2.6.B — Stable serial path support and operator guidance
+
+status: done
+
+Goals:
+
+* allow real-printer `portName` values to use stable `/dev/serial/by-id/...` paths without rewriting the configured value
+* expose serial path metadata through printer and global Monitoring API responses
+* warn operators when a real Linux printer uses unstable `/dev/ttyUSB*` or `/dev/ttyACM*` names
+* show configured port, path type, stability, and guidance in Settings, Info, and Monitoring views
+* document stable serial path discovery in install, quickstart, and dashboard docs
+
+#### 0.2.6.C — Safer printer update behavior
+
+status: done
+
+Goals:
+
+* preserve the existing enabled/disabled state when editing printer display name, mode, or port
+* keep enable/disable as an explicit operator action
+* make the dashboard edit form remember which printer is being edited, even if the visible ID field changes before save
+* verify the API preserves the existing enabled state when a PUT update omits `enabled`
+
+#### 0.2.6.D — Full live job synchronization from Monitoring
+
+status: done
+
+Goals:
+
+* add a selected-job synchronization poller that refreshes job state, history, and execution diagnostics
+* let Monitoring job synchronization jump to Selected Printer / Print and start live job follow
+* show live job sync state and a Stop sync control on the selected-printer Print page
+* stop synchronization automatically when a job reaches `COMPLETED`, `FAILED`, or `CANCELLED`
+* keep manual job controls and existing upload synchronization behavior unchanged
+
+
+
+
 Expected result:
 
 * real printers recover more reliably after reconnect scenarios
@@ -2337,7 +2389,113 @@ Expected result:
 
 ---
 
-### 0.2.7 — Print Asset Transfer and Printer File Handling Hardening
+### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+
+status: planned
+
+Goals:
+
+* distinguish read-only monitoring actions from state-changing printer actions
+* protect dangerous operations behind explicit confirmation
+* introduce local operator/admin role separation
+* prevent accidental execution of risky commands from the dashboard
+* define safety wording for heating, movement, SD delete, cancel, and streamed execution
+* add audit entries for all operator-triggered state-changing actions
+* prepare authentication boundaries before central VPS integration
+
+Risky action groups:
+
+```text
+heating
+movement
+homing
+fan control
+SD delete
+file upload/overwrite
+print start
+pause/resume/cancel
+emergency stop
+streamed G-code execution
+raw command execution
+```
+
+Expected result:
+
+* PrinterHub becomes safer for real hardware operation
+* operator actions are traceable
+* central VPS integration later has a clean local permission model
+
+#### 0.3.0.A — Local role and permission model
+
+status: done
+
+Goals:
+
+* define built-in local roles: `VIEWER`, `OPERATOR`, and `ADMIN`
+* define explicit backend permissions for dashboard viewing, printer visibility, monitoring, job control, SD-card/file operations, command execution, runtime configuration, and security management
+* provide built-in role profiles that map each role to its default permission set
+* add a lightweight `AuthorizationService` that can answer and enforce permission checks before API endpoint guards are wired in later steps
+* keep the first implementation local and persistence-free so Step B can store the profiles cleanly
+
+#### 0.3.0.B — Persist local security settings and role profiles
+
+status: done
+
+Goals:
+
+* persist local security settings in SQLite with `securityEnabled`, `defaultRole`, and dangerous-action confirmation behavior
+* persist built-in role profiles with permission JSON for `VIEWER`, `OPERATOR`, and `ADMIN`
+* seed built-in role profiles during database initialization without changing user-modified profile permissions
+* expose local security defaults through `/settings/security`, `/security/profile`, and `/security/roles`
+* surface the first local security settings card and role profile summary in the dashboard Settings page
+
+#### 0.3.0.C — Backend authorization guard for API endpoints
+
+status: done
+
+Goals:
+
+* enforce persisted local role permissions in backend API handlers when local security is enabled
+* keep dashboard visibility as UX only by checking permissions before endpoint handlers mutate runtime state
+* resolve endpoint permissions consistently for printer configuration, settings updates, jobs, SD-card actions, print files, security settings, and command execution
+* reject forbidden direct API calls with `403` and a clear permission-denied message
+* support a local `X-PrinterHub-Role` override for testing/admin tooling until full user authentication exists
+
+
+---
+
+
+## 0.4.x Camera monitoring and spaghetti detection
+
+status: planned
+
+Purpose:
+Camera monitoring and spaghetti detection
+
+### 0.4.0 Camera monitoring foundation
+- detect camera
+- capture snapshot
+- expose /printers/{id}/camera/snapshot
+- show image in dashboard
+- persist camera events
+
+### 0.4.1 Spaghetti heuristic detection
+- compare frames
+- detect abnormal chaos/motion
+- confidence score
+- no automatic stop yet
+
+### 0.4.2 Safety intervention
+- if confidence high several times
+- pause SD print with M25
+- persist SPAGHETTI_DETECTED
+
+
+---
+
+## 0.5.x Upload and Simulation Hardening 
+
+### 0.5.1 — Print Asset Transfer and Printer File Handling Hardening
 
 status: planned
 
@@ -2369,7 +2527,7 @@ Expected result:
 
 ---
 
-### 0.2.8 — Post-Print Review and Operational History Hardening
+### 0.5.2 — Post-Print Review and Operational History Hardening
 
 status: planned
 
@@ -2396,7 +2554,7 @@ Expected result:
 
 ---
 
-### 0.2.9 — Simulation upload more realistic
+### 0.5.3 — Simulation upload more realistic
 
 status: planned
 
@@ -2522,91 +2680,6 @@ Tests:
 
 ---
 
-### 0.3.0 — Streamed G-code Job Execution
-
-status: planned
-
-Purpose:
-
-Introduce Mode 1 for local jobs where PrinterHub owns the command stream.
-
-This is intentionally planned after the autonomous print path because streamed
-printing turns PrinterHub into the real-time sender. It requires stronger flow
-control, response tracking, cancellation behavior, and recovery rules than
-autonomous printer-side execution.
-
-Goals:
-
-* support a streamed job execution mode for selected `.gcode` files or generated mini jobs
-* send G-code commands sequentially through `PrintJobExecutionService`
-* wait for firmware acceptance before sending the next command
-* persist per-line or grouped execution diagnostics without flooding history unnecessarily
-* support pause, cancel, and failure handling for a PrinterHub-owned stream
-* coordinate streamed execution with monitoring so status polling does not corrupt the command flow
-* keep streamed mode separate from autonomous printer-side print mode in API, persistence, and dashboard wording
-
-Typical workflow scope:
-
-```text
-STREAMED_GCODE
-├── validate printer enabled/reachable
-├── validate no conflicting active job
-├── validate selected .gcode file or mini-job command list
-├── open controlled printer session
-├── send next command
-├── wait for ok / busy / error / timeout
-├── persist grouped diagnostics
-├── repeat until complete, cancelled, or failed
-└── close controlled printer session
-```
-
-Expected result:
-
-* PrinterHub can execute small controlled G-code streams itself
-* mini jobs and future calibration workflows can be controlled line by line
-* autonomous print mode remains available for normal printer-side file execution
-* local 0.2.x printing supports both architecture models without moving central monitoring into scope
-
----
-
-### 0.4.0 — Local Security, Roles, and Dangerous Action Guards
-
-status: planned
-
-Goals:
-
-* distinguish read-only monitoring actions from state-changing printer actions
-* protect dangerous operations behind explicit confirmation
-* introduce local operator/admin role separation
-* prevent accidental execution of risky commands from the dashboard
-* define safety wording for heating, movement, SD delete, cancel, and streamed execution
-* add audit entries for all operator-triggered state-changing actions
-* prepare authentication boundaries before central VPS integration
-
-Risky action groups:
-
-```text
-heating
-movement
-homing
-fan control
-SD delete
-file upload/overwrite
-print start
-pause/resume/cancel
-emergency stop
-streamed G-code execution
-raw command execution
-```
-
-Expected result:
-
-* PrinterHub becomes safer for real hardware operation
-* operator actions are traceable
-* central VPS integration later has a clean local permission model
-
-
----
 
 ## 1.0.x — Central VPS Multi-Farm Management
 
@@ -2762,13 +2835,58 @@ Goals:
 * expose fleet-wide diagnostics
 * support future reporting
 
+
 ---
- 
+
+## 2.0.x - Steamed G-Code
 
 
+? is it necessary ?
+
+### 2.0.0 — Streamed G-code Job Execution
+
+status: planned
+
+Purpose:
+
+Introduce Mode 1 for local jobs where PrinterHub owns the command stream.
+
+This is intentionally planned after the autonomous print path because streamed
+printing turns PrinterHub into the real-time sender. It requires stronger flow
+control, response tracking, cancellation behavior, and recovery rules than
+autonomous printer-side execution.
+
+Goals:
+
+* support a streamed job execution mode for selected `.gcode` files or generated mini jobs
+* send G-code commands sequentially through `PrintJobExecutionService`
+* wait for firmware acceptance before sending the next command
+* persist per-line or grouped execution diagnostics without flooding history unnecessarily
+* support pause, cancel, and failure handling for a PrinterHub-owned stream
+* coordinate streamed execution with monitoring so status polling does not corrupt the command flow
+* keep streamed mode separate from autonomous printer-side print mode in API, persistence, and dashboard wording
+
+Typical workflow scope:
+
+```text
+STREAMED_GCODE
+├── validate printer enabled/reachable
+├── validate no conflicting active job
+├── validate selected .gcode file or mini-job command list
+├── open controlled printer session
+├── send next command
+├── wait for ok / busy / error / timeout
+├── persist grouped diagnostics
+├── repeat until complete, cancelled, or failed
+└── close controlled printer session
+```
+
+Expected result:
+
+* PrinterHub can execute small controlled G-code streams itself
+* mini jobs and future calibration workflows can be controlled line by line
+* autonomous print mode remains available for normal printer-side file execution
+* local 0.2.x printing supports both architecture models without moving central monitoring into scope
 
 
-
-
-
- 
+---

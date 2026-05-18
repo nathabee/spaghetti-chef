@@ -369,14 +369,17 @@ Simulation mode is sufficient for local verification.
 For real hardware:
 
 * connect the printer by USB
-* identify the serial device, for example `/dev/ttyUSB0`
+* identify the serial device, preferably a stable `/dev/serial/by-id/...` path
 * ensure the user has `dialout` access
 
 Example device check:
 
 ```bash
 ls /dev/ttyUSB*
+ls -l /dev/serial/by-id/
 ```
+
+Linux names such as `/dev/ttyUSB0` and `/dev/ttyACM0` can change after unplug/replug, reboot, or connecting another USB serial device. When `/dev/serial/by-id/...` exists, use that full path as `portName`.
 
 If permission errors occur:
 
@@ -410,11 +413,13 @@ curl -X POST http://localhost:8080/printers \
   -d '{
     "id": "printer-real-1",
     "displayName": "Real Printer",
-    "portName": "/dev/ttyUSB0",
+    "portName": "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",
     "mode": "real",
     "enabled": true
   }'
 ```
+
+On Windows, use the printer COM port, for example `"portName": "COM3"`.
 
 ---
 

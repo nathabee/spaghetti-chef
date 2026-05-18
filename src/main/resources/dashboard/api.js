@@ -93,6 +93,15 @@ export async function getSerialTransferSettings() {
   return requestJson("/settings/serial-transfer");
 }
 
+export async function getSecuritySettings() {
+  return requestJson("/settings/security");
+}
+
+export async function getSecurityRoles() {
+  const data = await requestJson("/security/roles");
+  return Array.isArray(data.roleProfiles) ? data.roleProfiles : [];
+}
+
 export async function saveMonitoringRules(rules) {
   return requestJson("/settings/monitoring", {
     method: "PUT",
@@ -123,9 +132,23 @@ export async function saveSerialTransferSettings(settings) {
   });
 }
 
+export async function saveSecuritySettings(settings) {
+  return requestJson("/settings/security", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(settings)
+  });
+}
+
 export async function getJobs() {
   const data = await requestJson("/jobs");
   return Array.isArray(data.jobs) ? data.jobs : [];
+}
+
+export async function getJob(jobId) {
+  return requestJson(`/jobs/${encodeURIComponent(jobId)}`);
 }
 
 export async function getPrintFiles() {

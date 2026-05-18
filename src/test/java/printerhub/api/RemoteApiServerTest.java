@@ -287,6 +287,156 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getSecuritySettingsReturnsDefaults() throws Exception {
+        TestContext context = createContext("security-settings-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/settings/security");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"securityEnabled\":false"));
+            assertTrue(response.body().contains("\"defaultRole\":\"ADMIN\""));
+            assertTrue(response.body().contains("\"requireDangerousActionConfirmation\":true"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putSecuritySettingsUpdatesSettings() throws Exception {
+        TestContext context = createContext("security-settings-put.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"OPERATOR","requireDangerousActionConfirmation":false}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"securityEnabled\":true"));
+            assertTrue(response.body().contains("\"defaultRole\":\"OPERATOR\""));
+            assertTrue(response.body().contains("\"requireDangerousActionConfirmation\":false"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getSecurityRolesReturnsBuiltInProfiles() throws Exception {
+        TestContext context = createContext("security-roles-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/security/roles");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"role\":\"VIEWER\""));
+            assertTrue(response.body().contains("\"role\":\"OPERATOR\""));
+            assertTrue(response.body().contains("\"role\":\"ADMIN\""));
+            assertTrue(response.body().contains("\"permissions\":["));
+            assertTrue(response.body().contains("\"MANAGE_SECURITY\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getSecurityProfileReturnsDefaultRoleProfile() throws Exception {
+        TestContext context = createContext("security-profile-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/security/profile");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"settings\":"));
+            assertTrue(response.body().contains("\"roleProfile\":"));
+            assertTrue(response.body().contains("\"role\":\"ADMIN\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void securityEnabledRejectsForbiddenStateChangingAction() throws Exception {
+        TestContext context = createContext("security-forbidden-printer-create.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+
+            assertEquals(403, response.statusCode());
+            assertEquals("{\"error\":\"Permission denied for role VIEWER: PRINTER_CONFIGURE\"}", response.body());
+            assertTrue(context.printerRegistry.findById("printer-1").isEmpty());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void securityEnabledAllowsExplicitAdminRoleHeader() throws Exception {
+        TestContext context = createContext("security-admin-printer-create.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.requestAsRole(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """,
+                    "ADMIN");
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"id\":\"printer-1\""));
+            assertTrue(context.printerRegistry.findById("printer-1").isPresent());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void securityEnabledAllowsViewerReadEndpoints() throws Exception {
+        TestContext context = createContext("security-viewer-read.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.get("/printers");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"printers\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void postPrintersCreatesPrinter() throws Exception {
         TestContext context = createContext("printers-post.db");
 
@@ -306,6 +456,50 @@ class RemoteApiServerTest {
             assertTrue(response.body().contains("\"enabled\":true"));
 
             assertTrue(context.printerRegistry.findById("printer-1").isPresent());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrintersReturnsStableSerialPathGuidance() throws Exception {
+        TestContext context = createContext("printers-post-stable-serial-path.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0","mode":"real","enabled":true}
+                            """);
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"portName\":\"/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0\""));
+            assertTrue(response.body().contains("\"serialPortKind\":\"STABLE_LINUX_BY_ID\""));
+            assertTrue(response.body().contains("\"stableSerialPath\":true"));
+            assertTrue(response.body().contains("\"serialPathWarning\":null"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postPrintersWarnsForUnstableLinuxUsbSerialPath() throws Exception {
+        TestContext context = createContext("printers-post-unstable-serial-path.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"/dev/ttyUSB0","mode":"real","enabled":true}
+                            """);
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"portName\":\"/dev/ttyUSB0\""));
+            assertTrue(response.body().contains("\"serialPortKind\":\"UNSTABLE_LINUX_USB\""));
+            assertTrue(response.body().contains("\"stableSerialPath\":false"));
+            assertTrue(response.body().contains("Prefer /dev/serial/by-id/..."));
         } finally {
             context.close();
         }
@@ -628,7 +822,8 @@ class RemoteApiServerTest {
             assertEquals(200, response.statusCode());
             assertEquals(
                     "{\"state\":\"UNKNOWN\",\"hotendTemperature\":null,\"bedTemperature\":null,"
-                            + "\"lastResponse\":null,\"errorMessage\":null,\"updatedAt\":null}",
+                            + "\"lastResponse\":null,\"errorMessage\":null,"
+                            + "\"serialFailureType\":null,\"updatedAt\":null}",
                     response.body());
         } finally {
             context.close();
@@ -690,6 +885,32 @@ class RemoteApiServerTest {
             assertTrue(response.body().contains("\"enabled\":false"));
 
             assertEquals("Updated Printer", context.printerRegistry.findById("printer-1").orElseThrow().displayName());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putPrinterWithoutEnabledPreservesExistingEnabledState() throws Exception {
+        TestContext context = createContext("printer-put-preserve-enabled.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Old Printer", "SIM_PORT", "sim", false));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Old Printer", "SIM_PORT", "sim", false));
+
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/printers/printer-1",
+                    """
+                            {"displayName":"Updated Printer","portName":"SIM_PORT_2","mode":"sim-error"}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"displayName\":\"Updated Printer\""));
+            assertTrue(response.body().contains("\"enabled\":false"));
+            assertFalse(context.printerRegistry.findById("printer-1").orElseThrow().enabled());
         } finally {
             context.close();
         }
@@ -2042,6 +2263,22 @@ class RemoteApiServerTest {
         private HttpResponse<String> request(String method, String path, String body) throws Exception {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + port + path));
+
+            if (body == null) {
+                builder.method(method, HttpRequest.BodyPublishers.noBody());
+            } else {
+                builder.method(method, HttpRequest.BodyPublishers.ofString(body))
+                        .header("Content-Type", "application/json");
+            }
+
+            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        }
+
+        private HttpResponse<String> requestAsRole(String method, String path, String body, String role)
+                throws Exception {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + port + path))
+                    .header("X-PrinterHub-Role", role);
 
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());

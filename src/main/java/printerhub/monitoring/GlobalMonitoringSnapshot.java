@@ -3,6 +3,7 @@ package printerhub.monitoring;
 import printerhub.command.SdCardUploadService;
 import printerhub.job.PrintJob;
 import printerhub.runtime.PrinterRuntimeNode;
+import printerhub.SerialFailureType;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,6 +31,7 @@ public record GlobalMonitoringSnapshot(
             boolean busy,
             String activeJobId,
             String errorMessage,
+            SerialFailureType serialFailureType,
             Instant updatedAt) {
     }
 }

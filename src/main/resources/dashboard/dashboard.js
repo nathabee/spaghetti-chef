@@ -7,6 +7,7 @@ import {
   deleteJob,
   deletePrinter,
   executePrinterCommand,
+  getJob,
   getJobEvents,
   getJobExecutionSteps,
   getJobs,
@@ -15,6 +16,8 @@ import {
   getPrintFileContent,
   getPrintFileSettings,
   getSerialTransferSettings,
+  getSecurityRoles,
+  getSecuritySettings,
   getPrintFiles,
   getPrinterEvents,
   getPrinterSdCardFiles,
@@ -30,6 +33,7 @@ import {
   saveMonitoringRules,
   savePrintFileSettings,
   saveSerialTransferSettings,
+  saveSecuritySettings,
   setPrinterSdFileEnabled,
   setPrinterEnabled,
   startJob,
@@ -57,6 +61,8 @@ import {
   setJobEvents,
   setJobCardSectionOpen,
   setJobExecutionSteps,
+  setJob,
+  setJobSynchronization,
   setJobs,
   setLastRefreshLabel,
   setMessage,
@@ -66,6 +72,8 @@ import {
   setPrintFiles,
   setPrinterSdFiles,
   setSerialTransferSettings,
+  setSecurityRoles,
+  setSecuritySettings,
   setPrinterCommandResult,
   setPrinterEvents,
   setPrinterSdCardFiles,
@@ -89,6 +97,8 @@ const lastRefreshElement = document.getElementById("lastRefresh");
 let printerRefreshInterval = null;
 let pendingPrinterFormFill = null;
 const uploadStatusPollers = new Map();
+const jobStatusPollers = new Map();
+const JOB_STATUS_POLLING_INTERVAL_MS = 2500;
 
 async function boot() {
   bindGlobalListeners();
@@ -108,6 +118,8 @@ async function refreshAllData(options = {}) {
       monitoringRules,
       printFileSettings,
       serialTransferSettings,
+      securitySettings,
+      securityRoles,
       monitoringOverview
     ] = await Promise.all([
       getPrinters(),
@@ -117,6 +129,8 @@ async function refreshAllData(options = {}) {
       getMonitoringRules(),
       getPrintFileSettings(),
       getSerialTransferSettings(),
+      getSecuritySettings(),
+      getSecurityRoles(),
       getMonitoringOverview()
     ]);
 
@@ -127,6 +141,8 @@ async function refreshAllData(options = {}) {
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
     setSerialTransferSettings(serialTransferSettings);
+    setSecuritySettings(securitySettings);
+    setSecurityRoles(securityRoles);
     setMonitoringOverview(monitoringOverview);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
@@ -444,6 +460,13 @@ function bindGlobalListeners() {
       return;
     }
 
+    const stopSyncJobButton = event.target.closest("[data-stop-sync-job]");
+    if (stopSyncJobButton) {
+      handleStopJobSynchronization(stopSyncJobButton.dataset.stopSyncJob);
+      renderApp();
+      return;
+    }
+
     const refreshMonitoringButton = event.target.closest("[data-refresh-monitoring-overview]");
     if (refreshMonitoringButton) {
       await refreshMonitoringOverview({ silent: false });
@@ -609,6 +632,15 @@ function bindPageListeners() {
     });
   }
 
+  const securitySettingsForm = document.getElementById("securitySettingsForm");
+  if (securitySettingsForm) {
+    securitySettingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await handleSaveSecuritySettings(securitySettingsForm);
+      renderApp();
+    });
+  }
+
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
     jobForm.addEventListener("submit", async (event) => {
@@ -675,7 +707,9 @@ async function handleSavePrinter(form) {
   const printerModeInput = form.querySelector("#printerModeInput");
 
   const printerId = printerIdInput.value.trim();
-  const existingPrinter = state.printers.find((printer) => printer.id === printerId);
+  const editingPrinterId = form.dataset.editingPrinterId || "";
+  const targetPrinterId = editingPrinterId || printerId;
+  const existingPrinter = state.printers.find((printer) => printer.id === targetPrinterId);
   const payload = {
     id: printerId,
     displayName: printerNameInput.value.trim(),
@@ -686,8 +720,8 @@ async function handleSavePrinter(form) {
 
   try {
     if (existingPrinter) {
-      await updatePrinter(printerId, payload);
-      setMessage(`Saved printer ${printerId}.`);
+      await updatePrinter(targetPrinterId, payload);
+      setMessage(`Saved printer ${targetPrinterId}.`);
     } else {
       await createPrinter(payload);
       setMessage(`Created printer ${printerId}.`);
@@ -781,6 +815,22 @@ async function handleSavePrintFileSettings(form) {
     await refreshAllData({ silent: true });
   } catch (error) {
     setMessage(`Failed to save print file settings: ${error.message}`);
+  }
+}
+
+async function handleSaveSecuritySettings(form) {
+  const payload = {
+    securityEnabled: form.querySelector("#securityEnabledInput").checked,
+    defaultRole: form.querySelector("#securityDefaultRoleInput").value,
+    requireDangerousActionConfirmation: form.querySelector("#securityDangerousConfirmationInput").checked
+  };
+
+  try {
+    await saveSecuritySettings(payload);
+    setMessage("Saved local security settings.");
+    await refreshAllData({ silent: true });
+  } catch (error) {
+    setMessage(`Failed to save local security settings: ${error.message}`);
   }
 }
 
@@ -972,8 +1022,57 @@ async function handleMonitoringSyncJob(printerId, jobId) {
   setSelectedPrinter(printerId);
   setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
   setPrinterView(PRINTER_VIEW_IDS.PRINT);
-  await refreshMonitoringOverview({ silent: true });
+  handleStartJobSynchronization(jobId);
   setMessage(`Following job ${jobId || ""} on ${printerId}.`);
+}
+
+function handleStartJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  setJobSynchronization(jobId, true);
+  setJobCardSectionOpen(jobId, "history", true);
+  setJobCardSectionOpen(jobId, "diagnostics", true);
+  startJobStatusPolling(jobId);
+  refreshJobSynchronization(jobId).catch(() => {
+    setMessage(`Failed to synchronize job ${jobId}.`);
+    handleStopJobSynchronization(jobId);
+    renderApp();
+  });
+}
+
+function handleStopJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  setJobSynchronization(jobId, false);
+  stopJobStatusPolling(jobId);
+  setMessage(`Stopped job synchronization for ${jobId}.`);
+}
+
+function startJobStatusPolling(jobId) {
+  stopJobStatusPolling(jobId);
+
+  const intervalId = window.setInterval(() => {
+    refreshJobSynchronization(jobId).catch(() => {
+      // Keep the last visible job state if one poll fails.
+    });
+  }, JOB_STATUS_POLLING_INTERVAL_MS);
+
+  jobStatusPollers.set(jobId, intervalId);
+}
+
+function stopJobStatusPolling(jobId) {
+  const intervalId = jobStatusPollers.get(jobId);
+
+  if (!intervalId) {
+    return;
+  }
+
+  window.clearInterval(intervalId);
+  jobStatusPollers.delete(jobId);
 }
 
 function stopManualUploadStatusSynchronizations() {
@@ -982,6 +1081,43 @@ function stopManualUploadStatusSynchronizations() {
   }
 
   state.uploadStatusSynchronization.clear();
+}
+
+function stopJobSynchronizations() {
+  for (const jobId of state.jobSynchronization) {
+    stopJobStatusPolling(jobId);
+  }
+
+  state.jobSynchronization.clear();
+}
+
+async function refreshJobSynchronization(jobId) {
+  if (!jobId) {
+    return;
+  }
+
+  const [job, events, executionSteps] = await Promise.all([
+    getJob(jobId),
+    getJobEvents(jobId),
+    getJobExecutionSteps(jobId)
+  ]);
+
+  setJob(job);
+  setJobEvents(jobId, events);
+  setJobExecutionSteps(jobId, executionSteps);
+  setLastRefreshLabel(new Date().toLocaleTimeString());
+
+  if (isTerminalJobState(job.state)) {
+    setJobSynchronization(jobId, false);
+    stopJobStatusPolling(jobId);
+    setMessage(`Job ${jobId} reached ${job.state}; synchronization stopped.`);
+  }
+
+  renderApp();
+}
+
+function isTerminalJobState(stateValue) {
+  return ["COMPLETED", "FAILED", "CANCELLED"].includes(String(stateValue || "").toUpperCase());
 }
 
 async function refreshUploadStatus(printerId) {
@@ -1362,12 +1498,13 @@ async function runPrinterCommand(printerId, command) {
 }
 
 function fillPrinterForm(printer) {
+  const form = document.getElementById("printerConfigForm");
   const printerIdInput = document.getElementById("printerIdInput");
   const printerNameInput = document.getElementById("printerNameInput");
   const printerPortInput = document.getElementById("printerPortInput");
   const printerModeInput = document.getElementById("printerModeInput");
 
-  if (!printerIdInput || !printerNameInput || !printerPortInput || !printerModeInput) {
+  if (!form || !printerIdInput || !printerNameInput || !printerPortInput || !printerModeInput) {
     return;
   }
 
@@ -1375,6 +1512,7 @@ function fillPrinterForm(printer) {
   printerNameInput.value = printer.displayName || printer.name || "";
   printerPortInput.value = printer.portName || "";
   printerModeInput.value = printer.mode || "real";
+  form.dataset.editingPrinterId = printer.id || "";
 }
 
 function clearPrinterForm() {
@@ -1386,6 +1524,7 @@ function clearPrinterForm() {
   }
 
   form.reset();
+  delete form.dataset.editingPrinterId;
 
   if (printerModeInput) {
     printerModeInput.value = "real";
@@ -1502,6 +1641,7 @@ function updateLivePrinterFields(container, printer) {
     bedTemperature: formatTemperature(printer.bedTemperature),
     updatedAt: formatDateTime(printer.updatedAt),
     lastResponse: printer.lastResponse || "n/a",
+    serialFailureType: printer.serialFailureType || "none",
     errorMessage: printer.errorMessage || "none"
   };
 

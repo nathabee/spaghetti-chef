@@ -1,548 +1,888 @@
-
-
-
-## 0.2.5 — Global monitoring workspace and cross-printer runtime observability
+### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
 status: planned
 
 Purpose:
 
-Add a global Monitoring area to the dashboard for observing runtime activity across all configured printers, without first selecting one printer.
+Introduce a local authorization and safety model before PrinterHub grows into
+central VPS / multi-farm operation.
 
-This version builds on the 0.2.4 upload telemetry work, but must not regress the existing selected-printer SD upload card. The selected-printer SD Card page remains the focused upload workflow. The new Monitoring page is an aggregated operational view for the whole local farm.
+This step does not yet implement full enterprise identity management. It creates
+the local permission model, role profiles, backend guards, dashboard visibility,
+dangerous-action confirmation, and audit behavior needed for safe real-printer
+operation.
 
+Goals:
 
-One correction: for 0.2.5, avoid making it “upload only”. It should be a global Monitoring workspace, where upload monitoring is one section. That prevents the dashboard from becoming fragmented later
-
-
-
----
-
-## Goals
-
-* add a global `Monitoring` menu entry in the dashboard
-* show current runtime activity across all printers
-* show currently running or recently active jobs across all printers
-* expose upload/runtime telemetry in a global view
-* make it possible to refresh global monitoring state manually
-* allow the operator to synchronize/follow one active printer/job from the global view
-* keep the existing selected-printer upload status card working unchanged
-* prepare the architecture for later historical monitoring and trend views
+* distinguish read-only monitoring from state-changing printer operations
+* introduce local role profiles such as `VIEWER`, `OPERATOR`, and `ADMIN`
+* map roles to explicit backend permissions
+* enforce permissions in the API, not only in the dashboard
+* protect dangerous actions behind explicit confirmation
+* add audit entries for operator-triggered state-changing actions
+* prepare the security boundary needed before central VPS integration
 
 ---
 
-## Scope
+#### 0.3.0.A — Local role and permission model
 
-### In scope
+status: planned
 
-* new global dashboard menu item: `Monitoring`
-* new dashboard view for cross-printer runtime monitoring
-* backend endpoint returning current monitoring/activity state
-* global list of active or recently active jobs
-* global list of active SD uploads, if any
-* reuse of upload telemetry already exposed by `/printers/{id}/sd-card/uploads/status`
-* manual refresh button for global monitoring state
-* “Synchronize” action to focus/follow a specific printer or active job
-* clear separation between:
-  * selected-printer SD upload workflow
-  * global farm monitoring overview
+Goals:
 
-### Out of scope for first 0.2.5 version
-
-* full historical upload tracing after process restart
-* permanent upload telemetry history
-* charts over long time ranges
-* advanced alerting
-* WebSocket/live push
-* central VPS monitoring
-* replacing the selected-printer SD Card upload card
-
----
-
-## Design principle
-
-The selected-printer upload card answers:
-
-> What is happening for this printer upload right now?
-
-The global Monitoring page answers:
-
-> What is happening across the whole local farm right now?
-
-The new page must aggregate data. It must not duplicate workflow buttons too aggressively.
-
----
-
-## Dashboard structure
-
-Add a new global menu item:
+* define built-in local roles:
 
 ```text
-Farm Home
-Printers
-Jobs
-Monitoring
-History
-Settings
+VIEWER
+OPERATOR
+ADMIN
 ````
 
-`Monitoring` is a global page, not a selected-printer page.
+* define explicit permissions for printer viewing, printer configuration, monitoring configuration, job control, SD-card operations, command execution, and security management
+* keep roles human-readable while enforcing permission checks internally
+* keep the first implementation local and lightweight
 
----
-
-## Global Monitoring page layout
-
-### Card 1 — Fleet runtime summary
-
-Purpose:
-
-Show the operator whether the local farm is idle, busy, degraded, or failing.
-
-Suggested fields:
-
-* total configured printers
-* enabled printers
-* disabled printers
-* printers currently busy
-* printers in error/disconnected state
-* active jobs
-* active SD uploads
-* last refresh time
-
-Expected behavior:
-
-* refreshes with the global dashboard refresh
-* also has a page-level Refresh button
-* does not trigger direct printer polling
-* reads runtime/cache/backend aggregation only
-
----
-
-### Card 2 — Active jobs across all printers
-
-Purpose:
-
-Show all jobs currently relevant across the farm.
-
-Suggested fields:
-
-* job id
-* job name
-* job type
-* printer id / printer name
-* state
-* started at
-* updated at
-* failure reason/detail if any
-* quick action: open job details
-* quick action: synchronize/follow
-
-First version should probably show:
+Initial role intent:
 
 ```text
-QUEUED
-RUNNING
-PAUSED
+VIEWER   -> read-only monitoring and diagnostics
+OPERATOR -> normal printer operation and prepared job control
+ADMIN    -> runtime configuration, printer administration, and security settings
 ```
 
-Optionally also show the most recent:
+Expected result:
+
+* PrinterHub has a clear local access model
+* dangerous and administrative actions are no longer treated the same as read-only dashboard viewing
+
+Likely impacted files:
 
 ```text
-COMPLETED
-FAILED
-CANCELLED
+src/main/java/printerhub/security/LocalRole.java
+src/main/java/printerhub/security/Permission.java
+src/main/java/printerhub/security/RoleProfile.java
+src/main/java/printerhub/security/AuthorizationService.java
+src/main/java/printerhub/OperationMessages.java
 ```
 
-with a small limit, for example last 10 or last 20.
-
 ---
 
-### Card 3 — Active SD upload telemetry
+#### 0.3.0.B — Persist local security settings and role profiles
 
-Purpose:
+status: planned
 
-Show active upload telemetry across all printers without selecting each printer manually.
+Goals:
 
-Suggested fields:
+* persist local security settings in SQLite
+* initialize built-in role profiles with default permissions
+* expose local security configuration through API
+* avoid user-account complexity in the first version
 
-* printer id / printer name
-* target filename
-* state
-* active
-* uploaded lines / total lines
-* percent
-* bytes/sec
-* lines/sec
-* ETA
-* rejected/resend count
-* quality percent
-* active batch size
-* configured max batch size
-* transport mode
-* single-send mode
-* last adaptation reason
-
-Important:
-
-This card should only show **current/last known upload progress**. If uploads are not persisted after completion, then old upload details may disappear or only show the last in-memory state until restart. That is acceptable for 0.2.5 if documented clearly.
-
----
-
-### Card 4 — Adaptive transfer diagnostics
-
-Purpose:
-
-Show controller behavior across printers in a compact way.
-
-This is the global equivalent of the selected-printer “Adaptive tuning” diagnostic card.
-
-Suggested fields per active upload:
-
-* printer id
-* active batch size
-* configured min batch size
-* configured max batch size
-* accepted lines since last resend
-* recent resend count
-* resend threshold for downgrade
-* recovery threshold for min batch
-* stable lines for upgrade
-* transport mode
-* last adaptation timestamp
-* last adaptation reason
-
-Display rule:
-
-* keep this card secondary
-* make it collapsible or visually lower priority
-* do not bury the basic upload progress behind diagnostics
-
----
-
-## Synchronize / follow behavior
-
-The Monitoring page should support a `Synchronize` action.
-
-Initial meaning:
-
-When the operator clicks `Synchronize` on an active job or upload:
-
-* select the related printer in dashboard state
-* optionally switch to the selected-printer SD Card page or Print page
-* load the latest upload status/job details
-* keep polling that printer/job while the operator watches
-
-Recommended first behavior:
+Suggested persisted model:
 
 ```text
-Synchronize upload -> Selected Printer → SD Card
-Synchronize job    -> Selected Printer → Print or Jobs detail
+security_settings
+├── security_enabled
+├── default_role
+├── require_dangerous_action_confirmation
+├── created_at
+└── updated_at
 ```
-
-This keeps the global page simple and lets the existing detailed pages remain the focused workspace.
-
----
-
-## Backend requirements
-
-A new backend endpoint is likely needed.
-
-### Recommended endpoint
 
 ```text
-GET /monitoring
+role_profiles
+├── role_name
+├── permissions_json
+├── built_in
+├── created_at
+└── updated_at
 ```
 
-Purpose:
+Suggested API:
 
-Return a single aggregated snapshot for the global Monitoring page.
-
-Suggested JSON shape:
-
-```json
-{
-  "generatedAt": "2026-05-16T10:00:00Z",
-  "summary": {
-    "totalPrinters": 3,
-    "enabledPrinters": 2,
-    "disabledPrinters": 1,
-    "busyPrinters": 1,
-    "errorPrinters": 0,
-    "activeJobs": 1,
-    "activeUploads": 1
-  },
-  "printers": [],
-  "activeJobs": [],
-  "activeUploads": []
-}
+```text
+GET /security/profile
+GET /security/roles
+PUT /security/roles
+GET /settings/security
+PUT /settings/security
 ```
 
-The endpoint should aggregate from existing runtime services:
+Expected result:
 
-* `PrinterRegistry`
-* `PrinterRuntimeStateCache`
-* `PrintJobService`
-* `SdCardUploadService`
-* maybe `PrinterEventStore` later
+* role behavior is no longer hardcoded only in Java
+* local security defaults survive restart
+* later authentication can reuse the same role/permission model
 
-Important invariant:
+Likely impacted files:
 
-The endpoint must not directly poll printers. It must read cached/runtime state only.
+```text
+src/main/java/printerhub/persistence/SecuritySettingsStore.java
+src/main/java/printerhub/persistence/RoleProfileStore.java
+src/main/java/printerhub/persistence/DatabaseInitializer.java
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/resources/dashboard/api.js
+src/main/resources/dashboard/state.js
+src/main/resources/dashboard/views/settings.js
+```
 
 ---
 
-## Backend implementation notes
+#### 0.3.0.C — Backend authorization guard for API endpoints
 
-### New or changed files
+status: planned
+
+Goals:
+
+* enforce authorization in backend API handlers
+* keep dashboard button visibility as UX only, not as the security boundary
+* reject forbidden actions with clear API errors
+* classify endpoint permissions consistently
+
+Permission examples:
+
+```text
+PRINTER_VIEW
+PRINTER_CONFIGURE
+MONITORING_VIEW
+MONITORING_CONFIGURE
+JOB_VIEW
+JOB_CREATE
+JOB_START
+JOB_PAUSE
+JOB_RESUME
+JOB_CANCEL
+JOB_RESTART
+JOB_DELETE
+SD_VIEW
+SD_REFRESH
+SD_UPLOAD
+SD_DELETE
+SD_RECOVERY_CLOSE_UPLOAD
+COMMAND_READ
+COMMAND_SAFE_CONTROL
+COMMAND_DANGEROUS_CONTROL
+COMMAND_RAW
+SETTINGS_VIEW
+SETTINGS_UPDATE
+SECURITY_VIEW
+SECURITY_MANAGE
+```
+
+Example endpoint mapping:
+
+```text
+GET /printers                         -> PRINTER_VIEW
+POST /printers                        -> PRINTER_CONFIGURE
+PUT /printers/{id}                    -> PRINTER_CONFIGURE
+DELETE /printers/{id}                 -> PRINTER_CONFIGURE
+PUT /settings/monitoring              -> MONITORING_CONFIGURE
+POST /jobs/{id}/start                 -> JOB_START
+POST /jobs/{id}/pause                 -> JOB_PAUSE
+POST /jobs/{id}/resume                -> JOB_RESUME
+POST /jobs/{id}/cancel                -> JOB_CANCEL
+POST /printers/{id}/sd-card/uploads   -> SD_UPLOAD
+DELETE /printer-sd-files/{id}         -> SD_DELETE
+POST /printers/{id}/commands          -> command-specific permission
+```
+
+Expected result:
+
+* unauthorized state-changing requests are blocked even if called directly through curl
+* API responses clearly explain forbidden actions
+* central VPS integration later can reuse the same authorization boundary
+
+Likely impacted files:
 
 ```text
 src/main/java/printerhub/api/RemoteApiServer.java
-src/main/java/printerhub/monitoring/GlobalMonitoringSnapshot.java       optional
-src/main/java/printerhub/monitoring/GlobalMonitoringService.java        recommended
-src/main/java/printerhub/command/SdCardUploadService.java               maybe minor
+src/main/java/printerhub/security/AuthorizationService.java
+src/main/java/printerhub/security/ActionPermissionResolver.java
 src/test/java/printerhub/api/RemoteApiServerTest.java
 ```
 
-### Recommended backend split
+---
 
-Avoid putting all aggregation logic directly into `RemoteApiServer`.
+#### 0.3.0.D — Dangerous action confirmation model
 
-Better shape:
+status: planned
+
+Goals:
+
+* require explicit confirmation for risky printer actions
+* avoid accidental heating, movement, file deletion, print start, cancel, recovery close, raw command, and future streamed execution
+* return a clear confirmation-required API error when confirmation is missing
+* make the dashboard wording explicit about physical printer effects
+
+Risky action groups:
 
 ```text
-GlobalMonitoringService
-  reads PrinterRegistry
-  reads PrinterRuntimeStateCache
-  reads PrintJobService
-  reads SdCardUploadService
-  returns GlobalMonitoringSnapshot
+HEATING
+MOVEMENT
+HOMING
+SD_DELETE
+FILE_UPLOAD_OVERWRITE
+PRINT_START
+PRINT_CANCEL
+RECOVERY_CLOSE_UPLOAD
+RAW_COMMAND
+STREAMED_GCODE_EXECUTION
 ```
 
-Then `RemoteApiServer` only serializes the result.
+Suggested request behavior:
 
-This keeps `RemoteApiServer` from becoming even bigger.
+```json
+{
+  "confirmed": true,
+  "confirmationReason": "Operator confirmed nozzle heating"
+}
+```
+
+Suggested rejection behavior:
+
+```json
+{
+  "error": "confirmation_required",
+  "requiredConfirmation": "HEATING"
+}
+```
+
+Expected result:
+
+* dangerous operations require intentional operator acknowledgement
+* safety behavior is enforced by backend, not only by frontend wording
+
+Likely impacted files:
+
+```text
+src/main/java/printerhub/security/DangerousAction.java
+src/main/java/printerhub/security/DangerousActionGuard.java
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/resources/dashboard/dashboard.js
+src/main/resources/dashboard/views/printer-prepare.js
+src/main/resources/dashboard/views/printer-control.js
+src/main/resources/dashboard/views/printer-sd-card.js
+src/main/resources/dashboard/components/job-card.js
+```
 
 ---
 
-## Frontend requirements
+#### 0.3.0.E — Dashboard role-aware controls
 
-### New or changed files
+status: planned
+
+Goals:
+
+* show current local role/security mode in the dashboard
+* hide or disable actions the current role cannot execute
+* show clear reason text for disabled controls
+* keep dangerous actions visually distinct
+* add local security settings to Settings
+
+Dashboard behavior:
 
 ```text
-src/main/resources/dashboard/state.js
-src/main/resources/dashboard/api.js
-src/main/resources/dashboard/dashboard.js
-src/main/resources/dashboard/components/nav.js
+VIEWER:
+  dashboard remains useful for monitoring, but action buttons are disabled or hidden
+
+OPERATOR:
+  normal job and SD-card operation buttons remain available
+
+ADMIN:
+  configuration, settings, and security management controls are available
+```
+
+Expected result:
+
+* the UI communicates what the current operator can do
+* fewer accidental action attempts happen before API rejection
+* local role behavior is understandable without reading backend code
+
+Likely impacted files:
+
+```text
+src/main/resources/dashboard/views/settings.js
 src/main/resources/dashboard/views/monitoring.js
+src/main/resources/dashboard/views/printer-print.js
+src/main/resources/dashboard/views/printer-sd-card.js
+src/main/resources/dashboard/views/printer-prepare.js
+src/main/resources/dashboard/views/printer-control.js
+src/main/resources/dashboard/components/job-card.js
+src/main/resources/dashboard/components/nav.js
 src/main/resources/dashboard/dashboard.css
 ```
 
-### Frontend API
+---
 
-Add:
+#### 0.3.0.F — Audit events for authorized and rejected state-changing actions
 
-```javascript
-export async function getMonitoringOverview() {
-  return requestJson("/monitoring");
+status: planned
+
+Goals:
+
+* persist audit entries for operator-triggered state-changing actions
+* record whether the action was accepted or rejected by authorization/confirmation guards
+* include role, permission, action type, printer/job/file target, result, and failure reason
+* keep audit useful even before real user accounts exist
+
+Initial actor model:
+
+```text
+actor = local-dashboard
+role = current/default local role
+```
+
+Later actor model:
+
+```text
+actor = authenticated user
+role = resolved user role
+```
+
+Expected result:
+
+* local printer operations become traceable
+* rejected dangerous or unauthorized actions are visible
+* later authentication can enrich the same audit trail instead of replacing it
+
+Likely impacted files:
+
+```text
+src/main/java/printerhub/persistence/PrinterEventStore.java
+src/main/java/printerhub/persistence/OperatorAuditStore.java
+src/main/java/printerhub/security/AuthorizationService.java
+src/main/java/printerhub/api/RemoteApiServer.java
+src/main/resources/dashboard/views/printer-history.js
+src/main/resources/dashboard/views/monitoring.js
+```
+
+---
+
+## Expected result for 0.3.0
+
+After this step, PrinterHub has a real local safety and authorization boundary.
+
+Expected improvements:
+
+* read-only monitoring is separated from printer control
+* state-changing actions require suitable permissions
+* dangerous physical actions require explicit confirmation
+* dashboard controls reflect the current local role
+* API endpoints reject unauthorized direct calls
+* operator-triggered actions are auditable
+* the local runtime is better prepared for central VPS authentication later
+
+Non-goals:
+
+* no central user database yet
+* no OAuth/OIDC yet
+* no multi-farm identity model yet
+* no internet-facing authentication design yet
+* no per-tenant enterprise access model yet
+ 
+
+## My recommendation for implementation order
+
+Do it in this order:
+
+```text
+1. Permission enum + built-in role profiles
+2. SecuritySettingsStore + RoleProfileStore
+3. AuthorizationService
+4. Apply guards in RemoteApiServer
+5. Add confirmation-required model for dangerous actions
+6. Add dashboard role-aware controls
+7. Add audit entries
+``` 
+
+
+---
+
+
+
+ 
+
+ 
+## `0.3.1 — Local User Accounts, Login, and Dashboard Administration`
+
+This is where you add real user management.
+
+Purpose:
+
+```text
+PrinterHub gets local users, password login, sessions, and dashboard-based account administration.
+```
+
+This is the step you are asking about.
+
+It should include:
+
+```text
+local user database
+password hash storage
+login/logout API
+session handling
+current user endpoint
+dashboard login screen
+admin page for user CRUD
+role assignment
+enable/disable users
+audit identity attached to actions
+```
+
+ 
+
+## `0.3.1 — Local User Accounts, Login, and Dashboard Administration`
+
+status: planned
+
+Purpose:
+
+Add local authentication to PrinterHub so real users can log in, receive a role/profile, and administer accounts through the dashboard before central VPS integration begins.
+
+Goals:
+
+* add local user accounts stored in the PrinterHub runtime database
+* add password-based login for the embedded dashboard
+* store only password hashes, never plain passwords
+* attach one role/profile to each user
+* support user create/edit/disable operations through REST API and dashboard
+* protect admin-only user management actions
+* expose the currently logged-in user and permissions to the dashboard
+* attach authenticated user identity to operator-triggered audit events
+* keep local authentication separate from later central VPS authentication
+
+Expected result:
+
+* PrinterHub has a real local login screen
+* dashboard actions are executed as a known user, not as anonymous browser activity
+* local admins can manage users and roles without editing the database manually
+* later central authentication can build on a clear existing permission model
+
+---
+
+## Roles / profiles
+
+Start simple. Do not create too many roles.
+
+Recommended baseline:
+
+```text
+ADMIN
+OPERATOR
+VIEWER
+```
+
+### `ADMIN`
+
+Can administer the local runtime.
+
+Allowed examples:
+
+```text
+view dashboard
+manage printers
+manage monitoring settings
+manage serial transfer settings
+manage users
+assign roles
+enable/disable users
+start/pause/resume/cancel jobs
+upload files
+delete SD files
+execute dangerous actions after confirmation
+view history/audit
+```
+
+### `OPERATOR`
+
+Can operate printers, but cannot administer the runtime.
+
+Allowed examples:
+
+```text
+view dashboard
+view monitoring
+view jobs
+create/start/pause/resume/cancel jobs
+upload prepared files if allowed
+refresh SD-card files
+use recovery actions if allowed
+view job history
+```
+
+Not allowed:
+
+```text
+manage users
+change roles
+change runtime settings
+delete printers
+change serial transfer defaults
+```
+
+### `VIEWER`
+
+Read-only role.
+
+Allowed examples:
+
+```text
+view farm home
+view monitoring
+view printer status
+view jobs
+view history
+```
+
+Not allowed:
+
+```text
+start jobs
+cancel jobs
+upload files
+delete SD files
+change settings
+manage printers
+manage users
+execute commands
+```
+
+---
+
+## Permission model
+
+Internally, roles should map to permissions.
+
+Do not hardcode role checks everywhere like:
+
+```java
+if (role == ADMIN)
+```
+
+Better:
+
+```java
+authorizationService.require(user, Permission.MANAGE_USERS);
+authorizationService.require(user, Permission.START_JOB);
+authorizationService.require(user, Permission.DELETE_SD_FILE);
+```
+
+Suggested permissions:
+
+```text
+DASHBOARD_VIEW
+MONITORING_VIEW
+PRINTER_VIEW
+PRINTER_MANAGE
+SETTINGS_VIEW
+SETTINGS_UPDATE
+USER_VIEW
+USER_MANAGE
+JOB_VIEW
+JOB_CREATE
+JOB_START
+JOB_PAUSE
+JOB_RESUME
+JOB_CANCEL
+JOB_DELETE
+PRINT_FILE_UPLOAD
+SD_FILE_VIEW
+SD_FILE_MANAGE
+SD_FILE_DELETE
+COMMAND_EXECUTE_SAFE
+COMMAND_EXECUTE_DANGEROUS
+RECOVERY_ACTION_EXECUTE
+AUDIT_VIEW
+```
+
+Then role profiles become simple mappings:
+
+```text
+ADMIN    -> all permissions
+OPERATOR -> operational permissions
+VIEWER   -> read-only permissions
+```
+
+This is important because later the central VPS may have more refined profiles without rewriting every guard.
+
+---
+
+## Database model
+
+### `local_users`
+
+```text
+id
+username
+display_name
+password_hash
+role_name
+enabled
+created_at
+updated_at
+last_login_at
+```
+
+Important notes:
+
+* `username` should be unique.
+* `password_hash` must contain a proper password hash, not plain text.
+* `enabled=false` blocks login without deleting the user.
+* deleting users should probably be avoided at first; disable is safer for audit history.
+
+### `login_sessions`
+
+```text
+id
+session_token_hash
+user_id
+created_at
+expires_at
+revoked_at
+last_seen_at
+```
+
+The browser receives a session cookie. The database stores only a hash of the session token.
+
+Do not store raw session tokens.
+
+---
+
+## REST API
+
+### Authentication API
+
+```text
+POST /auth/login
+POST /auth/logout
+GET  /auth/me
+```
+
+### User management API
+
+```text
+GET  /users
+POST /users
+GET  /users/{id}
+PUT  /users/{id}
+POST /users/{id}/enable
+POST /users/{id}/disable
+POST /users/{id}/password
+```
+
+Possible `GET /auth/me` response:
+
+```json
+{
+  "authenticated": true,
+  "user": {
+    "id": "u-1",
+    "username": "nathabee",
+    "displayName": "Nathabee",
+    "role": "ADMIN",
+    "enabled": true
+  },
+  "permissions": [
+    "DASHBOARD_VIEW",
+    "MONITORING_VIEW",
+    "PRINTER_MANAGE",
+    "USER_MANAGE",
+    "JOB_START"
+  ]
 }
 ```
 
-### Frontend state
+Possible login request:
 
-Add:
-
-```javascript
-monitoringOverview: null
-```
-
-and setter:
-
-```javascript
-export function setMonitoringOverview(overview) {
-  state.monitoringOverview = overview;
+```json
+{
+  "username": "nathabee",
+  "password": "..."
 }
 ```
 
-### Navigation
+Possible user creation request:
 
-Add global menu entry:
-
-```text
-Monitoring
-```
-
-### Dashboard router
-
-Add new primary view:
-
-```javascript
-MONITORING: "monitoring"
-```
-
-and route it to:
-
-```javascript
-renderMonitoringPage()
+```json
+{
+  "username": "atelier-user",
+  "displayName": "Atelier User",
+  "password": "...",
+  "role": "OPERATOR",
+  "enabled": true
+}
 ```
 
 ---
 
-## Non-regression rule
+## Dashboard behavior
 
-0.2.5 must not break:
+Add a login screen before the dashboard loads.
 
-* selected-printer SD Card page
-* upload to SD button
-* upload progress card
-* upload status polling
-* adaptive tuning values shown for the selected printer
-* `/printers/{id}/sd-card/uploads/status`
-* `/settings/serial-transfer`
+Flow:
 
-The new global Monitoring page should **reuse** existing status data where possible, not replace it.
+```text
+open /dashboard
+if no valid session:
+  show login screen
+else:
+  load /auth/me
+  load dashboard data
+```
+
+Dashboard should show:
+
+```text
+current user
+current role
+logout button
+```
+
+Example:
+
+```text
+Logged in as Nathabee
+Role: ADMIN
+```
+
+Add a local admin area under Settings or a new Admin page:
+
+```text
+Settings
+├── Monitoring rules
+├── Serial transfer settings
+├── Printer administration
+└── User administration
+```
+
+Or, cleaner after 0.3.1:
+
+```text
+PrinterHub
+├── Farm Home
+├── Monitoring
+├── Printers
+├── Jobs
+├── History
+├── Settings
+└── Admin
+```
+
+I would prefer **Admin** as a separate global menu once users exist.
+
+Admin page:
+
+```text
+Admin
+├── Users
+├── Roles / Profiles
+└── Audit visibility
+```
+
+For `0.3.1`, roles can be fixed enum values. No need for editable custom roles yet.
 
 ---
 
-## Persistence decision
+## Where should role checks apply?
 
-For 0.2.5, upload telemetry can remain runtime-only.
+Backend first.
 
-That means:
-
-* active upload state is visible while upload is running
-* last upload state may be visible while the process keeps it in memory
-* after restart, upload telemetry can disappear
-* historical analysis is not guaranteed yet
-
-Do not auto-save adaptive runtime values into `SerialTransferSettings`.
-
-Reason:
-
-* settings represent operator configuration
-* adaptive values represent session behavior
-* mixing them would make debugging harder
-
-A later version can add:
+At minimum:
 
 ```text
-upload telemetry history
-last session report
-promote tuned value to settings
+printer create/update/delete
+printer enable/disable
+settings update
+serial transfer settings update
+user management
+job start/pause/resume/cancel/delete
+SD upload
+SD delete
+SD recovery close
+manual commands
+dangerous commands
 ```
 
-but this should not be part of the first 0.2.5 implementation.
+The dashboard should also hide/disable controls, but only as UX.
 
----
+The API must enforce the rule.
 
-## Suggested implementation order
-
-### Step A — backend aggregation
-
-Files:
+Example:
 
 ```text
-GlobalMonitoringService.java
-RemoteApiServer.java
-RemoteApiServerTest.java
-```
-
-Tasks:
-
-* create global monitoring snapshot model/service
-* add `GET /monitoring`
-* include summary, active jobs, active uploads
-* verify with curl
-
-Example verification:
-
-```bash
-curl -s http://localhost:8080/monitoring | jq
+VIEWER clicks Start Job by manipulating browser
+-> backend returns 403 Forbidden
 ```
 
 ---
 
-### Step B — frontend navigation and page shell
+## Should central admin later manage local users?
 
-Files:
+Later, yes, but not immediately.
+
+The long-term model can be:
 
 ```text
-state.js
-api.js
-dashboard.js
-components/nav.js
-views/monitoring.js
+local users = local fallback/admin users
+central users = VPS-managed users
+farm identity = local runtime identity
 ```
 
-Tasks:
+In the central version, you will probably have:
 
-* add `MONITORING` primary view id
-* add nav entry
-* add API call
-* add state holder
-* render basic Monitoring page shell
-* add Refresh button behavior
+```text
+central_user
+central_role
+farm_access
+farm_runtime_identity
+```
+
+But the local runtime still needs a local admin for standalone/emergency use.
+
+That is why `0.3.1` is useful even if central auth comes later.
 
 ---
 
-### Step C — display active jobs and uploads
+# Should unfinished `0.*` become `2.*` later?
 
-Files:
+Yes, that idea is reasonable, but do it deliberately.
+
+I would think like this:
 
 ```text
-views/monitoring.js
-dashboard.css
+0.x = local runtime development / prototype-to-product hardening
+1.x = central multi-farm platform foundation
+2.x = mature local runtime refinement after central architecture exists
 ```
 
-Tasks:
+So after `0.3.x`, you can decide:
 
-* render fleet summary card
-* render active jobs table/card
-* render active uploads table/card
-* show raw adaptive fields first
-* keep layout readable but not final-polished
+```text
+1.0.x = central platform baseline
+2.0.x = local runtime professionalization / final polish / production-grade local runtime
+```
+
+That would make sense because once central architecture exists, local runtime work changes meaning. It is no longer just a standalone project; it becomes an edge runtime inside a central platform.
+
+But I would not rename everything now.
+
+For now:
+
+```text
+0.3.0 = local authorization baseline
+0.3.1 = local login and user administration
+then decide whether 0.4/0.5 remain local roadmap or move to 2.x
+```
+
+My recommendation:
+
+```text
+finish 0.3.0 and 0.3.1 first
+then move to 1.0.0
+then move remaining local perfection topics to 2.x if they are no longer central prerequisites
+```
 
 ---
 
-### Step D — synchronize/follow action
-
-Files:
-
-```text
-dashboard.js
-views/monitoring.js
-state.js
-```
-
-Tasks:
-
-* add `data-monitoring-sync-printer`
-* on click:
-
-  * set selected printer
-  * switch to selected-printer SD Card or Print page
-  * refresh relevant status/details
-* make the operator land on the detailed page with current data visible
-
----
-
-## Expected result
-
-After 0.2.5:
-
-* the operator has a global Monitoring menu
-* active jobs across all printers are visible in one place
-* active SD uploads across all printers are visible in one place
-* adaptive upload behavior can be observed globally
-* one click can synchronize/follow a specific printer/job
-* the selected-printer upload card remains the detailed workflow view
-* the system is prepared for later historical monitoring and trend analysis
-
-````
-
-I would name this version exactly:
-
-```text
-0.2.5 — Global monitoring workspace and cross-printer runtime observability
-````
-
-It is clearer than calling it only “monitoring menu”, because the real architectural addition is the **global runtime aggregation endpoint plus dashboard workspace**.
+ 

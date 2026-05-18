@@ -9,6 +9,7 @@ public final class PrinterSnapshot {
     private final Double bedTemperature;
     private final String lastResponse;
     private final String errorMessage;
+    private final SerialFailureType serialFailureType;
     private final Instant updatedAt;
 
     private PrinterSnapshot(
@@ -17,6 +18,7 @@ public final class PrinterSnapshot {
             Double bedTemperature,
             String lastResponse,
             String errorMessage,
+            SerialFailureType serialFailureType,
             Instant updatedAt
     ) {
         if (updatedAt == null) {
@@ -28,12 +30,14 @@ public final class PrinterSnapshot {
         this.bedTemperature = bedTemperature;
         this.lastResponse = lastResponse;
         this.errorMessage = errorMessage;
+        this.serialFailureType = serialFailureType;
         this.updatedAt = updatedAt;
     }
 
     public static PrinterSnapshot disconnected(Instant updatedAt) {
         return new PrinterSnapshot(
                 PrinterState.DISCONNECTED,
+                null,
                 null,
                 null,
                 null,
@@ -54,6 +58,7 @@ public final class PrinterSnapshot {
                 previousBedTemperature,
                 previousResponse,
                 null,
+                null,
                 updatedAt
         );
     }
@@ -73,6 +78,7 @@ public final class PrinterSnapshot {
                 bedTemperature,
                 lastResponse,
                 null,
+                null,
                 updatedAt
         );
     }
@@ -85,6 +91,26 @@ public final class PrinterSnapshot {
             String errorMessage,
             Instant updatedAt
     ) {
+        return error(
+                state,
+                previousHotendTemperature,
+                previousBedTemperature,
+                lastResponse,
+                errorMessage,
+                null,
+                updatedAt
+        );
+    }
+
+    public static PrinterSnapshot error(
+            PrinterState state,
+            Double previousHotendTemperature,
+            Double previousBedTemperature,
+            String lastResponse,
+            String errorMessage,
+            SerialFailureType serialFailureType,
+            Instant updatedAt
+    ) {
         PrinterState resolvedState = state == null
                 ? PrinterState.ERROR
                 : state;
@@ -95,6 +121,7 @@ public final class PrinterSnapshot {
                 previousBedTemperature,
                 lastResponse,
                 errorMessage,
+                serialFailureType,
                 updatedAt
         );
     }
@@ -119,6 +146,10 @@ public final class PrinterSnapshot {
         return errorMessage;
     }
 
+    public SerialFailureType serialFailureType() {
+        return serialFailureType;
+    }
+
     public Instant updatedAt() {
         return updatedAt;
     }
@@ -131,6 +162,7 @@ public final class PrinterSnapshot {
                 + ", bedTemperature=" + bedTemperature
                 + ", lastResponse='" + lastResponse + '\''
                 + ", errorMessage='" + errorMessage + '\''
+                + ", serialFailureType=" + serialFailureType
                 + ", updatedAt=" + updatedAt
                 + '}';
     }

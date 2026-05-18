@@ -1,5 +1,8 @@
 package printerhub;
 
+import printerhub.security.LocalRole;
+import printerhub.security.Permission;
+
 public final class OperationMessages {
 
     private OperationMessages() {
@@ -49,6 +52,10 @@ public final class OperationMessages {
     public static final String TARGET_TEMPERATURE_MUST_NOT_BE_NEGATIVE = "targetTemperature must not be negative";
 
     public static final String SERIAL_TRANSFER_SETTINGS_MUST_NOT_BE_NULL = "serialTransferSettings must not be null";
+    public static final String LOCAL_ROLE_MUST_NOT_BE_NULL = "localRole must not be null";
+    public static final String ROLE_DISPLAY_NAME_MUST_NOT_BE_BLANK = "role displayName must not be blank";
+    public static final String ROLE_PROFILES_MUST_NOT_BE_NULL = "roleProfiles must not be null";
+    public static final String PERMISSIONS_MUST_NOT_BE_NULL = "permissions must not be null";
 
     public static final String SD_UPLOAD_BATCH_SIZE_MUST_BE_IN_RANGE = "sdUploadBatchSize must be between 1 and 100";
     public static final String SD_UPLOAD_RECOVERY_WINDOW_MULTIPLIER_MUST_BE_IN_RANGE = "sdUploadRecoveryWindowMultiplier must be between 1 and 100";
@@ -103,6 +110,10 @@ public final class OperationMessages {
     public static final String FAILED_TO_SAVE_PRINT_FILE_SETTINGS = "Failed to save print file settings";
     public static final String FAILED_TO_LOAD_SERIAL_TRANSFER_SETTINGS = "Failed to load serial transfer settings";
     public static final String FAILED_TO_SAVE_SERIAL_TRANSFER_SETTINGS = "Failed to save serial transfer settings";
+    public static final String FAILED_TO_LOAD_SECURITY_SETTINGS = "Failed to load security settings";
+    public static final String FAILED_TO_SAVE_SECURITY_SETTINGS = "Failed to save security settings";
+    public static final String FAILED_TO_LOAD_ROLE_PROFILES = "Failed to load role profiles";
+    public static final String FAILED_TO_SAVE_ROLE_PROFILES = "Failed to save role profiles";
 
     public static final String SERIAL_CONNECTION_IS_NOT_OPEN = "Serial port is not open.";
     public static final String INTERRUPTED_WHILE_READING_RESPONSE = "Interrupted while reading response from serial port.";
@@ -384,5 +395,12 @@ public final class OperationMessages {
         }
 
         return detail;
+    }
+
+    public static String permissionDenied(LocalRole role, Permission permission) {
+        return "Permission denied for role "
+                + (role == null ? "UNKNOWN" : role.name())
+                + ": "
+                + (permission == null ? "UNKNOWN" : permission.name());
     }
 }

@@ -1,11 +1,14 @@
 import { escapeHtml, isSimulatedMode } from "../dashboard.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
+import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { state } from "../state.js";
 
  export function renderSettingsPage() {
   const monitoringRules = state.monitoringRules || {};
   const printFileSettings = state.printFileSettings || {};
   const serialTransferSettings = state.serialTransferSettings || {};
+  const securitySettings = state.securitySettings || {};
+  const securityRoles = state.securityRoles || [];
   const printers = state.printers;
 
   return `
@@ -151,6 +154,42 @@ import { state } from "../state.js";
       <article class="section-card">
         <div class="section-header">
           <div>
+            <h2>Local security</h2>
+            <p class="lead">Local role defaults used by the upcoming backend permission guards.</p>
+          </div>
+        </div>
+
+        <form id="securitySettingsForm" class="form-grid">
+          <label class="checkbox-label">
+            <input id="securityEnabledInput" name="securityEnabled" type="checkbox" ${securitySettings.securityEnabled === true ? "checked" : ""}>
+            Enable local security checks
+          </label>
+
+          <label>
+            Default local role
+            <select id="securityDefaultRoleInput" name="defaultRole" required>
+              ${renderRoleOptions(securitySettings.defaultRole || "ADMIN")}
+            </select>
+          </label>
+
+          <label class="checkbox-label">
+            <input id="securityDangerousConfirmationInput" name="requireDangerousActionConfirmation" type="checkbox" ${securitySettings.requireDangerousActionConfirmation !== false ? "checked" : ""}>
+            Require dangerous action confirmation
+          </label>
+
+          <div class="form-actions">
+            <button type="submit">Save security settings</button>
+          </div>
+        </form>
+
+        <div class="list-block">
+          ${securityRoles.length === 0 ? `<p class="muted">Role profiles not loaded yet.</p>` : securityRoles.map(renderRoleProfile).join("")}
+        </div>
+      </article>
+
+      <article class="section-card">
+        <div class="section-header">
+          <div>
             <h2>Printer administration</h2>
             <p class="lead">Create or update configured printer nodes.</p>
           </div>
@@ -169,7 +208,8 @@ import { state } from "../state.js";
 
           <label>
             Port
-            <input id="printerPortInput" name="portName" type="text" placeholder="/dev/ttyUSB0 or SIM_PORT" required>
+            <input id="printerPortInput" name="portName" type="text" placeholder="/dev/serial/by-id/... or COM3 or SIM_PORT" required>
+            <span class="field-hint">For Linux real printers, prefer a stable /dev/serial/by-id/... path instead of /dev/ttyUSB0.</span>
           </label>
 
           <label>
@@ -219,7 +259,32 @@ import { state } from "../state.js";
   `;
 }
 
+function renderRoleOptions(selectedRole) {
+  return ["VIEWER", "OPERATOR", "ADMIN"].map((role) => `
+    <option value="${role}" ${selectedRole === role ? "selected" : ""}>${role}</option>
+  `).join("");
+}
+
+function renderRoleProfile(profile) {
+  const permissions = Array.isArray(profile.permissions) ? profile.permissions : [];
+  return `
+    <article class="config-card compact-config-card">
+      <div class="section-header compact">
+        <div>
+          <h3>${escapeHtml(profile.displayName || profile.role)}</h3>
+          <p class="meta">${escapeHtml(profile.role || "n/a")} · ${permissions.length} permissions</p>
+        </div>
+        <span class="badge ${profile.builtIn ? "badge-enabled" : "badge-disabled"}">${profile.builtIn ? "built-in" : "custom"}</span>
+      </div>
+      <p class="muted">${permissions.map(escapeHtml).join(", ")}</p>
+    </article>
+  `;
+}
+
 function renderConfiguredPrinter(printer) {
+  const portKind = printer.serialPortKind || serialPortKind(printer.mode, printer.portName);
+  const stablePath = stableSerialPath(printer.mode, printer.portName, printer.stableSerialPath);
+
   return `
     <article class="config-card">
       <div class="section-header compact">
@@ -230,8 +295,10 @@ function renderConfiguredPrinter(printer) {
         <div class="badge-row">
           <span class="badge ${printer.enabled ? "badge-enabled" : "badge-disabled"}">${printer.enabled ? "enabled" : "disabled"}</span>
           <span class="badge ${isSimulatedMode(printer.mode) ? "badge-simulated" : "badge-real"}">${isSimulatedMode(printer.mode) ? "simulated" : "real"}</span>
+          <span class="badge ${stablePath ? "badge-enabled" : "badge-simulated"}">${escapeHtml(portKind)}</span>
         </div>
       </div>
+      ${renderSerialPathNotice(printer)}
       <div class="action-row">
         <button type="button" class="secondary-button" data-config-action="edit" data-printer-id="${escapeHtml(printer.id)}">Edit</button>
         <button type="button" class="secondary-button" data-config-action="enable" data-printer-id="${escapeHtml(printer.id)}">Enable</button>

@@ -46,6 +46,28 @@ class PrinterConfigurationStoreTest {
     }
 
     @Test
+    void savePreservesStableLinuxSerialPath() {
+        useDatabase("config-stable-serial-path.db");
+
+        String stablePath = "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0";
+        PrinterConfigurationStore store = new PrinterConfigurationStore();
+        PrinterRuntimeNode node = PrinterRuntimeNodeFactory.create(
+                "printer-1",
+                "Printer 1",
+                stablePath,
+                "real",
+                true
+        );
+
+        store.save(node);
+
+        List<PrinterRuntimeNode> printers = store.findAll();
+        assertEquals(1, printers.size());
+        assertEquals(stablePath, printers.get(0).portName());
+        assertEquals("real", printers.get(0).mode());
+    }
+
+    @Test
     void saveUpdatesExistingPrinterOnConflict() {
         useDatabase("config-update.db");
 

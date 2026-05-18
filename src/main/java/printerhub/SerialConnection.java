@@ -9,6 +9,8 @@ import printerhub.serial.SerialPortAdapter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +71,9 @@ public final class SerialConnection implements PrinterPort {
         activePort.setComPortTimeouts(SerialPortAdapter.TIMEOUT_NONBLOCKING, 0, 0);
 
         if (!activePort.openPort()) {
-            throw new IllegalStateException(OperationMessages.failedToOpenSerialPort(portName));
+            throw new SerialCommunicationException(
+                    classifyOpenFailure(portName),
+                    OperationMessages.failedToOpenSerialPort(portName));
         }
 
         try {
@@ -79,7 +83,8 @@ public final class SerialConnection implements PrinterPort {
             safelyClosePortOnly();
             in = null;
             out = null;
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.UNKNOWN_SERIAL_FAILURE,
                     OperationMessages.failedToInitializeSerialStreams(portName),
                     exception);
         }
@@ -103,18 +108,21 @@ public final class SerialConnection implements PrinterPort {
             return readLine(readTimeoutMs);
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.WRITE_FAILURE,
                     OperationMessages.failedToSendCommand(trimmedCommand, portName),
                     exception);
         } catch (TimeoutException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.READ_TIMEOUT,
                     OperationMessages.noResponseForCommandOnPort(trimmedCommand, portName),
                     exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.interruptedWhileReadingResponse(portName),
                     exception);
         } catch (RuntimeException exception) {
@@ -165,18 +173,21 @@ public final class SerialConnection implements PrinterPort {
             return readRawResponseInternal(mode);
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.WRITE_FAILURE,
                     OperationMessages.failedToSendCommand(line, portName),
                     exception);
         } catch (TimeoutException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.READ_TIMEOUT,
                     OperationMessages.noResponseForCommandOnPort(line, portName),
                     exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.interruptedWhileReadingResponse(portName),
                     exception);
         } catch (RuntimeException exception) {
@@ -200,7 +211,8 @@ public final class SerialConnection implements PrinterPort {
             writeRawLineInternal(line);
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.WRITE_FAILURE,
                     OperationMessages.failedToSendCommand(line, portName),
                     exception);
         } catch (RuntimeException exception) {
@@ -221,7 +233,8 @@ public final class SerialConnection implements PrinterPort {
             return readRawResponseInternal(mode);
         } catch (TimeoutException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.READ_TIMEOUT,
                     OperationMessages.noResponseWithinTimeout(
                             mode == SerialIOMode.FILE_STREAMING
                                     ? SerialDefaults.FILE_STREAMING_READ_TIMEOUT_MS
@@ -230,12 +243,14 @@ public final class SerialConnection implements PrinterPort {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.interruptedWhileReadingResponse(portName),
                     exception);
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.failedToSendCommand("readRawResponse", portName),
                     exception);
         } catch (RuntimeException exception) {
@@ -271,18 +286,21 @@ public final class SerialConnection implements PrinterPort {
             return responses;
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.WRITE_FAILURE,
                     OperationMessages.failedToSendCommand(lines.toString(), portName),
                     exception);
         } catch (TimeoutException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.READ_TIMEOUT,
                     OperationMessages.noResponseForCommandOnPort(lines.toString(), portName),
                     exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.interruptedWhileReadingResponse(portName),
                     exception);
         } catch (RuntimeException exception) {
@@ -322,13 +340,15 @@ public final class SerialConnection implements PrinterPort {
             }
         } catch (IOException exception) {
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.failedToSendCommand("discardPendingInput", portName),
                     exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             disconnect();
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.TEMPORARY_COMMUNICATION_FAILURE,
                     OperationMessages.interruptedWhileReadingResponse(portName),
                     exception);
         }
@@ -581,7 +601,8 @@ public final class SerialConnection implements PrinterPort {
 
     private void ensureConnected() {
         if (!isConnected()) {
-            throw new IllegalStateException(
+            throw new SerialCommunicationException(
+                    SerialFailureType.DEVICE_DISCONNECTED,
                     OperationMessages.SERIAL_CONNECTION_IS_NOT_OPEN + " " + portName);
         }
     }
@@ -592,6 +613,28 @@ public final class SerialConnection implements PrinterPort {
         }
 
         return port;
+    }
+
+    private SerialFailureType classifyOpenFailure(String portName) {
+        if (portName == null || portName.isBlank()) {
+            return SerialFailureType.UNKNOWN_SERIAL_FAILURE;
+        }
+
+        if (portName.startsWith("/")) {
+            try {
+                Path path = Path.of(portName);
+                if (!Files.exists(path)) {
+                    return SerialFailureType.DEVICE_PATH_NOT_FOUND;
+                }
+                if (!Files.isReadable(path) || !Files.isWritable(path)) {
+                    return SerialFailureType.DEVICE_PERMISSION_DENIED;
+                }
+            } catch (RuntimeException exception) {
+                return SerialFailureType.UNKNOWN_SERIAL_FAILURE;
+            }
+        }
+
+        return SerialFailureType.DEVICE_BUSY;
     }
 
     private void safelyClosePortOnly() {
