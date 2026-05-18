@@ -19,6 +19,11 @@ next:
 
 ## 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
+- 0.3.0.F — Audit events for authorized and rejected state-changing actions
+- 0.3.0.E — Dashboard role-aware controls
+- 0.3.0.D — Dangerous action confirmation model
+- 0.3.0.C — Backend authorization guard for API endpoints
+- 0.3.0.B — Persist local security settings and role profiles
 - 0.3.0.A — Local role and permission model
 
 

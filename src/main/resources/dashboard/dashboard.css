@@ -154,6 +154,14 @@ textarea:focus {
   border-color: var(--primary);
 }
 
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -878,6 +886,11 @@ progress::-moz-progress-bar {
 .status-disabled {
   background: var(--disabled-bg);
   color: var(--disabled-text);
+}
+
+.security-context-card {
+  margin-bottom: 1rem;
+  border-color: rgba(123, 170, 230, 0.34);
 }
 
 .badge-simulated,

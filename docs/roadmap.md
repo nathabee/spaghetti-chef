@@ -2461,35 +2461,144 @@ Goals:
 * reject forbidden direct API calls with `403` and a clear permission-denied message
 * support a local `X-PrinterHub-Role` override for testing/admin tooling until full user authentication exists
 
+#### 0.3.0.D — Dangerous action confirmation model
+
+status: done
+
+Goals:
+
+* add a backend dangerous-action model for heating, movement, homing, SD delete, upload overwrite, print start, print cancel, recovery close, raw command, and future streamed G-code execution
+* enforce explicit `confirmed: true` request acknowledgement when `requireDangerousActionConfirmation` is enabled
+* reject missing acknowledgement with HTTP `428` and a structured `confirmation_required` response containing the required dangerous action group
+* keep read-only commands such as `M105`, `M114`, and `M115` outside the confirmation flow
+* add dashboard confirmations and confirmation payloads for existing risky controls: SD upload, SD target delete, recovery close, job start/cancel, and dangerous manual commands
+
+#### 0.3.0.E — Dashboard role-aware controls
+
+status: done
+
+Goals:
+
+* show the current local security mode and effective dashboard role in the navigation/settings context
+* add frontend permission helpers that evaluate the persisted role profile permissions already exposed by the backend
+* disable job, SD-card, printer configuration, command, settings, and security controls that the current local role cannot execute
+* keep disabled controls visible with role/permission hints so operators understand why an action is unavailable
+* keep backend authorization as the real security boundary while improving dashboard clarity before rejected API calls happen
+
+#### 0.3.0.F — Audit events for authorized and rejected state-changing actions
+
+status: done
+
+Goals:
+
+* persist operator audit entries for state-changing API requests in SQLite
+* record the local actor, effective role, resolved permission, dangerous action group, action path, target, result, failure reason, and timestamp
+* write accepted audit entries when authorization and confirmation guards allow a state-changing action
+* write rejected audit entries when authorization or dangerous-action confirmation blocks a request
+* expose recent audit entries through `/operator-audit` and surface them in Monitoring plus selected-printer History views
+
 
 ---
 
-
-## 0.4.x Camera monitoring and spaghetti detection
+## 0.4.x — Camera Monitoring & Visual Safety Layer
 
 status: planned
 
 Purpose:
-Camera monitoring and spaghetti detection
 
-### 0.4.0 Camera monitoring foundation
-- detect camera
-- capture snapshot
-- expose /printers/{id}/camera/snapshot
-- show image in dashboard
+Add printer-side visual monitoring as a parallel subsystem of the local PrinterHub runtime. The camera layer observes configured printers, captures snapshots, exposes camera state through the REST API and dashboard, and later detects visual print anomalies such as spaghetti failures.
+
+The camera subsystem must remain separate from serial communication, SD upload, and job execution internals. It may request safety actions only through controlled runtime services.
+
+### 0.4.0 — Camera Monitoring Foundation
+
+status: planned
+
+Goals:
+
+- introduce a dedicated `printerhub.camera` package
+- define `CameraDevice` abstraction
+- support simulated camera and snapshot-folder camera sources
+- persist camera settings per printer
 - persist camera events
+- capture latest snapshot per configured printer
+- expose camera status and snapshot endpoints
+- add a selected-printer Camera dashboard view
+- keep real OpenCV/webcam support behind the abstraction and optional for later
+- keep camera disabled by default
 
-### 0.4.1 Spaghetti heuristic detection
-- compare frames
-- detect abnormal chaos/motion
-- confidence score
-- no automatic stop yet
+Out of scope:
 
-### 0.4.2 Safety intervention
-- if confidence high several times
-- pause SD print with M25
-- persist SPAGHETTI_DETECTED
+- spaghetti detection
+- OpenCV native dependency
+- automatic print pause
+- streaming video
+- changes to SD upload or serial communication
 
+### 0.4.1 — Frame Analysis & Spaghetti Heuristic Detection
+
+status: planned
+
+Goals:
+
+- introduce `FrameAnalyzer`
+- compare consecutive frames
+- calculate anomaly indicators
+- introduce `SpaghettiDetectionService`
+- expose confidence score and reason codes
+- persist suspected visual anomalies
+- show analysis state in dashboard
+
+Out of scope:
+
+- automatic printer intervention
+- hard stop/abort behavior
+
+### 0.4.2 — Camera Safety Intervention
+
+status: planned
+
+Goals:
+
+- introduce a safety decision layer
+- require repeated high-confidence detections before action
+- persist `SPAGHETTI_SUSPECTED` and `SPAGHETTI_CONFIRMED`
+- optionally pause SD print using controlled command flow
+- persist safety action result
+- show safety intervention in printer/job history
+- keep safety actions disabled by default
+
+Out of scope:
+
+- automatic abort as default behavior
+- direct serial access from camera code
+
+### 0.4.3 — Real Webcam Backend
+
+status: planned
+
+Goals:
+
+- add real webcam implementation behind `CameraDevice`
+- support Linux camera device paths
+- support Windows camera indexes
+- evaluate OpenCV Java bindings or JavaCV
+- isolate native dependency handling
+- document installation and troubleshooting
+
+### 0.4.4 — Camera Dashboard Polish
+
+status: planned
+
+Goals:
+
+- improve camera cards
+- add latest snapshot refresh
+- show last frame age
+- show anomaly confidence history
+- show camera event timeline
+- add camera settings editor
+- add safety mode indicator
 
 ---
 

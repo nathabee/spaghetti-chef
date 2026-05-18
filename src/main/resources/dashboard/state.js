@@ -31,6 +31,7 @@ export const state = {
   securitySettings: null,
   securityRoles: [],
   monitoringOverview: null,
+  operatorAuditEvents: [],
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -105,6 +106,10 @@ export function setSecurityRoles(roles) {
 
 export function setMonitoringOverview(overview) {
   state.monitoringOverview = overview || null;
+}
+
+export function setOperatorAuditEvents(events) {
+  state.operatorAuditEvents = Array.isArray(events) ? events : [];
 }
 
 export function setPrimaryView(viewId) {
@@ -278,4 +283,70 @@ export function setJobEvents(jobId, events) {
 
 export function setPrinterCommandResult(printerId, message) {
   state.printerCommandResults.set(printerId, message);
+}
+
+export function currentLocalRole() {
+  return state.securitySettings?.defaultRole || "ADMIN";
+}
+
+export function currentRoleProfile() {
+  const role = currentLocalRole();
+  return state.securityRoles.find((profile) => profile.role === role) || null;
+}
+
+export function securityModeLabel() {
+  return state.securitySettings?.securityEnabled === true ? "Security enabled" : "Security disabled";
+}
+
+export function hasPermission(permission) {
+  if (!permission) {
+    return true;
+  }
+  if (state.securitySettings?.securityEnabled !== true) {
+    return true;
+  }
+
+  const profile = currentRoleProfile();
+  const permissions = Array.isArray(profile?.permissions) ? profile.permissions : [];
+  return permissions.includes(permission) || legacyPermissionAllows(permissions, permission);
+}
+
+export function disabledUnlessPermission(permission) {
+  return hasPermission(permission) ? "" : `disabled title="${permissionDeniedLabel(permission)}"`;
+}
+
+export function permissionDeniedLabel(permission) {
+  return `Current role ${currentLocalRole()} cannot execute ${permission}.`;
+}
+
+function legacyPermissionAllows(permissions, permission) {
+  const legacyMap = {
+    PRINTER_VIEW: ["VIEW_PRINTERS"],
+    PRINTER_CONFIGURE: ["CONFIGURE_PRINTERS"],
+    MONITORING_VIEW: ["VIEW_MONITORING"],
+    MONITORING_CONFIGURE: ["CONFIGURE_MONITORING"],
+    JOB_VIEW: ["VIEW_JOBS"],
+    JOB_CREATE: ["CONTROL_JOBS"],
+    JOB_START: ["CONTROL_JOBS"],
+    JOB_PAUSE: ["CONTROL_JOBS"],
+    JOB_RESUME: ["CONTROL_JOBS"],
+    JOB_CANCEL: ["CONTROL_JOBS"],
+    JOB_RESTART: ["CONTROL_JOBS"],
+    JOB_DELETE: ["CONTROL_JOBS"],
+    SD_VIEW: ["VIEW_PRINTERS"],
+    SD_REFRESH: ["VIEW_PRINTERS"],
+    SD_UPLOAD: ["UPLOAD_TO_SD_CARD"],
+    SD_DELETE: ["MANAGE_SD_CARD_FILES"],
+    SD_RECOVERY_CLOSE_UPLOAD: ["UPLOAD_TO_SD_CARD"],
+    COMMAND_READ: ["EXECUTE_SAFE_COMMANDS"],
+    COMMAND_SAFE_CONTROL: ["EXECUTE_SAFE_COMMANDS"],
+    COMMAND_DANGEROUS_CONTROL: ["EXECUTE_DANGEROUS_COMMANDS"],
+    COMMAND_RAW: ["EXECUTE_DANGEROUS_COMMANDS"],
+    SETTINGS_VIEW: ["VIEW_SETTINGS"],
+    SETTINGS_UPDATE: ["CONFIGURE_MONITORING", "CONFIGURE_TRANSFER_SETTINGS"],
+    SECURITY_VIEW: ["MANAGE_SECURITY"],
+    SECURITY_MANAGE: ["MANAGE_SECURITY"]
+  };
+
+  return (legacyMap[permission] || []).some((legacyPermission) => permissions.includes(legacyPermission));
 }

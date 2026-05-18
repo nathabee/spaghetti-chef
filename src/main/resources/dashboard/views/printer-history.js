@@ -5,6 +5,9 @@ import { state } from "../state.js";
 
 export function renderPrinterHistory(printer, jobsForPrinter) {
   const printerEvents = state.printerEvents.get(printer.id) ?? [];
+  const auditEvents = state.operatorAuditEvents.filter((event) =>
+    event.targetType === "printer" && event.targetId === printer.id
+  );
 
   return `
     <section class="two-column-grid">
@@ -47,6 +50,18 @@ export function renderPrinterHistory(printer, jobsForPrinter) {
       </div>
     </section>
 
+    <section class="section-card">
+      <div class="section-header compact">
+        <div>
+          <h3>Operator audit</h3>
+          <p class="muted">Accepted and rejected local dashboard actions targeting this printer.</p>
+        </div>
+      </div>
+      <div class="events-list">
+        ${renderAuditEvents(auditEvents)}
+      </div>
+    </section>
+
     <section class="two-column-grid">
       ${renderPlaceholderCard(
         "Snapshot history",
@@ -68,6 +83,25 @@ export function renderPrinterHistory(printer, jobsForPrinter) {
       )}
     </section>
   `;
+}
+
+function renderAuditEvents(events) {
+  if (!events || events.length === 0) {
+    return `<p class="muted">No operator audit entries for this printer yet.</p>`;
+  }
+
+  return events.slice(0, 12).map((event) => `
+    <div class="event-item">
+      <div class="event-header">
+        <strong>${escapeHtml(event.result || "UNKNOWN")}</strong>
+        <span class="event-time">${escapeHtml(formatDateTime(event.createdAt))}</span>
+      </div>
+      <div class="event-message">
+        ${escapeHtml(event.actionType || "n/a")} · ${escapeHtml(event.role || "n/a")} · ${escapeHtml(event.permission || "no permission")}
+      </div>
+      ${event.failureReason ? `<div class="muted">${escapeHtml(event.failureReason)}</div>` : ""}
+    </div>
+  `).join("");
 }
 
 function renderJobHistorySummary(jobsForPrinter) {

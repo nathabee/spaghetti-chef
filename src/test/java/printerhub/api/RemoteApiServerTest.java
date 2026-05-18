@@ -34,7 +34,10 @@ import printerhub.runtime.PrinterRuntimeNode;
 import printerhub.runtime.PrinterRuntimeNodeFactory;
 import printerhub.runtime.PrinterRuntimeStateCache;
 import printerhub.command.SdCardUploadService;
+import printerhub.persistence.SecuritySettings;
+import printerhub.persistence.SecuritySettingsStore;
 import printerhub.persistence.SerialTransferSettingsStore;
+import printerhub.security.LocalRole;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -431,6 +434,171 @@ class RemoteApiServerTest {
 
             assertEquals(200, response.statusCode());
             assertTrue(response.body().contains("\"printers\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void dangerousActionConfirmationRejectsMissingConfirmation() throws Exception {
+        TestContext context = createContext("dangerous-confirmation-missing.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/printer-1/commands",
+                    """
+                            {"command":"M104 S200"}
+                            """);
+
+            assertEquals(428, response.statusCode());
+            assertEquals(
+                    "{\"error\":\"confirmation_required\",\"requiredConfirmation\":\"HEATING\"}",
+                    response.body());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void dangerousActionConfirmationAllowsConfirmedAction() throws Exception {
+        TestContext context = createContext("dangerous-confirmation-accepted.db");
+
+        try {
+            HttpResponse<String> createPrinterResponse = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+            assertEquals(201, createPrinterResponse.statusCode());
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/printer-1/commands",
+                    """
+                            {"command":"M104","targetTemperature":200,"confirmed":true,"confirmationReason":"Operator confirmed nozzle heating"}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"sentCommand\":\"M104 S200\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void dangerousActionConfirmationCanBeDisabled() throws Exception {
+        TestContext context = createContext("dangerous-confirmation-disabled.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":false,"defaultRole":"ADMIN","requireDangerousActionConfirmation":false}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> createPrinterResponse = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+            assertEquals(201, createPrinterResponse.statusCode());
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/printer-1/commands",
+                    """
+                            {"command":"M104","targetTemperature":200}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"sentCommand\":\"M104 S200\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void operatorAuditRecordsAcceptedStateChangingAction() throws Exception {
+        TestContext context = createContext("operator-audit-accepted.db");
+
+        try {
+            HttpResponse<String> createPrinterResponse = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+            assertEquals(201, createPrinterResponse.statusCode());
+
+            HttpResponse<String> auditResponse = context.get("/operator-audit");
+
+            assertEquals(200, auditResponse.statusCode());
+            assertTrue(auditResponse.body().contains("\"result\":\"ACCEPTED\""));
+            assertTrue(auditResponse.body().contains("\"permission\":\"PRINTER_CONFIGURE\""));
+            assertTrue(auditResponse.body().contains("\"role\":\"ADMIN\""));
+            assertTrue(auditResponse.body().contains("\"actor\":\"local-dashboard\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void operatorAuditRecordsAuthorizationRejection() throws Exception {
+        TestContext context = createContext("operator-audit-authorization-rejected.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":false}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> createPrinterResponse = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+            assertEquals(403, createPrinterResponse.statusCode());
+
+            HttpResponse<String> auditResponse = context.requestAsRole("GET", "/operator-audit", null, "ADMIN");
+
+            assertEquals(200, auditResponse.statusCode());
+            assertTrue(auditResponse.body().contains("\"result\":\"REJECTED\""));
+            assertTrue(auditResponse.body().contains("\"permission\":\"PRINTER_CONFIGURE\""));
+            assertTrue(auditResponse.body().contains("Permission denied for role VIEWER"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void operatorAuditRecordsConfirmationRejection() throws Exception {
+        TestContext context = createContext("dangerous-confirmation-audit-rejected.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers/printer-1/commands",
+                    """
+                            {"command":"M104","targetTemperature":200}
+                            """);
+            assertEquals(428, response.statusCode());
+
+            HttpResponse<String> auditResponse = context.get("/operator-audit");
+
+            assertEquals(200, auditResponse.statusCode());
+            assertTrue(auditResponse.body().contains("\"result\":\"REJECTED\""));
+            assertTrue(auditResponse.body().contains("\"dangerousAction\":\"HEATING\""));
+            assertTrue(auditResponse.body().contains("\"targetType\":\"printer\""));
+            assertTrue(auditResponse.body().contains("\"targetId\":\"printer-1\""));
         } finally {
             context.close();
         }
@@ -2022,6 +2190,9 @@ class RemoteApiServerTest {
         Path dbFile = tempDir.resolve(dbName);
         System.setProperty("printerhub.databaseFile", dbFile.toString());
         new DatabaseInitializer().initialize();
+        if (!dbName.startsWith("dangerous-confirmation-") && !"security-settings-get.db".equals(dbName)) {
+            new SecuritySettingsStore().save(new SecuritySettings(false, LocalRole.ADMIN, false));
+        }
 
         PrinterRegistry printerRegistry = new PrinterRegistry();
         PrinterRuntimeStateCache stateCache = new PrinterRuntimeStateCache();

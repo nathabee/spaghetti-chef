@@ -1,4 +1,5 @@
 import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { disabledUnlessPermission, hasPermission } from "../state.js";
 
 export function renderJobCard(job, options = {}) {
   const eventsHtml = options.eventsHtml ?? `<p class="muted">Job history not loaded yet.</p>`;
@@ -17,6 +18,9 @@ export function renderJobCard(job, options = {}) {
   const cancelLabel = job.state === "CANCELLING" ? "Cancelling" : "Cancel";
   const uploadNotice = printerUploadActive
     ? `<p class="muted">Printer SD upload is active; same-printer job controls are locked until it finishes.</p>`
+    : "";
+  const permissionNotice = !hasPermission("JOB_START") || !hasPermission("JOB_CANCEL")
+    ? `<p class="muted">Some job controls are disabled for the current role.</p>`
     : "";
 
   return `
@@ -63,16 +67,17 @@ export function renderJobCard(job, options = {}) {
 
       ${showActions ? `
         <div class="action-row">
-          <button type="button" class="secondary-button" data-job-action="start" data-job-id="${escapeHtml(job.id)}" ${canStart ? "" : "disabled"}>Start</button>
-          <button type="button" class="secondary-button" data-job-action="pause" data-job-id="${escapeHtml(job.id)}" ${canPause ? "" : "disabled"}>Pause</button>
-          <button type="button" class="secondary-button" data-job-action="resume" data-job-id="${escapeHtml(job.id)}" ${canResume ? "" : "disabled"}>Resume</button>
-          <button type="button" class="secondary-button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${canCancel ? "" : "disabled"}>${cancelLabel}</button>
-          <button type="button" class="secondary-button" data-job-action="restart" data-job-id="${escapeHtml(job.id)}" ${canRestart ? "" : "disabled"}>Restart</button>
+          <button type="button" class="secondary-button" data-job-action="start" data-job-id="${escapeHtml(job.id)}" ${canStart ? disabledUnlessPermission("JOB_START") : "disabled"}>Start</button>
+          <button type="button" class="secondary-button" data-job-action="pause" data-job-id="${escapeHtml(job.id)}" ${canPause ? disabledUnlessPermission("JOB_PAUSE") : "disabled"}>Pause</button>
+          <button type="button" class="secondary-button" data-job-action="resume" data-job-id="${escapeHtml(job.id)}" ${canResume ? disabledUnlessPermission("JOB_RESUME") : "disabled"}>Resume</button>
+          <button type="button" class="secondary-button" data-job-action="cancel" data-job-id="${escapeHtml(job.id)}" ${canCancel ? disabledUnlessPermission("JOB_CANCEL") : "disabled"}>${cancelLabel}</button>
+          <button type="button" class="secondary-button" data-job-action="restart" data-job-id="${escapeHtml(job.id)}" ${canRestart ? disabledUnlessPermission("JOB_RESTART") : "disabled"}>Restart</button>
           <button type="button" class="secondary-button" data-job-action="load-events" data-job-id="${escapeHtml(job.id)}">Load history</button>
           <button type="button" class="secondary-button" data-job-action="load-execution-steps" data-job-id="${escapeHtml(job.id)}">Load diagnostics</button>
-          <button type="button" class="danger-button" data-job-action="delete" data-job-id="${escapeHtml(job.id)}">Delete</button>
+          <button type="button" class="danger-button" data-job-action="delete" data-job-id="${escapeHtml(job.id)}" ${disabledUnlessPermission("JOB_DELETE")}>Delete</button>
         </div>
         ${uploadNotice}
+        ${permissionNotice}
       ` : ""}
 
       <details class="events-section" data-job-detail-section="history" data-job-id="${escapeHtml(job.id)}" ${historyOpen ? "open" : ""}>

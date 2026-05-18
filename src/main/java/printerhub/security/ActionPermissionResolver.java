@@ -93,6 +93,9 @@ public final class ActionPermissionResolver {
         if (path.startsWith("/monitoring")) {
             return Optional.of(Permission.MONITORING_VIEW);
         }
+        if (path.startsWith("/operator-audit")) {
+            return Optional.of(Permission.SECURITY_VIEW);
+        }
         if (path.startsWith("/printer-sd-files") || path.contains("/sd-card")) {
             return Optional.of(Permission.SD_VIEW);
         }

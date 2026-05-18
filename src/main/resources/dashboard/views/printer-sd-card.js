@@ -1,7 +1,9 @@
 import { escapeHtml } from "../dashboard.js";
 import {
+  disabledUnlessPermission,
   getPrinterSdTargetFilter,
   getPrinterSdUploadStatus,
+  hasPermission,
   isUploadStatusSynchronized,
   state
 } from "../state.js";
@@ -15,6 +17,9 @@ export function renderPrinterSdCard(printer) {
   const uploadStatus = getPrinterSdUploadStatus(printer.id);
   const uploadActive = uploadStatus?.active === true;
   const uploadSyncActive = isUploadStatusSynchronized(printer.id);
+  const sdNotice = !hasPermission("SD_UPLOAD") || !hasPermission("SD_DELETE")
+    ? `<p class="muted">Some SD-card actions are disabled for the current role.</p>`
+    : "";
 
   return `
     <section class="section-card">
@@ -25,7 +30,7 @@ export function renderPrinterSdCard(printer) {
           <p class="lead">Printer-side files reported by the firmware, plus the registered printable targets used by print jobs.</p>
         </div>
         <div class="action-row">
-          <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}" ${uploadActive ? "disabled" : ""}>Refresh files</button>
+          <button type="button" data-load-sd-card-files="${escapeHtml(printer.id)}" ${uploadActive ? "disabled" : disabledUnlessPermission("SD_REFRESH")}>Refresh files</button>
           <button
             type="button"
             data-sync-sd-upload-status="${escapeHtml(printer.id)}"
@@ -80,9 +85,10 @@ export function renderPrinterSdCard(printer) {
           class="secondary-button"
           data-close-sd-upload-session
           data-printer-id="${escapeHtml(printer.id)}"
-          ${uploadActive ? "disabled" : ""}
+          ${uploadActive ? "disabled" : disabledUnlessPermission("SD_RECOVERY_CLOSE_UPLOAD")}
         >Close upload session</button>
       </div>
+      ${sdNotice}
 
       ${renderRegisteredTargetFilters(printer.id, registeredFilter)}
 
@@ -119,7 +125,7 @@ export function renderPrinterSdCard(printer) {
         </label>
 
         <div class="form-actions">
-          <button type="submit">Register SD target</button>
+          <button type="submit" ${disabledUnlessPermission("SD_UPLOAD")}>Register SD target</button>
         </div>
       </form>
     </section>
@@ -145,7 +151,7 @@ export function renderPrinterSdCard(printer) {
         </label>
 
         <div class="form-actions">
-          <button type="submit">Register host file</button>
+          <button type="submit" ${disabledUnlessPermission("MANAGE_PRINT_FILES")}>Register host file</button>
         </div>
       </form>
 
@@ -668,13 +674,13 @@ function renderRegisteredFileTable(files, uploadActive) {
                   class="secondary-button small-button"
                   data-printer-sd-file-id="${escapeHtml(file.id)}"
                   data-printer-sd-file-enabled="${file.enabled === true ? "false" : "true"}"
-                  ${uploadActive ? "disabled" : ""}
+                  ${uploadActive ? "disabled" : disabledUnlessPermission("SD_UPLOAD")}
                 >${file.enabled === true ? "Disable" : "Enable"}</button>
                 <button
                   type="button"
                   class="danger-button small-button"
                   data-delete-printer-sd-file-id="${escapeHtml(file.id)}"
-                  ${uploadActive ? "disabled" : ""}
+                  ${uploadActive ? "disabled" : disabledUnlessPermission("SD_DELETE")}
                 >Delete</button>
                 `}
               </td>
@@ -712,7 +718,7 @@ function renderHostFileTable(printerId, uploadActive) {
                   data-printer-id="${escapeHtml(printerId)}"
                   data-print-file-id="${escapeHtml(file.id)}"
                   data-target-filename="${escapeHtml(defaultSdTargetFilename(file.originalFilename || file.id))}"
-                  ${uploadActive ? "disabled" : ""}
+                  ${uploadActive ? "disabled" : disabledUnlessPermission("SD_UPLOAD")}
                 >Upload to SD card</button>
               </td>
             </tr>
