@@ -56,6 +56,8 @@ import {
   getJobsForSelectedPrinter,
   getPrinterSdTargetFilter,
   getSelectedPrinter,
+  hasPermission,
+  permissionDeniedLabel,
   PRIMARY_VIEW_IDS,
   PRINTER_VIEW_IDS,
   setJobEvents,
@@ -701,6 +703,10 @@ function bindPageListeners() {
 }
 
 async function handleSavePrinter(form) {
+  if (!ensurePermission("PRINTER_CONFIGURE")) {
+    return;
+  }
+
   const printerIdInput = form.querySelector("#printerIdInput");
   const printerNameInput = form.querySelector("#printerNameInput");
   const printerPortInput = form.querySelector("#printerPortInput");
@@ -735,6 +741,10 @@ async function handleSavePrinter(form) {
 }
 
 async function handleSaveMonitoringRules(form) {
+  if (!ensurePermission("MONITORING_CONFIGURE")) {
+    return;
+  }
+
   const payload = {
     pollIntervalSeconds: Number.parseInt(form.querySelector("#pollIntervalSecondsInput").value, 10),
     snapshotMinimumIntervalSeconds: Number.parseInt(form.querySelector("#snapshotMinimumIntervalSecondsInput").value, 10),
@@ -754,6 +764,10 @@ async function handleSaveMonitoringRules(form) {
 }
 
 async function handleSaveSerialTransferSettings(form) {
+  if (!ensurePermission("SETTINGS_UPDATE")) {
+    return;
+  }
+
   const payload = {
     sdUploadBatchSize: Number.parseInt(form.querySelector("#transferSdUploadBatchSizeInput").value, 10),
     sdUploadRecoveryWindowMultiplier: Number.parseInt(
@@ -805,6 +819,10 @@ async function handleSaveSerialTransferSettings(form) {
 }
 
 async function handleSavePrintFileSettings(form) {
+  if (!ensurePermission("SETTINGS_UPDATE")) {
+    return;
+  }
+
   const payload = {
     storageDirectory: form.querySelector("#printFileStorageDirectoryInput").value.trim()
   };
@@ -819,6 +837,10 @@ async function handleSavePrintFileSettings(form) {
 }
 
 async function handleSaveSecuritySettings(form) {
+  if (!ensurePermission("SECURITY_MANAGE")) {
+    return;
+  }
+
   const payload = {
     securityEnabled: form.querySelector("#securityEnabledInput").checked,
     defaultRole: form.querySelector("#securityDefaultRoleInput").value,
@@ -835,6 +857,10 @@ async function handleSaveSecuritySettings(form) {
 }
 
 async function handleSaveJob(form) {
+  if (!ensurePermission("JOB_CREATE")) {
+    return;
+  }
+
   const payload = {
     name: form.querySelector("#jobNameInput").value.trim(),
     type: form.querySelector("#jobTypeInput").value.trim(),
@@ -857,6 +883,10 @@ async function handleSaveJob(form) {
 }
 
 async function handleSavePrintFile(form) {
+  if (!ensurePermission("MANAGE_PRINT_FILES")) {
+    return;
+  }
+
   const fileInput = form.querySelector("#printFileUploadInput");
   const pathInput = form.querySelector("#printFilePathInput");
   const selectedFile = fileInput?.files?.[0] ?? null;
@@ -875,6 +905,10 @@ async function handleSavePrintFile(form) {
 }
 
 async function handleRegisterSdCardFile(button) {
+  if (!ensurePermission("SD_UPLOAD")) {
+    return;
+  }
+
   const payload = {
     printerId: button.dataset.printerId,
     firmwarePath: button.dataset.firmwarePath,
@@ -896,6 +930,10 @@ async function handleRegisterSdCardFile(button) {
 }
 
 async function handleUploadPrintFileToSd(printerId, printFileId, targetFilename) {
+  if (!ensurePermission("SD_UPLOAD")) {
+    return;
+  }
+
   if (!printerId || !printFileId) {
     return;
   }
@@ -1182,6 +1220,10 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
 }
 
  async function handleCloseSdUploadSession(printerId) {
+  if (!ensurePermission("SD_RECOVERY_CLOSE_UPLOAD")) {
+    return;
+  }
+
   if (!printerId) {
     return;
   }
@@ -1218,6 +1260,10 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
 
 
 async function handleSavePrinterSdFile(form) {
+  if (!ensurePermission("SD_UPLOAD")) {
+    return;
+  }
+
   const payload = {
     printerId: form.querySelector("#printerSdFilePrinterIdInput").value.trim(),
     firmwarePath: form.querySelector("#printerSdFilePathInput").value.trim(),
@@ -1255,6 +1301,10 @@ function buildPrinterSdFileOptions(printerId) {
 }
 
 async function handleSetPrinterSdFileEnabled(printerSdFileId, enabled) {
+  if (!ensurePermission("SD_UPLOAD")) {
+    return;
+  }
+
   if (!printerSdFileId) {
     return;
   }
@@ -1269,6 +1319,10 @@ async function handleSetPrinterSdFileEnabled(printerSdFileId, enabled) {
 }
 
 async function handleDeletePrinterSdFile(printerSdFileId) {
+  if (!ensurePermission("SD_DELETE")) {
+    return;
+  }
+
   if (!printerSdFileId) {
     return;
   }
@@ -1298,6 +1352,9 @@ async function handleJobAction(action, jobId) {
 
   try {
     if (action === "start") {
+      if (!ensurePermission("JOB_START")) {
+        return;
+      }
       const confirmation = requireDangerousActionConfirmation(
         "PRINT_START",
         `Start job ${jobId}. This can heat, move, and begin printer-side execution.`
@@ -1324,6 +1381,9 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "pause") {
+      if (!ensurePermission("JOB_PAUSE")) {
+        return;
+      }
       const response = await pauseJob(jobId);
       setMessage(`Paused job ${jobId}. Command: ${response.execution?.wireCommand || "n/a"}.`);
       await refreshAllData({ silent: true });
@@ -1333,6 +1393,9 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "resume") {
+      if (!ensurePermission("JOB_RESUME")) {
+        return;
+      }
       const response = await resumeJob(jobId);
       setMessage(`Resumed job ${jobId}. Command: ${response.execution?.wireCommand || "n/a"}.`);
       await refreshAllData({ silent: true });
@@ -1342,6 +1405,9 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "cancel") {
+      if (!ensurePermission("JOB_CANCEL")) {
+        return;
+      }
       const confirmation = requireDangerousActionConfirmation(
         "PRINT_CANCEL",
         `Cancel job ${jobId}. This sends an abort/control request to the printer.`
@@ -1360,6 +1426,9 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "restart") {
+      if (!ensurePermission("JOB_RESTART")) {
+        return;
+      }
       const response = await restartJob(jobId);
       const restartedJobId = response.job?.id || "new job";
       setMessage(`Created restart job ${restartedJobId} from ${jobId}.`);
@@ -1372,6 +1441,9 @@ async function handleJobAction(action, jobId) {
     }
 
     if (action === "delete") {
+      if (!ensurePermission("JOB_DELETE")) {
+        return;
+      }
       await deleteJob(jobId);
       setMessage(`Deleted job ${jobId}.`);
       await refreshAllData({ silent: true });
@@ -1439,6 +1511,10 @@ async function loadExecutionStepsForSelectedPrinterJobs() {
 }
 
 async function handleConfigAction(action, printerId) {
+  if (!ensurePermission("PRINTER_CONFIGURE")) {
+    return;
+  }
+
   const printer = state.printers.find((item) => item.id === printerId);
   if (!printer) {
     setMessage(`Printer not found: ${printerId}`);
@@ -1506,6 +1582,10 @@ async function loadJobExecutionStepsIntoState(jobId) {
 }
 
 async function loadPrinterSdCardFilesIntoState(printerId) {
+  if (!ensurePermission("SD_REFRESH")) {
+    return;
+  }
+
   if (!printerId) {
     return;
   }
@@ -1521,6 +1601,10 @@ async function loadPrinterSdCardFilesIntoState(printerId) {
 }
 
 async function runPrinterCommand(printerId, command) {
+  if (!ensurePermission(commandPermissionForCommand(command))) {
+    return;
+  }
+
   setPrinterCommandResult(printerId, `Running ${command}...`);
   renderApp();
 
@@ -1875,6 +1959,29 @@ function dangerousActionForCommand(command) {
   }
 
   return "RAW_COMMAND";
+}
+
+function commandPermissionForCommand(command) {
+  const normalized = String(command || "").trim().toUpperCase();
+  if (normalized.startsWith("M105") || normalized.startsWith("M114") || normalized.startsWith("M115")) {
+    return "COMMAND_READ";
+  }
+  if (normalized.startsWith("M104") || normalized.startsWith("M140")
+      || normalized.startsWith("M106") || normalized.startsWith("M107")
+      || normalized.startsWith("G28")) {
+    return "COMMAND_SAFE_CONTROL";
+  }
+
+  return "COMMAND_RAW";
+}
+
+function ensurePermission(permission) {
+  if (hasPermission(permission)) {
+    return true;
+  }
+
+  setMessage(permissionDeniedLabel(permission));
+  return false;
 }
 
 boot();

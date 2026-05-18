@@ -2473,6 +2473,18 @@ Goals:
 * keep read-only commands such as `M105`, `M114`, and `M115` outside the confirmation flow
 * add dashboard confirmations and confirmation payloads for existing risky controls: SD upload, SD target delete, recovery close, job start/cancel, and dangerous manual commands
 
+#### 0.3.0.E — Dashboard role-aware controls
+
+status: done
+
+Goals:
+
+* show the current local security mode and effective dashboard role in the navigation/settings context
+* add frontend permission helpers that evaluate the persisted role profile permissions already exposed by the backend
+* disable job, SD-card, printer configuration, command, settings, and security controls that the current local role cannot execute
+* keep disabled controls visible with role/permission hints so operators understand why an action is unavailable
+* keep backend authorization as the real security boundary while improving dashboard clarity before rejected API calls happen
+
 
 ---
 

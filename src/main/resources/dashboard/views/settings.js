@@ -1,7 +1,7 @@
 import { escapeHtml, isSimulatedMode } from "../dashboard.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
-import { state } from "../state.js";
+import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } from "../state.js";
 
  export function renderSettingsPage() {
   const monitoringRules = state.monitoringRules || {};
@@ -10,8 +10,23 @@ import { state } from "../state.js";
   const securitySettings = state.securitySettings || {};
   const securityRoles = state.securityRoles || [];
   const printers = state.printers;
+  const settingsDisabled = disabledUnlessPermission("SETTINGS_UPDATE");
+  const monitoringDisabled = disabledUnlessPermission("MONITORING_CONFIGURE");
+  const securityDisabled = disabledUnlessPermission("SECURITY_MANAGE");
+  const printerConfigDisabled = disabledUnlessPermission("PRINTER_CONFIGURE");
 
   return `
+    <section class="section-card security-context-card">
+      <div class="section-header compact">
+        <div>
+          <div class="kicker">Local access</div>
+          <h2>${escapeHtml(securityModeLabel())}</h2>
+          <p class="lead">Current dashboard role: ${escapeHtml(currentLocalRole())}. Controls that this role cannot execute are disabled before the API guard rejects them.</p>
+        </div>
+        <span class="badge ${securitySettings.securityEnabled === true ? "badge-enabled" : "badge-disabled"}">${escapeHtml(currentLocalRole())}</span>
+      </div>
+    </section>
+
     <section class="two-column-grid">
       <article class="section-card">
         <div class="section-header">
@@ -56,7 +71,7 @@ import { state } from "../state.js";
           </label>
 
           <div class="form-actions">
-            <button type="submit">Save monitoring rules</button>
+            <button type="submit" ${monitoringDisabled}>Save monitoring rules</button>
           </div>
         </form>
       </article>
@@ -126,7 +141,7 @@ import { state } from "../state.js";
           </label>
 
           <div class="form-actions">
-            <button type="submit">Save serial transfer settings</button>
+            <button type="submit" ${settingsDisabled}>Save serial transfer settings</button>
           </div>
         </form>
       </article>
@@ -146,7 +161,7 @@ import { state } from "../state.js";
           </label>
 
           <div class="form-actions">
-            <button type="submit">Save print file settings</button>
+            <button type="submit" ${settingsDisabled}>Save print file settings</button>
           </div>
         </form>
       </article>
@@ -178,7 +193,7 @@ import { state } from "../state.js";
           </label>
 
           <div class="form-actions">
-            <button type="submit">Save security settings</button>
+            <button type="submit" ${securityDisabled}>Save security settings</button>
           </div>
         </form>
 
@@ -225,8 +240,8 @@ import { state } from "../state.js";
           </label>
 
           <div class="form-actions">
-            <button type="submit">Save printer</button>
-            <button id="clearPrinterFormButton" type="button" class="secondary-button">Clear form</button>
+            <button type="submit" ${printerConfigDisabled}>Save printer</button>
+            <button id="clearPrinterFormButton" type="button" class="secondary-button" ${printerConfigDisabled}>Clear form</button>
           </div>
         </form>
 
@@ -300,10 +315,10 @@ function renderConfiguredPrinter(printer) {
       </div>
       ${renderSerialPathNotice(printer)}
       <div class="action-row">
-        <button type="button" class="secondary-button" data-config-action="edit" data-printer-id="${escapeHtml(printer.id)}">Edit</button>
-        <button type="button" class="secondary-button" data-config-action="enable" data-printer-id="${escapeHtml(printer.id)}">Enable</button>
-        <button type="button" class="secondary-button" data-config-action="disable" data-printer-id="${escapeHtml(printer.id)}">Disable</button>
-        <button type="button" class="danger-button" data-config-action="delete" data-printer-id="${escapeHtml(printer.id)}">Delete</button>
+        <button type="button" class="secondary-button" data-config-action="edit" data-printer-id="${escapeHtml(printer.id)}" ${disabledUnlessPermission("PRINTER_CONFIGURE")}>Edit</button>
+        <button type="button" class="secondary-button" data-config-action="enable" data-printer-id="${escapeHtml(printer.id)}" ${disabledUnlessPermission("PRINTER_CONFIGURE")}>Enable</button>
+        <button type="button" class="secondary-button" data-config-action="disable" data-printer-id="${escapeHtml(printer.id)}" ${disabledUnlessPermission("PRINTER_CONFIGURE")}>Disable</button>
+        <button type="button" class="danger-button" data-config-action="delete" data-printer-id="${escapeHtml(printer.id)}" ${disabledUnlessPermission("PRINTER_CONFIGURE")}>Delete</button>
       </div>
     </article>
   `;

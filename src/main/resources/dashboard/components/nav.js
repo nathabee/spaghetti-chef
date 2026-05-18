@@ -1,4 +1,4 @@
-import { PRIMARY_VIEW_IDS, PRINTER_VIEW_IDS, state } from "../state.js";
+import { currentLocalRole, PRIMARY_VIEW_IDS, PRINTER_VIEW_IDS, securityModeLabel, state } from "../state.js";
 import { escapeHtml, countEnabledPrinters, countDisabledPrinters, getSelectedPrinterDisplayName } from "../dashboard.js";
 
 const PRIMARY_ITEMS = [
@@ -37,8 +37,8 @@ export function renderNav() {
   `).join("");
 
   selectedPrinterLabel.textContent = state.selectedPrinterId
-    ? `${getSelectedPrinterDisplayName()} · ${countEnabledPrinters()} enabled · ${countDisabledPrinters()} disabled`
-    : "No printer selected.";
+    ? `${getSelectedPrinterDisplayName()} · ${countEnabledPrinters()} enabled · ${countDisabledPrinters()} disabled · ${securityModeLabel()} · ${currentLocalRole()}`
+    : `No printer selected. · ${securityModeLabel()} · ${currentLocalRole()}`;
 
   if (!state.selectedPrinterId) {
     selectedPrinterNavSection.classList.add("hidden");

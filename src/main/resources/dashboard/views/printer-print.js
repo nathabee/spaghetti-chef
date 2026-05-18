@@ -2,7 +2,7 @@ import { renderJobCard } from "../components/job-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { escapeHtml, formatDateTime } from "../dashboard.js";
-import { getPrinterSdUploadStatus, isJobCardSectionOpen, isJobSynchronized, state } from "../state.js";
+import { disabledUnlessPermission, getPrinterSdUploadStatus, hasPermission, isJobCardSectionOpen, isJobSynchronized, state } from "../state.js";
 
 export function renderPrinterPrint(printer, jobsForPrinter) {
   const synchronizedJobs = jobsForPrinter.filter((job) => isJobSynchronized(job.id));
@@ -15,6 +15,9 @@ export function renderPrinterPrint(printer, jobsForPrinter) {
         diagnosticsOpen: isJobCardSectionOpen(job.id, "diagnostics"),
         printerUploadActive: getPrinterSdUploadStatus(job.printerId)?.active === true
       })).join("");
+  const jobCreateNotice = hasPermission("JOB_CREATE")
+    ? ""
+    : `<p class="muted">Job creation is disabled for the current role.</p>`;
 
   return `
     <section class="section-card">
@@ -27,6 +30,8 @@ export function renderPrinterPrint(printer, jobsForPrinter) {
       </div>
 
       ${renderJobSynchronizationControls(synchronizedJobs)}
+
+      ${jobCreateNotice}
 
       <form id="jobForm" class="form-grid">
         <label>
@@ -74,8 +79,8 @@ export function renderPrinterPrint(printer, jobsForPrinter) {
         </label>
 
         <div class="form-actions">
-          <button type="submit">Create job</button>
-          <button id="clearJobFormButton" type="button" class="secondary-button">Clear form</button>
+          <button type="submit" ${disabledUnlessPermission("JOB_CREATE")}>Create job</button>
+          <button id="clearJobFormButton" type="button" class="secondary-button" ${disabledUnlessPermission("JOB_CREATE")}>Clear form</button>
         </div>
       </form>
     </section>
