@@ -4,52 +4,61 @@
 
 # PrinterHub
 
-**PrinterHub** is a Java-based system integration project for monitoring and controlling 3D printers in a structured local runtime environment.
+**PrinterHub** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, and controlled printer workflows.
 
-It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and has grown into a local multi-printer runtime with an embedded dashboard, REST API, job execution, SD-card upload telemetry, role-aware local security, dangerous-action confirmations, and operator audit visibility.
+The project is currently in the **0.4.x camera and visual safety phase**. The active development focus is camera snapshot capture, frame comparison, and the foundation for later spaghetti detection.
 
-PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference remains the Creality Ender-series Marlin behavior used during USB serial and SD-card upload verification.
+PrinterHub remains local-first: one PrinterHub runtime controls and observes a local printer farm through USB-connected or simulated printers. The current real-printer reference is a **Creality Ender-series Marlin-compatible printer**.
 
-This README is only a quick introduction. The detailed build-out lives in the roadmap:
+For the detailed version roadmap, see:
 
 * [`docs/roadmap.md`](docs/roadmap.md)
 
 ---
 
-## What Works Today
+## Current Focus
 
-PrinterHub is currently focused on the **local runtime**: one running PrinterHub instance controls and observes one local printer farm through USB-connected or simulated printers.
+PrinterHub is currently developing the camera monitoring layer:
 
-Implemented local capabilities include:
+* per-printer camera configuration
+* latest snapshot capture and display
+* filesystem-based camera snapshot storage
+* provisional Linux and Windows camera capture helpers
+* preparation for frame delta analysis
+* preparation for spaghetti detection heuristics
 
-* local multi-printer dashboard
-* REST API and SQLite-backed runtime state
-* background printer monitoring and global farm overview
-* selected-printer workspaces for jobs, SD-card files, control, info, and history
-* guarded job execution and printer-side `PRINT_FILE` starts
-* host-to-printer SD-card upload with live telemetry and adaptive transfer diagnostics
-* remote dashboard upload/job synchronization
-* local role model for `VIEWER`, `OPERATOR`, and `ADMIN`
-* backend authorization guards for API endpoints
-* dangerous-action confirmation for heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths
-* operator audit records for accepted and rejected state-changing actions
-* embedded dashboard with global and selected-printer workspaces
-* simulation modes for normal and failing printer behavior
-* remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
-
-The `0.3.x` local security and dangerous-action guard layer is implemented. PrinterHub is still intentionally local-first: it is not yet a centralized SaaS or multi-site production control platform.
+The camera work builds on the existing local runtime, dashboard, REST API, persistence, printer monitoring, job execution, SD-card handling, local security, and audit foundations.
 
 ---
 
-## What Comes Next
+## Current Runtime Capabilities
+
+Implemented local runtime capabilities include:
+
+* local multi-printer dashboard
+* REST API and SQLite-backed runtime state
+* background printer monitoring
+* simulated and USB-connected printer support
+* selected-printer workspaces for status, jobs, SD-card files, control, info, history, and camera views
+* guarded job execution and printer-side `PRINT_FILE` starts
+* host-to-printer SD-card upload with telemetry and diagnostics
+* role-aware local security for `VIEWER`, `OPERATOR`, and `ADMIN`
+* dangerous-action confirmation for heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths
+* operator audit records for accepted and rejected state-changing actions
+* remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
+
+---
+
+## Roadmap
+
+The detailed roadmap is maintained separately:
+
+* [`docs/roadmap.md`](docs/roadmap.md)
 
 Near-term direction:
 
-* `0.4.x — Camera Monitoring & Visual Safety Layer`
-* `1.0.x — Central VPS Multi-Farm Management`
-* more production monitoring, visual safety, history, and multi-farm orchestration work
-
-The roadmap is the best place to follow planned versions and design intent: [`docs/roadmap.md`](docs/roadmap.md).
+* `0.4.x` — camera monitoring, frame analysis, and visual safety
+* `1.0.x` — central VPS multi-farm management
 
 ---
 
