@@ -14,7 +14,9 @@ next:
 ## Version (done)
 
 
+## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.0 — Camera Monitoring Foundation
 
 
 ## 0.3.0 — Local Security, Roles, and Dangerous Action Guards

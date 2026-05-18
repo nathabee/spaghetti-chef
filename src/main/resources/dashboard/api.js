@@ -311,3 +311,37 @@ export async function getJobExecutionSteps(jobId) {
   const data = await requestJson(`/jobs/${encodeURIComponent(jobId)}/execution-steps`);
   return Array.isArray(data.executionSteps) ? data.executionSteps : [];
 }
+
+
+export async function getCameraStatus(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/status`);
+}
+
+export async function getCameraSettings(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/settings`);
+}
+
+export async function saveCameraSettings(printerId, settings) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/settings`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(settings)
+  });
+}
+
+export async function captureCameraSnapshot(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/snapshot`, {
+    method: "POST"
+  });
+}
+
+export async function getCameraEvents(printerId) {
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/events`);
+  return Array.isArray(data) ? data : [];
+}
+
+export function cameraSnapshotUrl(printerId) {
+  return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
+}

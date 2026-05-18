@@ -1,4 +1,6 @@
-import { escapeHtml, formatDateTime, formatTemperature, isSimulatedMode, renderStatusLabel, resolveStateClass } from "../dashboard.js";
+import { isSimulatedMode, renderStatusLabel, resolveStateClass } from "../dashboard.js";
+import { escapeHtml, formatDateTime , formatTemperature } from "../utils/format.js";
+
 
 export function renderPrinterCard(printer, options = {}) {
   const actions = options.actions ?? [];

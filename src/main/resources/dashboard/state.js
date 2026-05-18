@@ -11,6 +11,7 @@ export const PRINTER_VIEW_IDS = Object.freeze({
   HOME: "printer-home",
   PRINT: "printer-print",
   SD_CARD: "printer-sd-card",
+  CAMERA: "printer-camera",
   PREPARE: "printer-prepare",
   CONTROL: "printer-control",
   INFO: "printer-info",

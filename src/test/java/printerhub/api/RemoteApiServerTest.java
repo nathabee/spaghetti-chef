@@ -61,6 +61,7 @@ class RemoteApiServerTest {
     @AfterEach
     void clearDatabaseProperty() {
         System.clearProperty("printerhub.databaseFile");
+        System.clearProperty("printerhub.camera.storageDirectory");
     }
 
     @Test
@@ -933,6 +934,220 @@ class RemoteApiServerTest {
             assertTrue(eventsResponse.body().contains("\"events\":["));
             assertTrue(eventsResponse.body().contains("\"eventType\":\"COMMAND_EXECUTED\""));
             assertTrue(eventsResponse.body().contains("Manual command executed: M114"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getCameraSettingsReturnsDisabledDefaultForExistingPrinter() throws Exception {
+        TestContext context = createContext("camera-settings-get-default.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> response = context.get("/printers/printer-1/camera/settings");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"printerId\":\"printer-1\""));
+            assertTrue(response.body().contains("\"enabled\":false"));
+            assertTrue(response.body().contains("\"sourceType\":\"disabled\""));
+            assertTrue(response.body().contains("\"captureIntervalSeconds\":10"));
+            assertTrue(response.body().contains("\"retentionSnapshotCount\":20"));
+            assertTrue(response.body().contains("\"analysisEnabled\":false"));
+            assertTrue(response.body().contains("\"safetyEnabled\":false"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putCameraSettingsEnablesSimulatedCamera() throws Exception {
+        TestContext context = createContext("camera-settings-put-simulated.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","captureIntervalSeconds":15,"retentionSnapshotCount":30}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"printerId\":\"printer-1\""));
+            assertTrue(response.body().contains("\"enabled\":true"));
+            assertTrue(response.body().contains("\"sourceType\":\"simulated\""));
+            assertTrue(response.body().contains("\"sourceValue\":\"default\""));
+            assertTrue(response.body().contains("\"captureIntervalSeconds\":15"));
+            assertTrue(response.body().contains("\"retentionSnapshotCount\":30"));
+
+            HttpResponse<String> getResponse = context.get("/printers/printer-1/camera/settings");
+
+            assertEquals(200, getResponse.statusCode());
+            assertTrue(getResponse.body().contains("\"enabled\":true"));
+            assertTrue(getResponse.body().contains("\"sourceType\":\"simulated\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void postCameraSnapshotCapturesSimulatedFrameAndGetSnapshotReturnsImage() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-api-storage");
+        System.setProperty("printerhub.camera.storageDirectory", cameraStorageDirectory.toString());
+
+        TestContext context = createContext("camera-snapshot-simulated.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> captureResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/snapshot",
+                    null);
+
+            assertEquals(200, captureResponse.statusCode());
+            assertTrue(captureResponse.body().contains("\"success\":true"));
+            assertTrue(captureResponse.body().contains("\"hasFrame\":true"));
+            assertTrue(captureResponse.body().contains("\"contentType\":\"image/jpeg\""));
+            assertTrue(captureResponse.body().contains("\"width\":320"));
+            assertTrue(captureResponse.body().contains("\"height\":240"));
+
+            assertTrue(Files.exists(cameraStorageDirectory.resolve("printer-1").resolve("latest.jpg")));
+
+            HttpResponse<String> snapshotResponse = context.get("/printers/printer-1/camera/snapshot");
+
+            assertEquals(200, snapshotResponse.statusCode());
+            assertTrue(snapshotResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
+            assertTrue(snapshotResponse.headers().firstValue("cache-control").orElse("").contains("no-store"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getCameraStatusIncludesLastCaptureAfterSnapshot() throws Exception {
+        System.setProperty("printerhub.camera.storageDirectory", tempDir.resolve("camera-status-storage").toString());
+
+        TestContext context = createContext("camera-status-after-capture.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> captureResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/snapshot",
+                    null);
+            assertEquals(200, captureResponse.statusCode());
+
+            HttpResponse<String> statusResponse = context.get("/printers/printer-1/camera/status");
+
+            assertEquals(200, statusResponse.statusCode());
+            assertTrue(statusResponse.body().contains("\"printerId\":\"printer-1\""));
+            assertTrue(statusResponse.body().contains("\"enabled\":true"));
+            assertTrue(statusResponse.body().contains("\"available\":true"));
+            assertTrue(statusResponse.body().contains("\"sourceType\":\"simulated\""));
+            assertTrue(statusResponse.body().contains("\"sourceDescription\":\"simulated-camera:printer-1\""));
+            assertTrue(statusResponse.body().contains("\"lastCaptureAt\":"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void getCameraEventsReturnsCaptureEvents() throws Exception {
+        System.setProperty("printerhub.camera.storageDirectory", tempDir.resolve("camera-events-storage").toString());
+
+        TestContext context = createContext("camera-events.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> captureResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/snapshot",
+                    null);
+            assertEquals(200, captureResponse.statusCode());
+
+            HttpResponse<String> eventsResponse = context.get("/printers/printer-1/camera/events");
+
+            assertEquals(200, eventsResponse.statusCode());
+            assertTrue(eventsResponse.body().contains("\"eventType\":\"CAMERA_FRAME_CAPTURED\""));
+            assertTrue(eventsResponse.body().contains("\"message\":\"Camera frame captured\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void cameraEndpointReturns404ForMissingPrinter() throws Exception {
+        TestContext context = createContext("camera-missing-printer.db");
+
+        try {
+            HttpResponse<String> response = context.get("/printers/missing/camera/status");
+
+            assertEquals(404, response.statusCode());
+            assertEquals("{\"error\":\"printer_not_found\"}", response.body());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void cameraSnapshotReturns404WhenNoSnapshotExists() throws Exception {
+        TestContext context = createContext("camera-snapshot-missing.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> response = context.get("/printers/printer-1/camera/snapshot");
+
+            assertEquals(404, response.statusCode());
+            assertTrue(response.body().contains("camera_snapshot_not_available"));
         } finally {
             context.close();
         }
@@ -2225,8 +2440,6 @@ class RemoteApiServerTest {
                 printerSdFileService,
                 printerEventStore, monitoringRulesStore, serialTransferSettingsStore);
 
-                
-
         PrintJobExecutionService printJobExecutionService = new PrintJobExecutionService(
                 printJobService,
                 printerRegistry,
@@ -2242,7 +2455,6 @@ class RemoteApiServerTest {
                 printJobExecutionService);
 
         int port = findFreePort();
- 
 
         RemoteApiServer server = new RemoteApiServer(
                 port,
@@ -2354,8 +2566,8 @@ class RemoteApiServerTest {
 
         PrinterActionGuard printerActionGuard = new PrinterActionGuard();
         SerialTransferSettingsStore serialTransferSettingsStore = new SerialTransferSettingsStore();
-        SdCardService sdCardService =new SdCardService(printerEventStore);
-        
+        SdCardService sdCardService = new SdCardService(printerEventStore);
+
         SdCardUploadService sdCardUploadService = new SdCardUploadService(
                 printerRegistry,
                 monitoringScheduler,
@@ -2378,7 +2590,6 @@ class RemoteApiServerTest {
                 printerRegistry,
                 printerActionGuard,
                 printJobExecutionService);
-
 
         return new RemoteApiServer(
                 port,

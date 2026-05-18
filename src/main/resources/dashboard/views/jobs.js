@@ -1,7 +1,8 @@
 import { renderJobCard } from "../components/job-card.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
-import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../utils/format.js";
+
 import { getPrinterSdUploadStatus, isJobCardSectionOpen, state } from "../state.js";
 
 export function renderJobsPage() {

@@ -26,6 +26,9 @@ public final class DatabaseInitializer {
             createMonitoringRulesTable(statement);
             createPrintFileSettingsTable(statement);
             createSerialTransferSettingsTable(statement);
+            createCameraSettingsTable(statement);
+            createCameraEventsTable(statement);
+            createCameraSnapshotMetadataTable(statement);
             createSecuritySettingsTable(statement);
             createRoleProfilesTable(statement);
 
@@ -302,7 +305,6 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
-    
     private void createSerialTransferSettingsTable(Statement statement) throws SQLException {
         String sql = """
                 CREATE TABLE IF NOT EXISTS serial_transfer_settings (
@@ -326,6 +328,59 @@ public final class DatabaseInitializer {
                     file_streaming_read_idle_sleep_ms INTEGER NOT NULL DEFAULT 1,
                     file_streaming_recovery_replay_delay_ms INTEGER NOT NULL DEFAULT 15,
                     updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraSettingsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_settings (
+                    printer_id TEXT PRIMARY KEY,
+                    enabled INTEGER NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_value TEXT,
+                    capture_interval_seconds INTEGER NOT NULL,
+                    retention_snapshot_count INTEGER NOT NULL,
+                    analysis_enabled INTEGER NOT NULL,
+                    safety_enabled INTEGER NOT NULL,
+                    pause_on_confirmed_spaghetti INTEGER NOT NULL,
+                    confidence_threshold REAL NOT NULL,
+                    confirmations_required INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraEventsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    confidence REAL,
+                    created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraSnapshotMetadataTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_snapshot_metadata (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    width INTEGER,
+                    height INTEGER,
+                    source_description TEXT
                 );
                 """;
 
