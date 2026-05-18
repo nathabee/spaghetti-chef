@@ -1,4 +1,4 @@
-import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../utils/format.js";
 
 export function renderEventList(events, emptyMessage) {
   if (!events || events.length === 0) {

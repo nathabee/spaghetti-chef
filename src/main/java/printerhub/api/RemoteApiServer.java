@@ -58,6 +58,11 @@ import printerhub.security.AuthorizationService;
 import printerhub.security.ConfirmationRequiredException;
 import printerhub.security.DangerousAction;
 import printerhub.security.DangerousActionGuard;
+import printerhub.camera.CameraCaptureService;
+import printerhub.camera.CameraSettingsService;
+import printerhub.persistence.CameraEventStore;
+import printerhub.persistence.CameraSettingsStore;
+import printerhub.persistence.CameraSnapshotMetadataStore;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,6 +70,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -101,6 +107,7 @@ public final class RemoteApiServer {
     private final AutonomousPrintControlService autonomousPrintControlService;
     private final ActionPermissionResolver actionPermissionResolver;
     private final DangerousActionGuard dangerousActionGuard;
+    private final CameraApiHandler cameraApiHandler;
 
     private HttpServer server;
 
@@ -207,6 +214,25 @@ public final class RemoteApiServer {
                 printJobExecutionStepStore);
         this.actionPermissionResolver = new ActionPermissionResolver();
         this.dangerousActionGuard = new DangerousActionGuard();
+
+        CameraSettingsService cameraSettingsService = new CameraSettingsService(
+                new CameraSettingsStore());
+
+        CameraEventStore cameraEventStore = new CameraEventStore();
+        CameraSnapshotMetadataStore cameraSnapshotMetadataStore = new CameraSnapshotMetadataStore();
+
+        CameraCaptureService cameraCaptureService = new CameraCaptureService(
+                cameraSettingsService,
+                cameraEventStore,
+                cameraSnapshotMetadataStore,
+                Path.of(System.getProperty("printerhub.camera.storageDirectory", "printerhub-camera")));
+
+        this.cameraApiHandler = new CameraApiHandler(
+                cameraCaptureService,
+                cameraSettingsService,
+                cameraEventStore,
+                cameraSnapshotMetadataStore);
+
     }
 
     public void start() {
@@ -412,8 +438,7 @@ public final class RemoteApiServer {
             LocalRole role,
             SecuritySettings securitySettings,
             Optional<Permission> permission,
-            Optional<DangerousAction> dangerousAction
-    ) {
+            Optional<DangerousAction> dangerousAction) {
         private boolean auditable() {
             return !"GET".equalsIgnoreCase(method)
                     && (permission.isPresent() || dangerousAction.isPresent());
@@ -1260,6 +1285,11 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (parts.length >= 2 && "camera".equals(parts[1])) {
+            handlePrinterCamera(exchange, printerId, parts);
+            return;
+        }
+
         if (parts.length == 2 && "status".equals(parts[1])) {
             handlePrinterStatus(exchange, printerId);
             return;
@@ -1436,6 +1466,64 @@ public final class RemoteApiServer {
 
         PrinterSnapshot snapshot = stateCache.findByPrinterId(printerId).orElse(null);
         sendJson(exchange, 200, snapshotJson(snapshot));
+    }
+
+    private void handlePrinterCamera(HttpExchange exchange, String printerId, String[] parts) throws IOException {
+        PrinterRuntimeNode node = printerRegistry.findById(printerId).orElse(null);
+
+        if (node == null) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_NOT_FOUND));
+            return;
+        }
+
+        if (parts.length != 3) {
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));
+            return;
+        }
+
+        String cameraResource = parts[2];
+
+        if ("status".equals(cameraResource)) {
+            cameraApiHandler.handleStatus(exchange, printerId);
+            return;
+        }
+
+        if ("settings".equals(cameraResource)) {
+            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                cameraApiHandler.handleGetSettings(exchange, printerId);
+                return;
+            }
+
+            if ("PUT".equalsIgnoreCase(exchange.getRequestMethod())) {
+                cameraApiHandler.handlePutSettings(exchange, printerId);
+                return;
+            }
+
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        if ("snapshot".equals(cameraResource)) {
+            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                cameraApiHandler.handleLatestSnapshot(exchange, printerId);
+                return;
+            }
+
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                cameraApiHandler.handleCapture(exchange, printerId);
+                return;
+            }
+
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        if ("events".equals(cameraResource)) {
+            cameraApiHandler.handleEvents(exchange, printerId);
+            return;
+        }
+
+        sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));
     }
 
     private void handlePrinterEnable(HttpExchange exchange, String printerId) throws IOException {
@@ -2071,7 +2159,8 @@ public final class RemoteApiServer {
                 + "\"serialFailureType\":"
                 + nullableString(snapshot == null || snapshot.serialFailureType() == null
                         ? null
-                        : snapshot.serialFailureType().name()) + ","
+                        : snapshot.serialFailureType().name())
+                + ","
                 + "\"updatedAt\":" + nullableString(snapshot == null ? null : String.valueOf(snapshot.updatedAt()))
                 + "}";
     }
@@ -2096,7 +2185,8 @@ public final class RemoteApiServer {
                 + "\"lastResponse\":" + nullableString(snapshot.lastResponse()) + ","
                 + "\"errorMessage\":" + nullableString(snapshot.errorMessage()) + ","
                 + "\"serialFailureType\":"
-                + nullableString(snapshot.serialFailureType() == null ? null : snapshot.serialFailureType().name()) + ","
+                + nullableString(snapshot.serialFailureType() == null ? null : snapshot.serialFailureType().name())
+                + ","
                 + "\"updatedAt\":" + nullableString(String.valueOf(snapshot.updatedAt()))
                 + "}";
     }

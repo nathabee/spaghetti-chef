@@ -2502,7 +2502,7 @@ Goals:
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
-status: planned
+status: in progress
 
 Purpose:
 
@@ -2512,7 +2512,7 @@ The camera subsystem must remain separate from serial communication, SD upload, 
 
 ### 0.4.0 — Camera Monitoring Foundation
 
-status: planned
+status: done
 
 Goals:
 

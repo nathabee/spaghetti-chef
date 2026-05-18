@@ -14,11 +14,13 @@ const PRINTER_ITEMS = [
   { id: PRINTER_VIEW_IDS.HOME, label: "Home" },
   { id: PRINTER_VIEW_IDS.PRINT, label: "Print" },
   { id: PRINTER_VIEW_IDS.SD_CARD, label: "SD Card" },
+  { id: PRINTER_VIEW_IDS.CAMERA, label: "Camera" },
   { id: PRINTER_VIEW_IDS.PREPARE, label: "Prepare" },
   { id: PRINTER_VIEW_IDS.CONTROL, label: "Control" },
   { id: PRINTER_VIEW_IDS.INFO, label: "Info" },
   { id: PRINTER_VIEW_IDS.HISTORY, label: "History" }
 ];
+
 
 export function renderNav() {
   const primaryNav = document.getElementById("primaryNav");

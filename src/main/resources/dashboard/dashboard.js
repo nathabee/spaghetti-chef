@@ -1,12 +1,12 @@
 import {
-  cancelJob,
+  cancelJob, 
   closePrinterSdUploadSession,
   createJob,
   deletePrinterSdFile,
   createPrinter,
   deleteJob,
   deletePrinter,
-  executePrinterCommand,
+  executePrinterCommand, 
   getJob,
   getJobEvents,
   getJobExecutionSteps,
@@ -30,7 +30,7 @@ import {
   registerPrintFile,
   pauseJob,
   restartJob,
-  resumeJob,
+  resumeJob, 
   saveMonitoringRules,
   savePrintFileSettings,
   saveSerialTransferSettings,
@@ -41,6 +41,7 @@ import {
   updatePrinter,
   uploadPrintFile
 } from "./api.js";
+
 import { renderNav } from "./components/nav.js";
 import { renderFarmHome } from "./views/farm-home.js";
 import { renderJobsPage } from "./views/jobs.js";
@@ -53,6 +54,13 @@ import { renderPrinterPrepare } from "./views/printer-prepare.js";
 import { renderPrinterPrint } from "./views/printer-print.js";
 import { renderPrinterSdCard } from "./views/printer-sd-card.js";
 import { renderSettingsPage } from "./views/settings.js";
+import {
+  capturePrinterCameraSnapshot,
+  renderPrinterCamera,
+  renderPrinterCameraLoading,
+  savePrinterCameraSettings
+} from "./views/printer-camera.js";
+
 import {
   getJobsForSelectedPrinter,
   getPrinterSdTargetFilter,
@@ -90,6 +98,8 @@ import {
   setUploadStatusSynchronization,
   state
 } from "./state.js";
+
+
 
 const pageTitleElement = document.getElementById("pageTitle");
 const pageLeadElement = document.getElementById("pageLead");
@@ -248,6 +258,7 @@ function renderHeader() {
     [PRINTER_VIEW_IDS.HOME]: ["Printer Home", `Live machine view for ${printerName}.`],
     [PRINTER_VIEW_IDS.PRINT]: ["Print", `Jobs and future print workflow for ${printerName}.`],
     [PRINTER_VIEW_IDS.SD_CARD]: ["SD Card", `Printer-side printable files for ${printerName}.`],
+    [PRINTER_VIEW_IDS.CAMERA]: ["Camera", `Visual monitoring and snapshots for ${printerName}.`],
     [PRINTER_VIEW_IDS.PREPARE]: ["Prepare", `Preparation actions inspired by the printer display workflow for ${printerName}.`],
     [PRINTER_VIEW_IDS.CONTROL]: ["Control", `Manual machine control and later tuning for ${printerName}.`],
     [PRINTER_VIEW_IDS.INFO]: ["Info", `Technical read-only information for ${printerName}.`],
@@ -329,6 +340,12 @@ function renderPage() {
 
   if (state.activePrinterView === PRINTER_VIEW_IDS.SD_CARD) {
     pageContentElement.innerHTML = renderPrinterSdCard(selectedPrinter);
+    return;
+  }
+
+  if (state.activePrinterView === PRINTER_VIEW_IDS.CAMERA) {
+    pageContentElement.innerHTML = renderPrinterCameraLoading(selectedPrinter);
+    void loadPrinterCameraIntoPage(selectedPrinter);
     return;
   }
 
@@ -452,6 +469,20 @@ function bindGlobalListeners() {
       renderApp();
       return;
     }
+    const cameraCaptureButton = event.target.closest("[data-camera-capture]");
+    if (cameraCaptureButton) {
+      await handleCameraCapture(cameraCaptureButton.dataset.cameraCapture);
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+      return;
+    }
+
+    const cameraRefreshButton = event.target.closest("[data-camera-refresh]");
+    if (cameraRefreshButton) {
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      return;
+    }
+
 
     const syncUploadStatusButton = event.target.closest("[data-sync-sd-upload-status]");
     if (syncUploadStatusButton) {
@@ -648,6 +679,17 @@ function bindPageListeners() {
     });
   }
 
+  const cameraSettingsForm = document.getElementById("cameraSettingsForm");
+  if (cameraSettingsForm) {
+    cameraSettingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await handleSaveCameraSettings(cameraSettingsForm);
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+    });
+  }
+
+
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
     jobForm.addEventListener("submit", async (event) => {
@@ -706,6 +748,42 @@ function bindPageListeners() {
     });
   }
 }
+
+
+async function handleCameraCapture(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  try {
+    const response = await capturePrinterCameraSnapshot(printerId);
+
+    if (response.success) {
+      setMessage(`Captured camera snapshot for ${printerId}.`);
+    } else {
+      setMessage(`Camera capture did not complete for ${printerId}: ${response.message || "no frame"}`);
+    }
+  } catch (error) {
+    setMessage(`Failed to capture camera snapshot for ${printerId}: ${error.message}`);
+  }
+}
+
+async function handleSaveCameraSettings(form) {
+  const selectedPrinter = getSelectedPrinter();
+
+  if (!selectedPrinter) {
+    setMessage("No printer selected for camera settings.");
+    return;
+  }
+
+  try {
+    await savePrinterCameraSettings(selectedPrinter.id, form);
+    setMessage(`Saved camera settings for ${selectedPrinter.id}.`);
+  } catch (error) {
+    setMessage(`Failed to save camera settings for ${selectedPrinter.id}: ${error.message}`);
+  }
+}
+
 
 async function handleSavePrinter(form) {
   if (!ensurePermission("PRINTER_CONFIGURE")) {
@@ -1224,7 +1302,7 @@ function calculateUploadQualityPercent(uploadedLineCount, rejectedLineCount) {
   return Math.max(0, Math.min(100, Math.floor((uploaded * 100) / (uploaded + rejected))));
 }
 
- async function handleCloseSdUploadSession(printerId) {
+async function handleCloseSdUploadSession(printerId) {
   if (!ensurePermission("SD_RECOVERY_CLOSE_UPLOAD")) {
     return;
   }
@@ -1822,25 +1900,7 @@ export function formatTemperature(value) {
   return `${Number(value).toFixed(1)} °C`;
 }
 
-export function formatDateTime(value) {
-  if (!value) {
-    return "n/a";
-  }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).format(date);
-}
 
 export function resolveStateClass(printer) {
   if (!printer.enabled) {
@@ -1950,7 +2010,7 @@ function requireDangerousActionConfirmation(requiredConfirmation, message) {
 function dangerousActionForCommand(command) {
   const normalized = String(command || "").trim().toUpperCase();
   if (normalized.startsWith("M104") || normalized.startsWith("M109")
-      || normalized.startsWith("M140") || normalized.startsWith("M190")) {
+    || normalized.startsWith("M140") || normalized.startsWith("M190")) {
     return "HEATING";
   }
   if (normalized.startsWith("G28")) {
@@ -1972,8 +2032,8 @@ function commandPermissionForCommand(command) {
     return "COMMAND_READ";
   }
   if (normalized.startsWith("M104") || normalized.startsWith("M140")
-      || normalized.startsWith("M106") || normalized.startsWith("M107")
-      || normalized.startsWith("G28")) {
+    || normalized.startsWith("M106") || normalized.startsWith("M107")
+    || normalized.startsWith("G28")) {
     return "COMMAND_SAFE_CONTROL";
   }
 
@@ -1988,5 +2048,43 @@ function ensurePermission(permission) {
   setMessage(permissionDeniedLabel(permission));
   return false;
 }
+
+
+async function loadPrinterCameraIntoPage(printer) {
+  if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA) {
+    return;
+  }
+
+  const expectedPrinterId = printer.id;
+
+  try {
+    const html = await renderPrinterCamera(printer);
+
+    if (
+      state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA
+      || state.selectedPrinterId !== expectedPrinterId
+    ) {
+      return;
+    }
+
+    pageContentElement.innerHTML = html;
+    bindPageListeners();
+  } catch (error) {
+    if (
+      state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA
+      || state.selectedPrinterId !== expectedPrinterId
+    ) {
+      return;
+    }
+
+    pageContentElement.innerHTML = `
+      <div class="empty-state error-state">
+        <h3>Camera view failed</h3>
+        <p>${escapeHtml(error.message || "Unable to load camera monitoring data.")}</p>
+      </div>
+    `;
+  }
+}
+
 
 boot();

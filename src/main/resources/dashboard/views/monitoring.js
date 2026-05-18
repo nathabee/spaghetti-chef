@@ -1,4 +1,4 @@
-import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../utils/format.js";
 import { serialPathWarning, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { state } from "../state.js";
 
@@ -355,11 +355,4 @@ function formatDuration(seconds) {
   return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
 }
 
-function formatDateTime(value) {
-  if (!value) {
-    return "n/a";
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
-}
+ 

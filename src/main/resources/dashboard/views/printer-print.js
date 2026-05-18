@@ -1,7 +1,7 @@
 import { renderJobCard } from "../components/job-card.js";
 import { renderExecutionStepList } from "../components/event-list.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
-import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../utils/format.js";
 import { disabledUnlessPermission, getPrinterSdUploadStatus, hasPermission, isJobCardSectionOpen, isJobSynchronized, state } from "../state.js";
 
 export function renderPrinterPrint(printer, jobsForPrinter) {

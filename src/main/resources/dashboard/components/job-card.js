@@ -1,4 +1,4 @@
-import { escapeHtml, formatDateTime } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../utils/format.js";
 import { disabledUnlessPermission, hasPermission } from "../state.js";
 
 export function renderJobCard(job, options = {}) {
