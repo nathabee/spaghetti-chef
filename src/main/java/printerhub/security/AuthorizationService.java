@@ -26,7 +26,7 @@ public final class AuthorizationService {
         }
 
         RoleProfile profile = roleProfiles.get(role);
-        return profile != null && profile.allows(permission);
+        return profile != null && (profile.allows(permission) || allowsLegacyEquivalent(profile, permission));
     }
 
     public void require(LocalRole role, Permission permission) {
@@ -42,5 +42,27 @@ public final class AuthorizationService {
 
     public Map<LocalRole, RoleProfile> roleProfiles() {
         return roleProfiles;
+    }
+
+    private boolean allowsLegacyEquivalent(RoleProfile profile, Permission permission) {
+        return switch (permission) {
+            case PRINTER_VIEW -> profile.allows(Permission.VIEW_PRINTERS);
+            case PRINTER_CONFIGURE -> profile.allows(Permission.CONFIGURE_PRINTERS);
+            case MONITORING_VIEW -> profile.allows(Permission.VIEW_MONITORING);
+            case MONITORING_CONFIGURE -> profile.allows(Permission.CONFIGURE_MONITORING);
+            case JOB_VIEW -> profile.allows(Permission.VIEW_JOBS);
+            case JOB_CREATE, JOB_START, JOB_PAUSE, JOB_RESUME, JOB_CANCEL, JOB_RESTART, JOB_DELETE ->
+                    profile.allows(Permission.CONTROL_JOBS);
+            case SD_VIEW, SD_REFRESH -> profile.allows(Permission.VIEW_PRINTERS);
+            case SD_UPLOAD, SD_RECOVERY_CLOSE_UPLOAD -> profile.allows(Permission.UPLOAD_TO_SD_CARD);
+            case SD_DELETE -> profile.allows(Permission.MANAGE_SD_CARD_FILES);
+            case COMMAND_READ, COMMAND_SAFE_CONTROL -> profile.allows(Permission.EXECUTE_SAFE_COMMANDS);
+            case COMMAND_DANGEROUS_CONTROL, COMMAND_RAW -> profile.allows(Permission.EXECUTE_DANGEROUS_COMMANDS);
+            case SETTINGS_VIEW -> profile.allows(Permission.VIEW_SETTINGS);
+            case SETTINGS_UPDATE -> profile.allows(Permission.CONFIGURE_MONITORING)
+                    || profile.allows(Permission.CONFIGURE_TRANSFER_SETTINGS);
+            case SECURITY_VIEW, SECURITY_MANAGE -> profile.allows(Permission.MANAGE_SECURITY);
+            default -> false;
+        };
     }
 }

@@ -2449,12 +2449,53 @@ Goals:
 * expose local security defaults through `/settings/security`, `/security/profile`, and `/security/roles`
 * surface the first local security settings card and role profile summary in the dashboard Settings page
 
+#### 0.3.0.C — Backend authorization guard for API endpoints
+
+status: done
+
+Goals:
+
+* enforce persisted local role permissions in backend API handlers when local security is enabled
+* keep dashboard visibility as UX only by checking permissions before endpoint handlers mutate runtime state
+* resolve endpoint permissions consistently for printer configuration, settings updates, jobs, SD-card actions, print files, security settings, and command execution
+* reject forbidden direct API calls with `403` and a clear permission-denied message
+* support a local `X-PrinterHub-Role` override for testing/admin tooling until full user authentication exists
+
 
 ---
 
 
+## 0.4.x Camera monitoring and spaghetti detection
 
-### 0.4.1 — Print Asset Transfer and Printer File Handling Hardening
+status: planned
+
+Purpose:
+Camera monitoring and spaghetti detection
+
+### 0.4.0 Camera monitoring foundation
+- detect camera
+- capture snapshot
+- expose /printers/{id}/camera/snapshot
+- show image in dashboard
+- persist camera events
+
+### 0.4.1 Spaghetti heuristic detection
+- compare frames
+- detect abnormal chaos/motion
+- confidence score
+- no automatic stop yet
+
+### 0.4.2 Safety intervention
+- if confidence high several times
+- pause SD print with M25
+- persist SPAGHETTI_DETECTED
+
+
+---
+
+## 0.5.x Upload and Simulation Hardening 
+
+### 0.5.1 — Print Asset Transfer and Printer File Handling Hardening
 
 status: planned
 
@@ -2486,7 +2527,7 @@ Expected result:
 
 ---
 
-### 0.4.2 — Post-Print Review and Operational History Hardening
+### 0.5.2 — Post-Print Review and Operational History Hardening
 
 status: planned
 
@@ -2513,7 +2554,7 @@ Expected result:
 
 ---
 
-### 0.4.3 — Simulation upload more realistic
+### 0.5.3 — Simulation upload more realistic
 
 status: planned
 
@@ -2639,53 +2680,6 @@ Tests:
 
 ---
 
-### 0.5.0 — Streamed G-code Job Execution
-
-status: planned
-
-Purpose:
-
-Introduce Mode 1 for local jobs where PrinterHub owns the command stream.
-
-This is intentionally planned after the autonomous print path because streamed
-printing turns PrinterHub into the real-time sender. It requires stronger flow
-control, response tracking, cancellation behavior, and recovery rules than
-autonomous printer-side execution.
-
-Goals:
-
-* support a streamed job execution mode for selected `.gcode` files or generated mini jobs
-* send G-code commands sequentially through `PrintJobExecutionService`
-* wait for firmware acceptance before sending the next command
-* persist per-line or grouped execution diagnostics without flooding history unnecessarily
-* support pause, cancel, and failure handling for a PrinterHub-owned stream
-* coordinate streamed execution with monitoring so status polling does not corrupt the command flow
-* keep streamed mode separate from autonomous printer-side print mode in API, persistence, and dashboard wording
-
-Typical workflow scope:
-
-```text
-STREAMED_GCODE
-├── validate printer enabled/reachable
-├── validate no conflicting active job
-├── validate selected .gcode file or mini-job command list
-├── open controlled printer session
-├── send next command
-├── wait for ok / busy / error / timeout
-├── persist grouped diagnostics
-├── repeat until complete, cancelled, or failed
-└── close controlled printer session
-```
-
-Expected result:
-
-* PrinterHub can execute small controlled G-code streams itself
-* mini jobs and future calibration workflows can be controlled line by line
-* autonomous print mode remains available for normal printer-side file execution
-* local 0.2.x printing supports both architecture models without moving central monitoring into scope
-
-
----
 
 ## 1.0.x — Central VPS Multi-Farm Management
 
@@ -2841,13 +2835,58 @@ Goals:
 * expose fleet-wide diagnostics
 * support future reporting
 
+
 ---
- 
+
+## 2.0.x - Steamed G-Code
 
 
+? is it necessary ?
+
+### 2.0.0 — Streamed G-code Job Execution
+
+status: planned
+
+Purpose:
+
+Introduce Mode 1 for local jobs where PrinterHub owns the command stream.
+
+This is intentionally planned after the autonomous print path because streamed
+printing turns PrinterHub into the real-time sender. It requires stronger flow
+control, response tracking, cancellation behavior, and recovery rules than
+autonomous printer-side execution.
+
+Goals:
+
+* support a streamed job execution mode for selected `.gcode` files or generated mini jobs
+* send G-code commands sequentially through `PrintJobExecutionService`
+* wait for firmware acceptance before sending the next command
+* persist per-line or grouped execution diagnostics without flooding history unnecessarily
+* support pause, cancel, and failure handling for a PrinterHub-owned stream
+* coordinate streamed execution with monitoring so status polling does not corrupt the command flow
+* keep streamed mode separate from autonomous printer-side print mode in API, persistence, and dashboard wording
+
+Typical workflow scope:
+
+```text
+STREAMED_GCODE
+├── validate printer enabled/reachable
+├── validate no conflicting active job
+├── validate selected .gcode file or mini-job command list
+├── open controlled printer session
+├── send next command
+├── wait for ok / busy / error / timeout
+├── persist grouped diagnostics
+├── repeat until complete, cancelled, or failed
+└── close controlled printer session
+```
+
+Expected result:
+
+* PrinterHub can execute small controlled G-code streams itself
+* mini jobs and future calibration workflows can be controlled line by line
+* autonomous print mode remains available for normal printer-side file execution
+* local 0.2.x printing supports both architecture models without moving central monitoring into scope
 
 
-
-
-
- 
+---

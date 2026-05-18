@@ -50,6 +50,9 @@ import printerhub.runtime.PrinterRuntimeStateCache;
 import printerhub.security.LocalRole;
 import printerhub.security.Permission;
 import printerhub.security.RoleProfile;
+import printerhub.security.ActionPermissionResolver;
+import printerhub.security.AuthorizationException;
+import printerhub.security.AuthorizationService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -90,6 +93,7 @@ public final class RemoteApiServer {
     private final GlobalMonitoringService globalMonitoringService;
     private final PrinterResponseClassifier printerResponseClassifier;
     private final AutonomousPrintControlService autonomousPrintControlService;
+    private final ActionPermissionResolver actionPermissionResolver;
 
     private HttpServer server;
 
@@ -193,6 +197,7 @@ public final class RemoteApiServer {
                 printerRegistry,
                 monitoringScheduler,
                 printJobExecutionStepStore);
+        this.actionPermissionResolver = new ActionPermissionResolver();
     }
 
     public void start() {
@@ -246,7 +251,11 @@ public final class RemoteApiServer {
         }
 
         try {
+            byte[] requestBodyBytes = cacheRequestBody(exchange);
+            authorize(exchange, new String(requestBodyBytes, StandardCharsets.UTF_8));
             handler.handle(exchange);
+        } catch (AuthorizationException exception) {
+            sendJson(exchange, 403, errorJson(safeMessage(exception)));
         } catch (IllegalArgumentException exception) {
             sendJson(exchange, 400, errorJson(safeMessage(exception)));
         } catch (IllegalStateException exception) {
@@ -270,6 +279,44 @@ public final class RemoteApiServer {
             System.err.println(OperationMessages.unexpectedApiError(safeMessage(exception)));
             sendJson(exchange, 500, errorJson(OperationMessages.INTERNAL_SERVER_ERROR));
         }
+    }
+
+    private byte[] cacheRequestBody(HttpExchange exchange) throws IOException {
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            exchange.setAttribute("cachedBody", new byte[0]);
+            return new byte[0];
+        }
+
+        byte[] body = exchange.getRequestBody().readAllBytes();
+        exchange.setAttribute("cachedBody", body);
+        return body;
+    }
+
+    private void authorize(HttpExchange exchange, String requestBody) {
+        SecuritySettings settings = securitySettingsStore.load();
+        if (!settings.securityEnabled()) {
+            return;
+        }
+
+        Optional<Permission> permission = actionPermissionResolver.resolve(
+                exchange.getRequestMethod(),
+                exchange.getRequestURI().getPath(),
+                requestBody);
+        if (permission.isEmpty()) {
+            return;
+        }
+
+        LocalRole role = requestRole(exchange).orElse(settings.defaultRole());
+        new AuthorizationService(roleProfileStore.loadAll()).require(role, permission.get());
+    }
+
+    private Optional<LocalRole> requestRole(HttpExchange exchange) {
+        String value = exchange.getRequestHeaders().getFirst("X-PrinterHub-Role");
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(LocalRole.valueOf(value.trim().toUpperCase(Locale.ROOT)));
     }
 
     private void addCorsHeaders(HttpExchange exchange) {
@@ -1930,10 +1977,20 @@ public final class RemoteApiServer {
     }
 
     private String readBody(HttpExchange exchange) throws IOException {
+        Object cachedBody = exchange.getAttribute("cachedBody");
+        if (cachedBody instanceof byte[] bytes) {
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+
         return new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
     }
 
     private byte[] readBodyBytes(HttpExchange exchange) throws IOException {
+        Object cachedBody = exchange.getAttribute("cachedBody");
+        if (cachedBody instanceof byte[] bytes) {
+            return bytes;
+        }
+
         return exchange.getRequestBody().readAllBytes();
     }
 

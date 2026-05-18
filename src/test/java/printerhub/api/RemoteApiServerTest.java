@@ -358,6 +358,85 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void securityEnabledRejectsForbiddenStateChangingAction() throws Exception {
+        TestContext context = createContext("security-forbidden-printer-create.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """);
+
+            assertEquals(403, response.statusCode());
+            assertEquals("{\"error\":\"Permission denied for role VIEWER: PRINTER_CONFIGURE\"}", response.body());
+            assertTrue(context.printerRegistry.findById("printer-1").isEmpty());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void securityEnabledAllowsExplicitAdminRoleHeader() throws Exception {
+        TestContext context = createContext("security-admin-printer-create.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.requestAsRole(
+                    "POST",
+                    "/printers",
+                    """
+                            {"id":"printer-1","displayName":"Printer 1","portName":"SIM_PORT","mode":"sim","enabled":true}
+                            """,
+                    "ADMIN");
+
+            assertEquals(201, response.statusCode());
+            assertTrue(response.body().contains("\"id\":\"printer-1\""));
+            assertTrue(context.printerRegistry.findById("printer-1").isPresent());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void securityEnabledAllowsViewerReadEndpoints() throws Exception {
+        TestContext context = createContext("security-viewer-read.db");
+
+        try {
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/settings/security",
+                    """
+                            {"securityEnabled":true,"defaultRole":"VIEWER","requireDangerousActionConfirmation":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> response = context.get("/printers");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"printers\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void postPrintersCreatesPrinter() throws Exception {
         TestContext context = createContext("printers-post.db");
 
@@ -2184,6 +2263,22 @@ class RemoteApiServerTest {
         private HttpResponse<String> request(String method, String path, String body) throws Exception {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create("http://localhost:" + port + path));
+
+            if (body == null) {
+                builder.method(method, HttpRequest.BodyPublishers.noBody());
+            } else {
+                builder.method(method, HttpRequest.BodyPublishers.ofString(body))
+                        .header("Content-Type", "application/json");
+            }
+
+            return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        }
+
+        private HttpResponse<String> requestAsRole(String method, String path, String body, String role)
+                throws Exception {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:" + port + path))
+                    .header("X-PrinterHub-Role", role);
 
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());

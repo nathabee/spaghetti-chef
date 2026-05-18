@@ -399,7 +399,490 @@ Do it in this order:
 ---
 
 
-# 0.3.1
-Local users, password hash storage, login screen, sessions, /auth/me, dashboard role rendering.
 
+ 
 
+ 
+## `0.3.1 — Local User Accounts, Login, and Dashboard Administration`
+
+This is where you add real user management.
+
+Purpose:
+
+```text
+PrinterHub gets local users, password login, sessions, and dashboard-based account administration.
+```
+
+This is the step you are asking about.
+
+It should include:
+
+```text
+local user database
+password hash storage
+login/logout API
+session handling
+current user endpoint
+dashboard login screen
+admin page for user CRUD
+role assignment
+enable/disable users
+audit identity attached to actions
+```
+
+ 
+
+## `0.3.1 — Local User Accounts, Login, and Dashboard Administration`
+
+status: planned
+
+Purpose:
+
+Add local authentication to PrinterHub so real users can log in, receive a role/profile, and administer accounts through the dashboard before central VPS integration begins.
+
+Goals:
+
+* add local user accounts stored in the PrinterHub runtime database
+* add password-based login for the embedded dashboard
+* store only password hashes, never plain passwords
+* attach one role/profile to each user
+* support user create/edit/disable operations through REST API and dashboard
+* protect admin-only user management actions
+* expose the currently logged-in user and permissions to the dashboard
+* attach authenticated user identity to operator-triggered audit events
+* keep local authentication separate from later central VPS authentication
+
+Expected result:
+
+* PrinterHub has a real local login screen
+* dashboard actions are executed as a known user, not as anonymous browser activity
+* local admins can manage users and roles without editing the database manually
+* later central authentication can build on a clear existing permission model
+
+---
+
+## Roles / profiles
+
+Start simple. Do not create too many roles.
+
+Recommended baseline:
+
+```text
+ADMIN
+OPERATOR
+VIEWER
+```
+
+### `ADMIN`
+
+Can administer the local runtime.
+
+Allowed examples:
+
+```text
+view dashboard
+manage printers
+manage monitoring settings
+manage serial transfer settings
+manage users
+assign roles
+enable/disable users
+start/pause/resume/cancel jobs
+upload files
+delete SD files
+execute dangerous actions after confirmation
+view history/audit
+```
+
+### `OPERATOR`
+
+Can operate printers, but cannot administer the runtime.
+
+Allowed examples:
+
+```text
+view dashboard
+view monitoring
+view jobs
+create/start/pause/resume/cancel jobs
+upload prepared files if allowed
+refresh SD-card files
+use recovery actions if allowed
+view job history
+```
+
+Not allowed:
+
+```text
+manage users
+change roles
+change runtime settings
+delete printers
+change serial transfer defaults
+```
+
+### `VIEWER`
+
+Read-only role.
+
+Allowed examples:
+
+```text
+view farm home
+view monitoring
+view printer status
+view jobs
+view history
+```
+
+Not allowed:
+
+```text
+start jobs
+cancel jobs
+upload files
+delete SD files
+change settings
+manage printers
+manage users
+execute commands
+```
+
+---
+
+## Permission model
+
+Internally, roles should map to permissions.
+
+Do not hardcode role checks everywhere like:
+
+```java
+if (role == ADMIN)
+```
+
+Better:
+
+```java
+authorizationService.require(user, Permission.MANAGE_USERS);
+authorizationService.require(user, Permission.START_JOB);
+authorizationService.require(user, Permission.DELETE_SD_FILE);
+```
+
+Suggested permissions:
+
+```text
+DASHBOARD_VIEW
+MONITORING_VIEW
+PRINTER_VIEW
+PRINTER_MANAGE
+SETTINGS_VIEW
+SETTINGS_UPDATE
+USER_VIEW
+USER_MANAGE
+JOB_VIEW
+JOB_CREATE
+JOB_START
+JOB_PAUSE
+JOB_RESUME
+JOB_CANCEL
+JOB_DELETE
+PRINT_FILE_UPLOAD
+SD_FILE_VIEW
+SD_FILE_MANAGE
+SD_FILE_DELETE
+COMMAND_EXECUTE_SAFE
+COMMAND_EXECUTE_DANGEROUS
+RECOVERY_ACTION_EXECUTE
+AUDIT_VIEW
+```
+
+Then role profiles become simple mappings:
+
+```text
+ADMIN    -> all permissions
+OPERATOR -> operational permissions
+VIEWER   -> read-only permissions
+```
+
+This is important because later the central VPS may have more refined profiles without rewriting every guard.
+
+---
+
+## Database model
+
+### `local_users`
+
+```text
+id
+username
+display_name
+password_hash
+role_name
+enabled
+created_at
+updated_at
+last_login_at
+```
+
+Important notes:
+
+* `username` should be unique.
+* `password_hash` must contain a proper password hash, not plain text.
+* `enabled=false` blocks login without deleting the user.
+* deleting users should probably be avoided at first; disable is safer for audit history.
+
+### `login_sessions`
+
+```text
+id
+session_token_hash
+user_id
+created_at
+expires_at
+revoked_at
+last_seen_at
+```
+
+The browser receives a session cookie. The database stores only a hash of the session token.
+
+Do not store raw session tokens.
+
+---
+
+## REST API
+
+### Authentication API
+
+```text
+POST /auth/login
+POST /auth/logout
+GET  /auth/me
+```
+
+### User management API
+
+```text
+GET  /users
+POST /users
+GET  /users/{id}
+PUT  /users/{id}
+POST /users/{id}/enable
+POST /users/{id}/disable
+POST /users/{id}/password
+```
+
+Possible `GET /auth/me` response:
+
+```json
+{
+  "authenticated": true,
+  "user": {
+    "id": "u-1",
+    "username": "nathabee",
+    "displayName": "Nathabee",
+    "role": "ADMIN",
+    "enabled": true
+  },
+  "permissions": [
+    "DASHBOARD_VIEW",
+    "MONITORING_VIEW",
+    "PRINTER_MANAGE",
+    "USER_MANAGE",
+    "JOB_START"
+  ]
+}
+```
+
+Possible login request:
+
+```json
+{
+  "username": "nathabee",
+  "password": "..."
+}
+```
+
+Possible user creation request:
+
+```json
+{
+  "username": "atelier-user",
+  "displayName": "Atelier User",
+  "password": "...",
+  "role": "OPERATOR",
+  "enabled": true
+}
+```
+
+---
+
+## Dashboard behavior
+
+Add a login screen before the dashboard loads.
+
+Flow:
+
+```text
+open /dashboard
+if no valid session:
+  show login screen
+else:
+  load /auth/me
+  load dashboard data
+```
+
+Dashboard should show:
+
+```text
+current user
+current role
+logout button
+```
+
+Example:
+
+```text
+Logged in as Nathabee
+Role: ADMIN
+```
+
+Add a local admin area under Settings or a new Admin page:
+
+```text
+Settings
+├── Monitoring rules
+├── Serial transfer settings
+├── Printer administration
+└── User administration
+```
+
+Or, cleaner after 0.3.1:
+
+```text
+PrinterHub
+├── Farm Home
+├── Monitoring
+├── Printers
+├── Jobs
+├── History
+├── Settings
+└── Admin
+```
+
+I would prefer **Admin** as a separate global menu once users exist.
+
+Admin page:
+
+```text
+Admin
+├── Users
+├── Roles / Profiles
+└── Audit visibility
+```
+
+For `0.3.1`, roles can be fixed enum values. No need for editable custom roles yet.
+
+---
+
+## Where should role checks apply?
+
+Backend first.
+
+At minimum:
+
+```text
+printer create/update/delete
+printer enable/disable
+settings update
+serial transfer settings update
+user management
+job start/pause/resume/cancel/delete
+SD upload
+SD delete
+SD recovery close
+manual commands
+dangerous commands
+```
+
+The dashboard should also hide/disable controls, but only as UX.
+
+The API must enforce the rule.
+
+Example:
+
+```text
+VIEWER clicks Start Job by manipulating browser
+-> backend returns 403 Forbidden
+```
+
+---
+
+## Should central admin later manage local users?
+
+Later, yes, but not immediately.
+
+The long-term model can be:
+
+```text
+local users = local fallback/admin users
+central users = VPS-managed users
+farm identity = local runtime identity
+```
+
+In the central version, you will probably have:
+
+```text
+central_user
+central_role
+farm_access
+farm_runtime_identity
+```
+
+But the local runtime still needs a local admin for standalone/emergency use.
+
+That is why `0.3.1` is useful even if central auth comes later.
+
+---
+
+# Should unfinished `0.*` become `2.*` later?
+
+Yes, that idea is reasonable, but do it deliberately.
+
+I would think like this:
+
+```text
+0.x = local runtime development / prototype-to-product hardening
+1.x = central multi-farm platform foundation
+2.x = mature local runtime refinement after central architecture exists
+```
+
+So after `0.3.x`, you can decide:
+
+```text
+1.0.x = central platform baseline
+2.0.x = local runtime professionalization / final polish / production-grade local runtime
+```
+
+That would make sense because once central architecture exists, local runtime work changes meaning. It is no longer just a standalone project; it becomes an edge runtime inside a central platform.
+
+But I would not rename everything now.
+
+For now:
+
+```text
+0.3.0 = local authorization baseline
+0.3.1 = local login and user administration
+then decide whether 0.4/0.5 remain local roadmap or move to 2.x
+```
+
+My recommendation:
+
+```text
+finish 0.3.0 and 0.3.1 first
+then move to 1.0.0
+then move remaining local perfection topics to 2.x if they are no longer central prerequisites
+```
+
+---
+
+ 

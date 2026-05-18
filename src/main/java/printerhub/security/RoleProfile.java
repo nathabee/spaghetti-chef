@@ -19,7 +19,14 @@ public record RoleProfile(
             Permission.VIEW_PRINTERS,
             Permission.VIEW_MONITORING,
             Permission.VIEW_JOBS,
-            Permission.VIEW_HISTORY
+            Permission.VIEW_HISTORY,
+            Permission.VIEW_SETTINGS,
+            Permission.PRINTER_VIEW,
+            Permission.MONITORING_VIEW,
+            Permission.JOB_VIEW,
+            Permission.SD_VIEW,
+            Permission.SETTINGS_VIEW,
+            Permission.SECURITY_VIEW
     );
 
     private static final Set<Permission> OPERATOR_PERMISSIONS = union(
@@ -29,7 +36,18 @@ public record RoleProfile(
                     Permission.MANAGE_SD_CARD_FILES,
                     Permission.UPLOAD_TO_SD_CARD,
                     Permission.CONTROL_JOBS,
-                    Permission.EXECUTE_SAFE_COMMANDS
+                    Permission.EXECUTE_SAFE_COMMANDS,
+                    Permission.JOB_CREATE,
+                    Permission.JOB_START,
+                    Permission.JOB_PAUSE,
+                    Permission.JOB_RESUME,
+                    Permission.JOB_CANCEL,
+                    Permission.JOB_RESTART,
+                    Permission.SD_REFRESH,
+                    Permission.SD_UPLOAD,
+                    Permission.SD_RECOVERY_CLOSE_UPLOAD,
+                    Permission.COMMAND_READ,
+                    Permission.COMMAND_SAFE_CONTROL
             )
     );
 
@@ -41,7 +59,15 @@ public record RoleProfile(
                     Permission.CONFIGURE_MONITORING,
                     Permission.CONFIGURE_TRANSFER_SETTINGS,
                     Permission.EXECUTE_DANGEROUS_COMMANDS,
-                    Permission.MANAGE_SECURITY
+                    Permission.MANAGE_SECURITY,
+                    Permission.PRINTER_CONFIGURE,
+                    Permission.MONITORING_CONFIGURE,
+                    Permission.JOB_DELETE,
+                    Permission.SD_DELETE,
+                    Permission.COMMAND_DANGEROUS_CONTROL,
+                    Permission.COMMAND_RAW,
+                    Permission.SETTINGS_UPDATE,
+                    Permission.SECURITY_MANAGE
             )
     );
 
