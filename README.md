@@ -6,118 +6,58 @@
 
 **PrinterHub** is a Java-based system integration project for monitoring and controlling 3D printers in a structured local runtime environment.
 
-It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and is evolving into a **local multi-printer runtime architecture** with background monitoring, persistence, REST API access, dashboard administration, audit visibility, asynchronous job execution, controlled operator actions, SD-card upload monitoring, and cross-printer runtime observability.
+It started with direct serial communication to a real **Creality Ender-3 V2 Neo** and has grown into a local multi-printer runtime with an embedded dashboard, REST API, job execution, SD-card upload telemetry, role-aware local security, dangerous-action confirmations, and operator audit visibility.
 
 PrinterHub currently targets printers that speak a **Marlin-compatible G-code serial protocol**. The real-printer development reference remains the Creality Ender-series Marlin behavior used during USB serial and SD-card upload verification.
 
-Roadmap:
+This README is only a quick introduction. The detailed build-out lives in the roadmap:
 
 * [`docs/roadmap.md`](docs/roadmap.md)
 
 ---
 
-## Current scope
+## What Works Today
 
 PrinterHub is currently focused on the **local runtime**: one running PrinterHub instance controls and observes one local printer farm through USB-connected or simulated printers.
 
-Current focus:
+Implemented local capabilities include:
 
-```text
-0.2.x — local runtime administration, audit visibility, dashboard UI, job management, SD-card upload observability, and global runtime monitoring
-```
-
-The current implementation provides:
-
-* local multi-printer runtime
-* background monitoring per configured printer
-* runtime state cache
-* REST API for printer administration, monitoring settings, runtime monitoring, event visibility, controlled job execution, SD-card upload, and diagnostics
-* SQLite persistence for printer configuration, monitoring rules, serial transfer settings, snapshots, events, jobs, files, and execution diagnostics
+* local multi-printer dashboard
+* REST API and SQLite-backed runtime state
+* background printer monitoring and global farm overview
+* selected-printer workspaces for jobs, SD-card files, control, info, and history
+* guarded job execution and printer-side `PRINT_FILE` starts
+* host-to-printer SD-card upload with live telemetry and adaptive transfer diagnostics
+* remote dashboard upload/job synchronization
+* local role model for `VIEWER`, `OPERATOR`, and `ADMIN`
+* backend authorization guards for API endpoints
+* dangerous-action confirmation for heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths
+* operator audit records for accepted and rejected state-changing actions
 * embedded dashboard with global and selected-printer workspaces
-* global Monitoring workspace for cross-printer runtime visibility
-* selected-printer workspace inspired by practical printer operation
-* selected-printer SD Card administration for printer-side file discovery and host-side file preparation
-* guarded host-to-printer SD-card `.gcode` upload for the verified Marlin serial path
-* live upload telemetry, adaptive transfer diagnostics, and remote dashboard synchronization
-* controlled job-oriented actions instead of only raw direct command sending
-* asynchronous job start with bounded background execution
-* job history, printer history, execution events, and structured workflow-step diagnostics
 * simulation modes for normal and failing printer behavior
-* Jenkins CI verification and runtime smoke tests
 * remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
 
-PrinterHub is intentionally not yet a centralized SaaS or multi-site production control platform. The current system is a local runtime with operational visibility and controlled administration.
+The `0.3.x` local security and dangerous-action guard layer is implemented. PrinterHub is still intentionally local-first: it is not yet a centralized SaaS or multi-site production control platform.
 
 ---
 
-## Real-printer and serial-upload note
+## What Comes Next
 
-PrinterHub is tested against physical USB-connected Marlin-style 3D printers. A major part of the current work is reliable host-to-printer SD-card upload over a constrained serial channel.
+Near-term direction:
 
-The SD-upload path includes:
+* `0.4.x — Camera Monitoring & Visual Safety Layer`
+* `1.0.x — Central VPS Multi-Farm Management`
+* more production monitoring, visual safety, history, and multi-farm orchestration work
 
-* numbered and checksummed G-code upload session
-* pipelined transfer
-* buffered resend recovery
-* adaptive batch-size behavior
-* degraded safe replay after instability
-* transfer quality metrics
-* live upload progress
-* adaptive transfer diagnostics in the dashboard
-* synchronization support for observing an upload from another browser or PC
-
-This is real serial recovery work, not only simulation. Simulation remains important for automated tests, but the implementation is shaped by real printer behavior.
+The roadmap is the best place to follow planned versions and design intent: [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 
-## Current runtime architecture
+## Real-printer Note
 
-```mermaid
-flowchart TB
-    runtime["PrinterHub Local Runtime"]
+PrinterHub is tested against physical USB-connected Marlin-style 3D printers. The SD-card upload path is real serial recovery work: checksummed upload sessions, pipelined transfer, resend recovery, adaptive batch sizing, live quality metrics, and browser-visible diagnostics are shaped by real printer behavior.
 
-    runtime --> api["REST API and dashboard server"]
-    runtime --> monitor["Background monitoring scheduler"]
-    runtime --> jobs["Asynchronous job executor"]
-    runtime --> upload["SD-card upload service"]
-    runtime --> global["Global monitoring aggregation"]
-    runtime --> cache["Runtime state cache"]
-    runtime --> persistence["SQLite persistence layer"]
-    runtime --> serial["Serial / simulation communication"]
-
-    monitor --> p1["Printer 1"]
-    monitor --> p2["Printer 2"]
-    monitor --> p3["Printer 3"]
-    monitor --> px["..."]
-
-    cache --> latest["Latest known state per printer"]
-    jobs --> serial
-    upload --> serial
-    global --> cache
-    global --> jobs
-    global --> upload
-    persistence --> data["Configuration, settings, snapshots, events, jobs, files, diagnostics"]
-    serial --> ports["USB ports or simulated ports"]
-```
-
-Operational rule:
-
-```text
-The API reads runtime state from the cache or runtime services.
-Background monitoring performs normal polling.
-Normal status and dashboard reads must not poll printers directly.
-Job start requests return quickly; long-running printer workflows continue in the background.
-```
-
-Default runtime limits:
-
-```text
-API request thread pool: 8
-Job executor pool:      8
-Monitoring pool:        runtime-sized, with an 8-thread lazy default
-```
-
-Each printer accepts only one active controlled job or guarded action at a time.
+Simulation remains important for automated tests, but the project is grounded in hardware-facing runtime behavior.
 
 ---
 
