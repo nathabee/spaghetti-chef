@@ -26,6 +26,11 @@ export async function getMonitoringOverview() {
   return requestJson("/monitoring");
 }
 
+export async function getOperatorAuditEvents() {
+  const data = await requestJson("/operator-audit");
+  return Array.isArray(data.auditEvents) ? data.auditEvents : [];
+}
+
 export async function createPrinter(printer) {
   return requestJson("/printers", {
     method: "POST",

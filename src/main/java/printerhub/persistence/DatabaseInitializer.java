@@ -21,6 +21,7 @@ public final class DatabaseInitializer {
             createPrintJobExecutionStepsTable(statement);
             createPrinterSnapshotsTable(statement);
             createPrinterEventsTable(statement);
+            createOperatorAuditEventsTable(statement);
             createConfiguredPrintersTable(statement);
             createMonitoringRulesTable(statement);
             createPrintFileSettingsTable(statement);
@@ -223,6 +224,26 @@ public final class DatabaseInitializer {
                     job_id TEXT,
                     event_type TEXT NOT NULL,
                     message TEXT,
+                    created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createOperatorAuditEventsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS operator_audit_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    actor TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    permission TEXT,
+                    dangerous_action TEXT,
+                    action_type TEXT NOT NULL,
+                    target_type TEXT,
+                    target_id TEXT,
+                    result TEXT NOT NULL,
+                    failure_reason TEXT,
                     created_at TEXT NOT NULL
                 );
                 """;

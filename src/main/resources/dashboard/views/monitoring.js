@@ -1,4 +1,4 @@
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml, formatDateTime } from "../dashboard.js";
 import { serialPathWarning, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { state } from "../state.js";
 
@@ -28,6 +28,7 @@ export function renderMonitoringPage() {
   const printers = Array.isArray(overview.printers) ? overview.printers : [];
   const activeJobs = Array.isArray(overview.activeJobs) ? overview.activeJobs : [];
   const activeUploads = Array.isArray(overview.activeUploads) ? overview.activeUploads : [];
+  const auditEvents = Array.isArray(state.operatorAuditEvents) ? state.operatorAuditEvents : [];
 
   return `
     <section class="section-card">
@@ -90,6 +91,16 @@ export function renderMonitoringPage() {
       </div>
       ${printers.length === 0 ? renderMonitoringEmpty("No configured printers.") : renderPrintersTable(printers)}
     </section>
+
+    <section class="section-card">
+      <div class="section-header compact">
+        <div>
+          <div class="kicker">Audit</div>
+          <h3>Recent operator decisions</h3>
+        </div>
+      </div>
+      ${auditEvents.length === 0 ? renderMonitoringEmpty("No operator audit entries recorded yet.") : renderAuditTable(auditEvents)}
+    </section>
   `;
 }
 
@@ -134,6 +145,39 @@ function renderJobsTable(jobs) {
                   data-printer-id="${escapeHtml(job.printerId || "")}"
                 >Synchronize</button>
               </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAuditTable(events) {
+  return `
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Result</th>
+            <th>Role</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Guard</th>
+            <th>Failure</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${events.slice(0, 12).map((event) => `
+            <tr>
+              <td>${escapeHtml(formatDateTime(event.createdAt))}</td>
+              <td><span class="badge ${event.result === "ACCEPTED" ? "badge-enabled" : "badge-disabled"}">${escapeHtml(event.result || "n/a")}</span></td>
+              <td>${escapeHtml(event.role || "n/a")}</td>
+              <td>${escapeHtml(event.actionType || "n/a")}</td>
+              <td>${escapeHtml(`${event.targetType || "n/a"}:${event.targetId || "n/a"}`)}</td>
+              <td>${escapeHtml(event.dangerousAction || event.permission || "n/a")}</td>
+              <td>${escapeHtml(event.failureReason || "none")}</td>
             </tr>
           `).join("")}
         </tbody>

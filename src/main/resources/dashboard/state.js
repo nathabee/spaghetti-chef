@@ -31,6 +31,7 @@ export const state = {
   securitySettings: null,
   securityRoles: [],
   monitoringOverview: null,
+  operatorAuditEvents: [],
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -105,6 +106,10 @@ export function setSecurityRoles(roles) {
 
 export function setMonitoringOverview(overview) {
   state.monitoringOverview = overview || null;
+}
+
+export function setOperatorAuditEvents(events) {
+  state.operatorAuditEvents = Array.isArray(events) ? events : [];
 }
 
 export function setPrimaryView(viewId) {

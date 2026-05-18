@@ -2485,6 +2485,18 @@ Goals:
 * keep disabled controls visible with role/permission hints so operators understand why an action is unavailable
 * keep backend authorization as the real security boundary while improving dashboard clarity before rejected API calls happen
 
+#### 0.3.0.F — Audit events for authorized and rejected state-changing actions
+
+status: done
+
+Goals:
+
+* persist operator audit entries for state-changing API requests in SQLite
+* record the local actor, effective role, resolved permission, dangerous action group, action path, target, result, failure reason, and timestamp
+* write accepted audit entries when authorization and confirmation guards allow a state-changing action
+* write rejected audit entries when authorization or dangerous-action confirmation blocks a request
+* expose recent audit entries through `/operator-audit` and surface them in Monitoring plus selected-printer History views
+
 
 ---
 

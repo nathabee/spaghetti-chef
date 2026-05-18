@@ -33,6 +33,8 @@ import printerhub.monitoring.GlobalMonitoringSnapshot;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.MonitoringRules;
 import printerhub.persistence.MonitoringRulesStore;
+import printerhub.persistence.OperatorAuditEvent;
+import printerhub.persistence.OperatorAuditStore;
 import printerhub.persistence.PrintFileSettings;
 import printerhub.persistence.PrintFileSettingsStore;
 import printerhub.persistence.PrinterConfigurationStore;
@@ -84,6 +86,7 @@ public final class RemoteApiServer {
     private final SerialTransferSettingsStore serialTransferSettingsStore;
     private final SecuritySettingsStore securitySettingsStore;
     private final RoleProfileStore roleProfileStore;
+    private final OperatorAuditStore operatorAuditStore;
     private final PrinterEventStore printerEventStore;
     private final PrinterCommandService printerCommandService;
     private final SdCardService sdCardService;
@@ -181,6 +184,7 @@ public final class RemoteApiServer {
         this.serialTransferSettingsStore = serialTransferSettingsStore;
         this.securitySettingsStore = new SecuritySettingsStore();
         this.roleProfileStore = new RoleProfileStore();
+        this.operatorAuditStore = new OperatorAuditStore();
         this.printerEventStore = printerEventStore;
         this.printerCommandService = printerCommandService;
         this.sdCardService = sdCardService;
@@ -220,6 +224,7 @@ public final class RemoteApiServer {
             server.createContext("/printer-sd-files", exchange -> safeHandle(exchange, this::handlePrinterSdFiles));
             server.createContext("/jobs", exchange -> safeHandle(exchange, this::handleJobs));
             server.createContext("/monitoring", exchange -> safeHandle(exchange, this::handleMonitoring));
+            server.createContext("/operator-audit", exchange -> safeHandle(exchange, this::handleOperatorAudit));
             server.createContext("/settings/monitoring",
                     exchange -> safeHandle(exchange, this::handleMonitoringSettings));
             server.createContext("/settings/print-files",
@@ -258,8 +263,15 @@ public final class RemoteApiServer {
         try {
             byte[] requestBodyBytes = cacheRequestBody(exchange);
             String requestBody = new String(requestBodyBytes, StandardCharsets.UTF_8);
-            guardDangerousAction(exchange, requestBody);
-            authorize(exchange, requestBody);
+            AuditContext auditContext = auditContext(exchange, requestBody);
+            try {
+                guardDangerousAction(auditContext, requestBody);
+                authorize(auditContext);
+                recordAudit(auditContext, "ACCEPTED", null);
+            } catch (ConfirmationRequiredException | AuthorizationException exception) {
+                recordAudit(auditContext, "REJECTED", safeMessage(exception));
+                throw exception;
+            }
             handler.handle(exchange);
         } catch (ConfirmationRequiredException exception) {
             sendJson(exchange, 428, confirmationRequiredJson(exception.requiredConfirmation()));
@@ -301,35 +313,57 @@ public final class RemoteApiServer {
         return body;
     }
 
-    private void authorize(HttpExchange exchange, String requestBody) {
-        SecuritySettings settings = securitySettingsStore.load();
-        if (!settings.securityEnabled()) {
+    private void authorize(AuditContext context) {
+        if (!context.securitySettings().securityEnabled()) {
             return;
         }
 
-        Optional<Permission> permission = actionPermissionResolver.resolve(
-                exchange.getRequestMethod(),
-                exchange.getRequestURI().getPath(),
-                requestBody);
-        if (permission.isEmpty()) {
+        if (context.permission().isEmpty()) {
             return;
         }
 
-        LocalRole role = requestRole(exchange).orElse(settings.defaultRole());
-        new AuthorizationService(roleProfileStore.loadAll()).require(role, permission.get());
+        new AuthorizationService(roleProfileStore.loadAll()).require(context.role(), context.permission().get());
     }
 
-    private void guardDangerousAction(HttpExchange exchange, String requestBody) {
-        SecuritySettings settings = securitySettingsStore.load();
-        if (!settings.requireDangerousActionConfirmation()) {
+    private void guardDangerousAction(AuditContext context, String requestBody) {
+        if (!context.securitySettings().requireDangerousActionConfirmation()) {
             return;
         }
 
-        Optional<DangerousAction> dangerousAction = dangerousActionGuard.resolve(
-                exchange.getRequestMethod(),
-                exchange.getRequestURI().getPath(),
-                requestBody);
-        dangerousAction.ifPresent(action -> dangerousActionGuard.requireConfirmed(action, requestBody));
+        context.dangerousAction().ifPresent(action -> dangerousActionGuard.requireConfirmed(action, requestBody));
+    }
+
+    private AuditContext auditContext(HttpExchange exchange, String requestBody) {
+        SecuritySettings settings = securitySettingsStore.load();
+        String method = exchange.getRequestMethod();
+        String path = exchange.getRequestURI().getPath();
+        LocalRole role = requestRole(exchange).orElse(settings.defaultRole());
+
+        return new AuditContext(
+                method,
+                path,
+                role,
+                settings,
+                actionPermissionResolver.resolve(method, path, requestBody),
+                dangerousActionGuard.resolve(method, path, requestBody));
+    }
+
+    private void recordAudit(AuditContext context, String result, String failureReason) {
+        if (!context.auditable()) {
+            return;
+        }
+
+        TargetRef target = targetRef(context.path());
+        operatorAuditStore.save(OperatorAuditEvent.create(
+                "local-dashboard",
+                context.role().name(),
+                context.permission().map(Enum::name).orElse(null),
+                context.dangerousAction().map(Enum::name).orElse(null),
+                context.method() + " " + context.path(),
+                target.type(),
+                target.id(),
+                result,
+                failureReason));
     }
 
     private Optional<LocalRole> requestRole(HttpExchange exchange) {
@@ -341,11 +375,52 @@ public final class RemoteApiServer {
         return Optional.of(LocalRole.valueOf(value.trim().toUpperCase(Locale.ROOT)));
     }
 
+    private TargetRef targetRef(String path) {
+        String[] parts = path == null ? new String[0] : path.split("/");
+        if (parts.length >= 3 && "printers".equals(parts[1])) {
+            return new TargetRef("printer", parts[2]);
+        }
+        if (parts.length >= 3 && "jobs".equals(parts[1])) {
+            return new TargetRef("job", parts[2]);
+        }
+        if (parts.length >= 3 && "printer-sd-files".equals(parts[1])) {
+            return new TargetRef("printerSdFile", parts[2]);
+        }
+        if (parts.length >= 3 && "print-files".equals(parts[1])) {
+            return new TargetRef("printFile", parts[2]);
+        }
+        if (parts.length >= 2 && "settings".equals(parts[1])) {
+            return new TargetRef("settings", parts.length >= 3 ? parts[2] : "settings");
+        }
+        if (parts.length >= 2 && "security".equals(parts[1])) {
+            return new TargetRef("security", parts.length >= 3 ? parts[2] : "security");
+        }
+
+        return new TargetRef(null, null);
+    }
+
     private void addCorsHeaders(HttpExchange exchange) {
         Headers headers = exchange.getResponseHeaders();
         headers.set("Access-Control-Allow-Origin", "*");
         headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         headers.set("Access-Control-Allow-Headers", "Content-Type, X-PrinterHub-Role");
+    }
+
+    private record AuditContext(
+            String method,
+            String path,
+            LocalRole role,
+            SecuritySettings securitySettings,
+            Optional<Permission> permission,
+            Optional<DangerousAction> dangerousAction
+    ) {
+        private boolean auditable() {
+            return !"GET".equalsIgnoreCase(method)
+                    && (permission.isPresent() || dangerousAction.isPresent());
+        }
+    }
+
+    private record TargetRef(String type, String id) {
     }
 
     private void handleHealth(HttpExchange exchange) throws IOException {
@@ -590,6 +665,15 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 200, globalMonitoringSnapshotJson(globalMonitoringService.snapshot()));
+    }
+
+    private void handleOperatorAudit(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        sendJson(exchange, 200, operatorAuditEventsJson(operatorAuditStore.findRecent(50)));
     }
 
     private void handlePrintFiles(HttpExchange exchange) throws IOException {
@@ -1825,6 +1909,38 @@ public final class RemoteApiServer {
                     .append("\"jobId\":").append(nullableString(event.jobId())).append(",")
                     .append("\"eventType\":\"").append(escapeJson(event.eventType())).append("\",")
                     .append("\"message\":").append(nullableString(event.message())).append(",")
+                    .append("\"createdAt\":\"").append(escapeJson(event.createdAt().toString())).append("\"")
+                    .append("}");
+
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String operatorAuditEventsJson(List<OperatorAuditEvent> events) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"auditEvents\":[");
+
+        boolean first = true;
+
+        for (OperatorAuditEvent event : events) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append("{")
+                    .append("\"id\":").append(event.id()).append(",")
+                    .append("\"actor\":").append(nullableString(event.actor())).append(",")
+                    .append("\"role\":").append(nullableString(event.role())).append(",")
+                    .append("\"permission\":").append(nullableString(event.permission())).append(",")
+                    .append("\"dangerousAction\":").append(nullableString(event.dangerousAction())).append(",")
+                    .append("\"actionType\":\"").append(escapeJson(event.actionType())).append("\",")
+                    .append("\"targetType\":").append(nullableString(event.targetType())).append(",")
+                    .append("\"targetId\":").append(nullableString(event.targetId())).append(",")
+                    .append("\"result\":\"").append(escapeJson(event.result())).append("\",")
+                    .append("\"failureReason\":").append(nullableString(event.failureReason())).append(",")
                     .append("\"createdAt\":\"").append(escapeJson(event.createdAt().toString())).append("\"")
                     .append("}");
 

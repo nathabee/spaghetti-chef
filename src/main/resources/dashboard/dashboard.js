@@ -13,6 +13,7 @@ import {
   getJobs,
   getMonitoringOverview,
   getMonitoringRules,
+  getOperatorAuditEvents,
   getPrintFileContent,
   getPrintFileSettings,
   getSerialTransferSettings,
@@ -70,6 +71,7 @@ import {
   setMessage,
   setMonitoringOverview,
   setMonitoringRules,
+  setOperatorAuditEvents,
   setPrintFileSettings,
   setPrintFiles,
   setPrinterSdFiles,
@@ -122,7 +124,8 @@ async function refreshAllData(options = {}) {
       serialTransferSettings,
       securitySettings,
       securityRoles,
-      monitoringOverview
+      monitoringOverview,
+      operatorAuditEvents
     ] = await Promise.all([
       getPrinters(),
       getJobs(),
@@ -133,7 +136,8 @@ async function refreshAllData(options = {}) {
       getSerialTransferSettings(),
       getSecuritySettings(),
       getSecurityRoles(),
-      getMonitoringOverview()
+      getMonitoringOverview(),
+      getOperatorAuditEvents()
     ]);
 
     setPrinters(printers);
@@ -146,6 +150,7 @@ async function refreshAllData(options = {}) {
     setSecuritySettings(securitySettings);
     setSecurityRoles(securityRoles);
     setMonitoringOverview(monitoringOverview);
+    setOperatorAuditEvents(operatorAuditEvents);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 
