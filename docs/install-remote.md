@@ -129,7 +129,7 @@ The GitHub release tag uses:
 
 ```text
 v<version>
-````
+```
 
 The Windows asset file uses:
 

@@ -36,7 +36,7 @@ Goals:
 VIEWER
 OPERATOR
 ADMIN
-````
+```
 
 * define explicit permissions for printer viewing, printer configuration, monitoring configuration, job control, SD-card operations, command execution, and security management
 * keep roles human-readable while enforcing permission checks internally

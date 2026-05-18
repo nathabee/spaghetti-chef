@@ -162,7 +162,7 @@ configured printer
 -> snapshot/state update
 -> API/dashboard exposure
 -> persistence of snapshots and events
-````
+```
 
 Main printer states:
 
