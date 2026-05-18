@@ -26,3 +26,5 @@ printerhub-print-files/**
 .codex
 chat.txt
 
+# data
+data/

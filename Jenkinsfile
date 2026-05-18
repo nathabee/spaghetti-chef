@@ -916,6 +916,22 @@ exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${
 EOF
             chmod +x package/linux/printerhub.sh
 
+            # BEGIN Camera tools
+            mkdir -p package/linux/camera
+            mkdir -p package/windows/camera
+
+            cp tools/camera/README.md package/linux/camera/README.md
+            cp tools/camera/README.md package/windows/camera/README.md
+
+            cp tools/camera/linux/camera-capture-once.sh package/linux/camera/
+            cp tools/camera/linux/camera-capture-loop.sh package/linux/camera/
+            chmod +x package/linux/camera/camera-capture-once.sh
+            chmod +x package/linux/camera/camera-capture-loop.sh
+
+            cp tools/camera/win/camera-capture-once.ps1 package/windows/camera/
+            cp tools/camera/win/camera-capture-loop.ps1 package/windows/camera/
+            # END Camera tools
+
             cp tools/win/run.env.example package/admin/
             cp tools/win/t.ps1 package/admin/
             cp tools/win/u.ps1 package/admin/

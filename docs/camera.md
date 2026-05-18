@@ -1,4 +1,42 @@
-## 0.4.x CAMERA 
+# CAMERA
+
+
+
+
+## Installation and manual test
+
+
+test  on linux :
+
+```text
+sudo apt install v4l-utils ffmpeg
+
+lsusb
+v4l2-ctl --list-devices
+```
+
+make one picture :
+ffmpeg -f v4l2 -video_size 1280x720 -i /dev/video0 -frames:v 1 /tmp/aukey-test.jpg
+
+
+
+### Example: save one image every 2 seconds:
+
+mkdir -p ./data/camera/p1
+
+ffmpeg \
+  -f v4l2 \
+  -video_size 1280x720 \
+  -framerate 10 \
+  -i /dev/video0 \
+  -vf fps=1/2 \
+  -strftime 1 \
+  ./data/camera/p1/snapshot_%Y%m%d_%H%M%S.jpg
+
+
+
+
+## Roadmap and Specification : 0.4.x CAMERA 
 
 
 ### overview

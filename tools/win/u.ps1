@@ -94,6 +94,58 @@ function Get-JavaMajorVersion {
     return $null
 }
 
+
+function Get-ConfiguredDatabaseFile {
+    param(
+        [hashtable]$EnvMap,
+        [string]$Root
+    )
+
+    if ($EnvMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
+        $configured = $EnvMap['PRINTERHUB_DATABASE_FILE']
+        if (-not [string]::IsNullOrWhiteSpace($configured)) {
+            return $configured
+        }
+    }
+
+    return Join-Path (Join-Path $Root 'data') 'printerhub.db'
+}
+
+function Assert-PersistentRuntimePaths {
+    param(
+        [string]$DatabaseFile,
+        [string]$AppDir,
+        [string]$DataDir
+    )
+
+    if ([string]::IsNullOrWhiteSpace($DatabaseFile)) {
+        Fail "PRINTERHUB_DATABASE_FILE is empty. Refusing update because persistence location is undefined."
+    }
+
+    if (-not [System.IO.Path]::IsPathRooted($DatabaseFile)) {
+        Fail "PRINTERHUB_DATABASE_FILE must be an absolute path. Current value: '$DatabaseFile'"
+    }
+
+    $dbFullPath = [System.IO.Path]::GetFullPath($DatabaseFile)
+    $appFullPath = [System.IO.Path]::GetFullPath($AppDir)
+    $dataFullPath = [System.IO.Path]::GetFullPath($DataDir)
+
+    if ($dbFullPath.StartsWith($appFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Fail "Database is inside the replaceable app directory: '$dbFullPath'. Move it to '$dataFullPath\printerhub.db' before updating."
+    }
+
+    if (-not $dbFullPath.StartsWith($dataFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "Database is outside the managed data directory: '$dbFullPath'. This is allowed, but not recommended."
+    }
+
+    $dbDir = Split-Path -Parent $dbFullPath
+    if (-not (Test-Path -LiteralPath $dbDir)) {
+        New-Item -ItemType Directory -Force -Path $dbDir | Out-Null
+    }
+
+    Write-Host "Persistent database file: $dbFullPath"
+}
+
 $root = 'C:\printerhub'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
@@ -106,6 +158,7 @@ $updateLog = Join-Path $logDir 'update.log'
 $envMap = Read-RunEnv -Path $runEnvPath
 $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
+$databaseFile = Get-ConfiguredDatabaseFile -EnvMap $envMap -Root $root
 
 if ($null -eq $javaCommand) {
     Fail "Java was not found. Set PRINTERHUB_JAVA in C:\printerhub\data\run.env"
@@ -119,6 +172,9 @@ foreach ($dir in @($logDir, $tmpDir, $relDir, $dataDir)) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
     }
 }
+
+Assert-PersistentRuntimePaths -DatabaseFile $databaseFile -AppDir $appDir -DataDir $dataDir
+
 
 if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\s.ps1')) {
     Fail "Stop script not found: C:\printerhub\bin\s.ps1"
@@ -143,6 +199,18 @@ Write-Host "Detected Java major version: $javaMajor"
 Write-Host "Downloading $downloadUrl"
 
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+
+$dataBackupDir = Join-Path $tmpDir ("data-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+if (Test-Path -LiteralPath $dataDir) {
+    Write-Host "Creating lightweight data backup: $dataBackupDir"
+    New-Item -ItemType Directory -Force -Path $dataBackupDir | Out-Null
+
+    Get-ChildItem -LiteralPath $dataDir -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $dataBackupDir -Force
+    }
+}
+
 
 Write-Host "Stopping current PrinterHub"
 & 'C:\printerhub\bin\s.ps1'
