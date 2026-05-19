@@ -1,5 +1,5 @@
 param(
-    [string]$CameraName = "AUKEY Webcam",
+    [string]$CameraName = "PC-LM1E Camera",
     [string]$OutputFile = "C:\printerhub\data\camera\p1\latest.jpg",
     [int]$Width = 1280,
     [int]$Height = 720

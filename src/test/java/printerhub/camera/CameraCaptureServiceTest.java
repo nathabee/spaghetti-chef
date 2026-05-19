@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -314,15 +312,11 @@ class CameraCaptureServiceTest {
 
     private static void writeImage(Path path, String format, int width, int height) throws Exception {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
-
-        try {
-            graphics.setColor(Color.WHITE);
-            graphics.fillRect(0, 0, width, height);
-            graphics.setColor(Color.BLACK);
-            graphics.drawRect(5, 5, width - 10, height - 10);
-        } finally {
-            graphics.dispose();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                boolean border = x == 0 || y == 0 || x == width - 1 || y == height - 1;
+                image.setRGB(x, y, border ? 0x000000 : 0xFFFFFF);
+            }
         }
 
         boolean written = ImageIO.write(image, format, path.toFile());

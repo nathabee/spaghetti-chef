@@ -349,6 +349,7 @@ public final class CameraApiHandler {
     private static String captureResultJson(CameraCaptureResult result) {
         return "{"
                 + jsonField("success", result.success()) + ","
+                + jsonField("error", result.success() ? null : "camera_capture_failed") + ","
                 + jsonField("hasFrame", result.hasFrame()) + ","
                 + jsonField("message", result.message().orElse(null)) + ","
                 + "\"frame\":"

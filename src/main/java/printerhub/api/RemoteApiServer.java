@@ -68,6 +68,7 @@ import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
+import printerhub.persistence.DatabaseConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -226,9 +227,8 @@ public final class RemoteApiServer {
         CameraEventStore cameraEventStore = new CameraEventStore();
         CameraSnapshotMetadataStore cameraSnapshotMetadataStore = new CameraSnapshotMetadataStore();
 
-        Path cameraStorageDirectory = Path.of(System.getProperty(
-                "printerhub.camera.storageDirectory",
-                "printerhub-camera"));
+        Path cameraStorageDirectory = cameraStorageDirectory();
+        System.out.println("[PrinterHub] Camera storage: " + cameraStorageDirectory.toAbsolutePath().normalize());
 
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
                 cameraSettingsService,
@@ -259,6 +259,24 @@ public final class RemoteApiServer {
                 cameraSnapshotMetadataStore,
                 cameraAnalysisSessionService);
 
+    }
+
+    private static Path cameraStorageDirectory() {
+        String configured = System.getProperty(RuntimeDefaults.CAMERA_STORAGE_DIRECTORY_PROPERTY);
+        if (configured == null || configured.isBlank()) {
+            configured = System.getenv(RuntimeDefaults.CAMERA_STORAGE_DIRECTORY_ENV);
+        }
+        if (configured != null && !configured.isBlank()) {
+            return Path.of(configured.trim());
+        }
+
+        Path databaseFile = Path.of(DatabaseConfig.databaseFile());
+        Path databaseParent = databaseFile.toAbsolutePath().normalize().getParent();
+        if (databaseParent != null) {
+            return databaseParent.resolve("camera");
+        }
+
+        return Path.of(RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY);
     }
 
     public void start() {

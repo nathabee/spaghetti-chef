@@ -113,6 +113,15 @@ public final class CameraCaptureService {
 
     public CameraCaptureResult capture(String printerId) {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
+        System.out.println("[PrinterHub] Camera capture requested printerId=" + settings.printerId()
+                + " enabled=" + settings.enabled()
+                + " sourceType=" + settings.sourceType().wireValue()
+                + " sourceValue=" + settings.sourceValue().orElse("")
+                + " ffmpegCommand=" + settings.ffmpegCommand()
+                + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
+                + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
+                + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
+                + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality());
 
         if (!settings.enabled()) {
             eventStore.record(
@@ -124,6 +133,10 @@ public final class CameraCaptureService {
         }
 
         try (CameraDevice device = createDevice(settings)) {
+            System.out.println("[PrinterHub] Camera capture device printerId=" + settings.printerId()
+                    + " description=" + device.describe()
+                    + " available=" + device.isAvailable());
+
             if (!device.isAvailable()) {
                 eventStore.record(
                         settings.printerId(),
@@ -136,6 +149,9 @@ public final class CameraCaptureService {
             Optional<CameraFrame> frame = device.captureFrame();
 
             if (frame.isEmpty()) {
+                System.err.println("[PrinterHub] Camera capture returned no frame printerId="
+                        + settings.printerId()
+                        + " device=" + device.describe());
                 eventStore.record(
                         settings.printerId(),
                         OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
@@ -145,6 +161,9 @@ public final class CameraCaptureService {
             }
 
             PersistedCameraFramePaths persistedPaths = persistFrame(frame.get());
+            System.out.println("[PrinterHub] Camera capture persisted printerId=" + settings.printerId()
+                    + " latest=" + persistedPaths.latestPath()
+                    + " snapshot=" + persistedPaths.snapshotPath());
 
             eventStore.record(
                     settings.printerId(),
@@ -155,6 +174,8 @@ public final class CameraCaptureService {
 
             return CameraCaptureResult.captured(frame.get());
         } catch (RuntimeException exception) {
+            System.err.println("[PrinterHub] Camera capture failed printerId=" + settings.printerId()
+                    + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
             eventStore.record(
                     settings.printerId(),
                     OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,

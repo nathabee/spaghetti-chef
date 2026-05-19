@@ -1,7 +1,5 @@
 package printerhub.camera;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.time.Clock;
@@ -72,28 +70,64 @@ public final class SimulatedCameraDevice implements CameraDevice {
 
     private byte[] renderJpeg(Instant capturedAt) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
+        int timeSeed = Math.abs(capturedAt.toString().hashCode());
+        int printerSeed = Math.abs(printerId.hashCode());
 
-        try {
-            graphics.setColor(new Color(245, 245, 245));
-            graphics.fillRect(0, 0, width, height);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int base = 220 + ((x + y + timeSeed) % 28);
+                int red = clamp(base);
+                int green = clamp(base - 6);
+                int blue = clamp(base - 12);
 
-            graphics.setColor(new Color(40, 40, 40));
-            graphics.drawString("PrinterHub simulated camera", 20, 30);
-            graphics.drawString("Printer: " + printerId, 20, 55);
-            graphics.drawString("Captured: " + capturedAt, 20, 80);
+                if (isFrameBorder(x, y) || isBuildPlateLine(x, y) || isNozzleMarker(x, y, printerSeed)) {
+                    red = 45;
+                    green = 45;
+                    blue = 45;
+                }
 
-            graphics.setColor(new Color(80, 80, 80));
-            graphics.drawRect(20, 105, width - 40, height - 130);
+                if (isDiagonalFilament(x, y)) {
+                    red = 110;
+                    green = 110;
+                    blue = 110;
+                }
 
-            graphics.setColor(new Color(120, 120, 120));
-            graphics.drawLine(35, height - 45, width - 35, 120);
-            graphics.drawLine(35, 120, width - 35, height - 45);
-
-            return writeJpeg(image);
-        } finally {
-            graphics.dispose();
+                image.setRGB(x, y, (red << 16) | (green << 8) | blue);
+            }
         }
+
+        return writeJpeg(image);
+    }
+
+    private boolean isFrameBorder(int x, int y) {
+        int left = Math.max(8, width / 16);
+        int right = width - left;
+        int top = Math.max(8, height / 5);
+        int bottom = height - Math.max(8, height / 8);
+
+        return (x >= left && x <= right && (Math.abs(y - top) <= 1 || Math.abs(y - bottom) <= 1))
+                || (y >= top && y <= bottom && (Math.abs(x - left) <= 1 || Math.abs(x - right) <= 1));
+    }
+
+    private boolean isBuildPlateLine(int x, int y) {
+        int plateY = height - Math.max(12, height / 6);
+        return y >= plateY && y <= plateY + 2 && x > width / 8 && x < width - width / 8;
+    }
+
+    private boolean isDiagonalFilament(int x, int y) {
+        int expectedY = height - 35 - ((x * Math.max(1, height - 90)) / Math.max(1, width));
+        int mirroredY = 55 + ((x * Math.max(1, height - 90)) / Math.max(1, width));
+        return Math.abs(y - expectedY) <= 1 || Math.abs(y - mirroredY) <= 1;
+    }
+
+    private boolean isNozzleMarker(int x, int y, int seed) {
+        int centerX = width / 2 + (seed % Math.max(1, width / 8)) - width / 16;
+        int centerY = Math.max(18, height / 4);
+        return Math.abs(x - centerX) + Math.abs(y - centerY) <= Math.max(4, width / 48);
+    }
+
+    private static int clamp(int value) {
+        return Math.max(0, Math.min(255, value));
     }
 
     private static byte[] writeJpeg(BufferedImage image) {

@@ -2774,7 +2774,7 @@ Out of scope:
 
 ### 0.4.5 — Real Webcam Backend
 
-status: planned
+status: done
 
 Goals:
 

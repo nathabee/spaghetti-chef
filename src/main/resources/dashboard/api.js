@@ -3,7 +3,8 @@ async function requestJson(path, options = {}) {
   const body = await safeJson(response);
 
   if (!response.ok) {
-    throw new Error(body.error || `HTTP ${response.status}`);
+    const detail = body.message || body.error || `HTTP ${response.status}`;
+    throw new Error(body.error && body.message ? `${body.error}: ${body.message}` : detail);
   }
 
   return body;
