@@ -43,6 +43,11 @@ public final class RuntimeDefaults {
     public static final double DEFAULT_CAMERA_DELTA_SCORE_THRESHOLD = 0.08;
     public static final double DEFAULT_CAMERA_SPAGHETTI_CONFIDENCE_THRESHOLD = 0.65;
     public static final long DEFAULT_CAMERA_MIN_ANALYSIS_INTERVAL_SECONDS = 5L;
+    public static final String DEFAULT_CAMERA_FFMPEG_COMMAND = "ffmpeg";
+    public static final String DEFAULT_CAMERA_FFMPEG_INPUT_FORMAT = "";
+    public static final String DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE = "640x480";
+    public static final int DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS = 5000;
+    public static final int DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY = 3;
 
 
 

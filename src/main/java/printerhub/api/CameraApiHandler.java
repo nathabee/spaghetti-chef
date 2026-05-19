@@ -276,6 +276,21 @@ public final class CameraApiHandler {
         int confirmationsRequired = readIntegerField(body, "confirmationsRequired")
                 .orElse(current.confirmationsRequired());
 
+        String ffmpegCommand = readStringField(body, "ffmpegCommand")
+                .orElse(current.ffmpegCommand());
+
+        String ffmpegInputFormat = readStringField(body, "ffmpegInputFormat")
+                .orElse(current.ffmpegInputFormat().orElse(null));
+
+        String ffmpegVideoSize = readStringField(body, "ffmpegVideoSize")
+                .orElse(current.ffmpegVideoSize().orElse(null));
+
+        int ffmpegTimeoutMs = readIntegerField(body, "ffmpegTimeoutMs")
+                .orElse(current.ffmpegTimeoutMs());
+
+        int ffmpegJpegQuality = readIntegerField(body, "ffmpegJpegQuality")
+                .orElse(current.ffmpegJpegQuality());
+
         return new CameraSettings(
                 current.printerId(),
                 enabled,
@@ -288,6 +303,11 @@ public final class CameraApiHandler {
                 pauseOnConfirmedSpaghetti,
                 confidenceThreshold,
                 confirmationsRequired,
+                ffmpegCommand,
+                ffmpegInputFormat,
+                ffmpegVideoSize,
+                ffmpegTimeoutMs,
+                ffmpegJpegQuality,
                 Instant.now());
     }
 
@@ -317,6 +337,11 @@ public final class CameraApiHandler {
                 + jsonField("pauseOnConfirmedSpaghetti", settings.pauseOnConfirmedSpaghetti()) + ","
                 + jsonField("confidenceThreshold", settings.confidenceThreshold()) + ","
                 + jsonField("confirmationsRequired", settings.confirmationsRequired()) + ","
+                + jsonField("ffmpegCommand", settings.ffmpegCommand()) + ","
+                + jsonField("ffmpegInputFormat", settings.ffmpegInputFormat().orElse(null)) + ","
+                + jsonField("ffmpegVideoSize", settings.ffmpegVideoSize().orElse(null)) + ","
+                + jsonField("ffmpegTimeoutMs", settings.ffmpegTimeoutMs()) + ","
+                + jsonField("ffmpegJpegQuality", settings.ffmpegJpegQuality()) + ","
                 + jsonField("updatedAt", settings.updatedAt().toString())
                 + "}";
     }

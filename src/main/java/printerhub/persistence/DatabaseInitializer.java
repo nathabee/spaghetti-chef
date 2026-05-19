@@ -1,6 +1,7 @@
 package printerhub.persistence;
 
 import printerhub.OperationMessages;
+import printerhub.config.RuntimeDefaults;
 import printerhub.security.RoleProfile;
 
 import java.sql.Connection;
@@ -98,6 +99,15 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "role_profiles", "built_in", "INTEGER NOT NULL DEFAULT 1");
             ensureColumn(connection, "role_profiles", "created_at", "TEXT");
             ensureColumn(connection, "role_profiles", "updated_at", "TEXT");
+            ensureColumn(connection, "camera_settings", "ffmpeg_command",
+                    "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND + "'");
+            ensureColumn(connection, "camera_settings", "ffmpeg_input_format", "TEXT");
+            ensureColumn(connection, "camera_settings", "ffmpeg_video_size",
+                    "TEXT DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE + "'");
+            ensureColumn(connection, "camera_settings", "ffmpeg_timeout_ms",
+                    "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS);
+            ensureColumn(connection, "camera_settings", "ffmpeg_jpeg_quality",
+                    "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY);
 
             ensureBuiltInRoleProfiles(connection);
 
@@ -391,6 +401,11 @@ public final class DatabaseInitializer {
                     pause_on_confirmed_spaghetti INTEGER NOT NULL,
                     confidence_threshold REAL NOT NULL,
                     confirmations_required INTEGER NOT NULL,
+                    ffmpeg_command TEXT NOT NULL DEFAULT 'ffmpeg',
+                    ffmpeg_input_format TEXT,
+                    ffmpeg_video_size TEXT DEFAULT '640x480',
+                    ffmpeg_timeout_ms INTEGER NOT NULL DEFAULT 5000,
+                    ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
                     updated_at TEXT NOT NULL
                 );
                 """;

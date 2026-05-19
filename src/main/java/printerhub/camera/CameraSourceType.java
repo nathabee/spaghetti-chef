@@ -6,7 +6,8 @@ public enum CameraSourceType {
 
     DISABLED("disabled"),
     SIMULATED("simulated"),
-    SNAPSHOT_FOLDER("snapshot-folder");
+    SNAPSHOT_FOLDER("snapshot-folder"),
+    FFMPEG("ffmpeg");
 
     private final String wireValue;
 

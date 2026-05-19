@@ -186,6 +186,24 @@ public final class CameraCaptureService {
                     clock);
         }
 
+        if (settings.sourceType() == CameraSourceType.FFMPEG) {
+            Optional<String> sourceValue = settings.sourceValue();
+
+            if (sourceValue.isEmpty()) {
+                return new NoopCameraDevice("ffmpeg-camera-missing-source");
+            }
+
+            return new FfmpegCameraDevice(
+                    settings.printerId(),
+                    sourceValue.get(),
+                    settings.ffmpegCommand(),
+                    settings.ffmpegInputFormat().orElse(null),
+                    settings.ffmpegVideoSize().orElse(null),
+                    settings.ffmpegTimeoutMs(),
+                    settings.ffmpegJpegQuality(),
+                    clock);
+        }
+
         return new NoopCameraDevice("unsupported-camera-source:" + settings.sourceType().wireValue());
     }
 

@@ -12,6 +12,7 @@ Linux or Windows package without recompiling the project.
 
  
 * Required on runtime machine: Java 21
+* Required for real webcam capture: ffmpeg available on PATH or configured with a full executable path
 * Required only for build machine / source build: Maven
 * Optional diagnostics: curl, sqlite3, minicom
 
@@ -98,6 +99,31 @@ ls -l /dev/serial/by-id/
 
 Use the full `/dev/serial/by-id/...` value as the printer `portName`. Paths such as `/dev/ttyUSB0` and `/dev/ttyACM0` are accepted, but they can change after reconnect or reboot. The dashboard shows a warning when a real printer is configured with one of those unstable Linux USB names.
 
+### Linux Webcam Capture
+
+PrinterHub real webcam capture uses ffmpeg behind the existing `CameraDevice` abstraction.
+Install ffmpeg first:
+
+```bash
+sudo apt install ffmpeg
+```
+
+In the dashboard, open the selected printer camera settings and use:
+
+```text
+Source type: ffmpeg webcam
+Source value: /dev/video0
+ffmpeg command: ffmpeg
+ffmpeg input format: v4l2
+ffmpeg video size: 640x480
+```
+
+If capture fails, verify the device and ffmpeg command directly:
+
+```bash
+ffmpeg -f v4l2 -video_size 640x480 -i /dev/video0 -frames:v 1 test.jpg
+```
+
 ---
 
 ## Windows Package
@@ -152,6 +178,32 @@ Open the dashboard:
 
 ```text
 http://localhost:18080/dashboard
+```
+
+### Windows Webcam Capture
+
+Install ffmpeg and either put `ffmpeg.exe` on PATH or configure the full executable path in the camera settings.
+
+List DirectShow devices:
+
+```bat
+ffmpeg -list_devices true -f dshow -i dummy
+```
+
+Then configure the selected printer camera settings:
+
+```text
+Source type: ffmpeg webcam
+Source value: video=Integrated Camera
+ffmpeg command: ffmpeg
+ffmpeg input format: dshow
+ffmpeg video size: 640x480
+```
+
+Test capture directly if needed:
+
+```bat
+ffmpeg -f dshow -video_size 640x480 -i "video=Integrated Camera" -frames:v 1 test.jpg
 ```
 
 ---
@@ -249,4 +301,3 @@ through OpenSSH.
 
 
 ---
-

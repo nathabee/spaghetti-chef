@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import printerhub.camera.CameraSourceType;
+import printerhub.config.RuntimeDefaults;
 
 public final class CameraSettings {
 
@@ -24,6 +25,11 @@ public final class CameraSettings {
     private final boolean pauseOnConfirmedSpaghetti;
     private final double confidenceThreshold;
     private final int confirmationsRequired;
+    private final String ffmpegCommand;
+    private final String ffmpegInputFormat;
+    private final String ffmpegVideoSize;
+    private final int ffmpegTimeoutMs;
+    private final int ffmpegJpegQuality;
     private final Instant updatedAt;
 
     public CameraSettings(
@@ -39,6 +45,44 @@ public final class CameraSettings {
             double confidenceThreshold,
             int confirmationsRequired,
             Instant updatedAt) {
+        this(
+                printerId,
+                enabled,
+                sourceType,
+                sourceValue,
+                captureIntervalSeconds,
+                retentionSnapshotCount,
+                analysisEnabled,
+                safetyEnabled,
+                pauseOnConfirmedSpaghetti,
+                confidenceThreshold,
+                confirmationsRequired,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_INPUT_FORMAT,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
+                updatedAt);
+    }
+
+    public CameraSettings(
+            String printerId,
+            boolean enabled,
+            CameraSourceType sourceType,
+            String sourceValue,
+            int captureIntervalSeconds,
+            int retentionSnapshotCount,
+            boolean analysisEnabled,
+            boolean safetyEnabled,
+            boolean pauseOnConfirmedSpaghetti,
+            double confidenceThreshold,
+            int confirmationsRequired,
+            String ffmpegCommand,
+            String ffmpegInputFormat,
+            String ffmpegVideoSize,
+            int ffmpegTimeoutMs,
+            int ffmpegJpegQuality,
+            Instant updatedAt) {
         this.printerId = requireText(printerId, "printerId");
         this.enabled = enabled;
         this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
@@ -50,6 +94,14 @@ public final class CameraSettings {
         this.pauseOnConfirmedSpaghetti = pauseOnConfirmedSpaghetti;
         this.confidenceThreshold = requireConfidenceThreshold(confidenceThreshold);
         this.confirmationsRequired = requirePositive(confirmationsRequired, "confirmationsRequired");
+        this.ffmpegCommand = requireTextOrDefault(
+                ffmpegCommand,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND,
+                "ffmpegCommand");
+        this.ffmpegInputFormat = normalizeNullableText(ffmpegInputFormat);
+        this.ffmpegVideoSize = normalizeNullableText(ffmpegVideoSize);
+        this.ffmpegTimeoutMs = requirePositive(ffmpegTimeoutMs, "ffmpegTimeoutMs");
+        this.ffmpegJpegQuality = requirePositive(ffmpegJpegQuality, "ffmpegJpegQuality");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
 
         if (!enabled && sourceType != CameraSourceType.DISABLED) {
@@ -73,6 +125,11 @@ public final class CameraSettings {
                 false,
                 DEFAULT_CONFIDENCE_THRESHOLD,
                 DEFAULT_CONFIRMATIONS_REQUIRED,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_INPUT_FORMAT,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 updatedAt);
     }
 
@@ -89,6 +146,11 @@ public final class CameraSettings {
                 false,
                 DEFAULT_CONFIDENCE_THRESHOLD,
                 DEFAULT_CONFIRMATIONS_REQUIRED,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_INPUT_FORMAT,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
+                RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 updatedAt);
     }
 
@@ -136,6 +198,26 @@ public final class CameraSettings {
         return confirmationsRequired;
     }
 
+    public String ffmpegCommand() {
+        return ffmpegCommand;
+    }
+
+    public Optional<String> ffmpegInputFormat() {
+        return Optional.ofNullable(ffmpegInputFormat);
+    }
+
+    public Optional<String> ffmpegVideoSize() {
+        return Optional.ofNullable(ffmpegVideoSize);
+    }
+
+    public int ffmpegTimeoutMs() {
+        return ffmpegTimeoutMs;
+    }
+
+    public int ffmpegJpegQuality() {
+        return ffmpegJpegQuality;
+    }
+
     public Instant updatedAt() {
         return updatedAt;
     }
@@ -152,6 +234,11 @@ public final class CameraSettings {
             return null;
         }
         return value.trim();
+    }
+
+    private static String requireTextOrDefault(String value, String fallback, String fieldName) {
+        String selected = value == null || value.isBlank() ? fallback : value;
+        return requireText(selected, fieldName);
     }
 
     private static int requirePositive(int value, String fieldName) {
