@@ -60,6 +60,7 @@ import printerhub.security.DangerousAction;
 import printerhub.security.DangerousActionGuard;
 import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraAnalysisSessionService;
+import printerhub.camera.CameraSafetyDecisionService;
 import printerhub.camera.CameraSettingsService;
 import printerhub.persistence.CameraAnalysisSampleStore;
 import printerhub.persistence.CameraAnalysisSessionStore;
@@ -234,11 +235,20 @@ public final class RemoteApiServer {
                 cameraSnapshotMetadataStore,
                 cameraStorageDirectory);
 
+        CameraAnalysisSampleStore cameraAnalysisSampleStore = new CameraAnalysisSampleStore();
+        CameraSafetyDecisionService cameraSafetyDecisionService = new CameraSafetyDecisionService(
+                cameraSettingsService,
+                cameraAnalysisSampleStore,
+                cameraEventStore,
+                printJobService,
+                autonomousPrintControlService);
+
         CameraAnalysisSessionService cameraAnalysisSessionService = new CameraAnalysisSessionService(
                 cameraCaptureService,
                 cameraSnapshotMetadataStore,
                 new CameraAnalysisSessionStore(),
-                new CameraAnalysisSampleStore(),
+                cameraAnalysisSampleStore,
+                cameraSafetyDecisionService,
                 cameraStorageDirectory);
 
         this.cameraApiHandler = new CameraApiHandler(

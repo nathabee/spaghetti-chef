@@ -218,13 +218,18 @@ public final class CameraApiHandler {
 
     public void handleAnalysisSessionSamples(HttpExchange exchange, String printerId, String sessionId)
             throws IOException {
-        if (!isMethod(exchange, "GET")) {
-            sendMethodNotAllowed(exchange, "GET");
-            return;
-        }
-
         try {
-            sendJson(exchange, 200, samplesJson(analysisSessionService.samples(printerId, sessionId)));
+            if (isMethod(exchange, "GET")) {
+                sendJson(exchange, 200, samplesJson(analysisSessionService.samples(printerId, sessionId)));
+                return;
+            }
+
+            if (isMethod(exchange, "POST")) {
+                sendJson(exchange, 201, sampleJson(analysisSessionService.captureSample(sessionId, printerId)));
+                return;
+            }
+
+            sendMethodNotAllowed(exchange, "GET, POST");
         } catch (IllegalArgumentException exception) {
             sendError(exchange, 404, "camera_analysis_session_not_found", exception.getMessage());
         } catch (RuntimeException exception) {
@@ -399,26 +404,30 @@ public final class CameraApiHandler {
             if (index > 0) {
                 builder.append(",");
             }
-            builder.append("{")
-                    .append(jsonField("id", sample.id().orElse(null))).append(",")
-                    .append(jsonField("sessionId", sample.sessionId())).append(",")
-                    .append(jsonField("printerId", sample.printerId())).append(",")
-                    .append(jsonField("capturedAt", sample.capturedAt().toString())).append(",")
-                    .append(jsonField("analyzedAt", sample.analyzedAt().toString())).append(",")
-                    .append(jsonField("latestSnapshotPath", sample.latestSnapshotPath().orElse(null))).append(",")
-                    .append(jsonField("previousSnapshotPath", sample.previousSnapshotPath().orElse(null))).append(",")
-                    .append(jsonField("deltaSnapshotPath", sample.deltaSnapshotPath().orElse(null))).append(",")
-                    .append(jsonField("deltaScore", sample.deltaScore())).append(",")
-                    .append(jsonField("changedPixelRatio", sample.changedPixelRatio())).append(",")
-                    .append(jsonField("averagePixelDelta", sample.averagePixelDelta())).append(",")
-                    .append(jsonField("confidence", sample.confidence())).append(",")
-                    .append(jsonField("suspected", sample.suspected())).append(",")
-                    .append(jsonField("reasonCodes", sample.reasonCodes().orElse(null))).append(",")
-                    .append(jsonField("message", sample.message().orElse(null)))
-                    .append("}");
+            builder.append(sampleJson(sample));
         }
         builder.append("]}");
         return builder.toString();
+    }
+
+    private static String sampleJson(CameraAnalysisSample sample) {
+        return "{"
+                + jsonField("id", sample.id().orElse(null)) + ","
+                + jsonField("sessionId", sample.sessionId()) + ","
+                + jsonField("printerId", sample.printerId()) + ","
+                + jsonField("capturedAt", sample.capturedAt().toString()) + ","
+                + jsonField("analyzedAt", sample.analyzedAt().toString()) + ","
+                + jsonField("latestSnapshotPath", sample.latestSnapshotPath().orElse(null)) + ","
+                + jsonField("previousSnapshotPath", sample.previousSnapshotPath().orElse(null)) + ","
+                + jsonField("deltaSnapshotPath", sample.deltaSnapshotPath().orElse(null)) + ","
+                + jsonField("deltaScore", sample.deltaScore()) + ","
+                + jsonField("changedPixelRatio", sample.changedPixelRatio()) + ","
+                + jsonField("averagePixelDelta", sample.averagePixelDelta()) + ","
+                + jsonField("confidence", sample.confidence()) + ","
+                + jsonField("suspected", sample.suspected()) + ","
+                + jsonField("reasonCodes", sample.reasonCodes().orElse(null)) + ","
+                + jsonField("message", sample.message().orElse(null))
+                + "}";
     }
 
     private static Optional<String> readStringField(String json, String fieldName) {

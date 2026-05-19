@@ -1,5 +1,6 @@
 import {
   captureCameraSnapshot,
+  captureCameraAnalysisSample,
   getCameraAnalysisSamples,
   getCameraAnalysisSessions,
   getCameraEvents,
@@ -86,13 +87,21 @@ export async function stopPrinterCameraAnalysisSession(printerId, sessionId) {
   return stopCameraAnalysisSession(printerId, sessionId);
 }
 
+export async function capturePrinterCameraAnalysisSample(printerId, sessionId) {
+  return captureCameraAnalysisSample(printerId, sessionId);
+}
+
 function cameraSettingsPayload(form) {
   const enabled = form.querySelector("#cameraEnabledInput")?.checked === true;
   const analysisEnabled = form.querySelector("#cameraAnalysisEnabledInput")?.checked === true;
+  const safetyEnabled = form.querySelector("#cameraSafetyEnabledInput")?.checked === true;
+  const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const captureIntervalInput = form.querySelector("#cameraCaptureIntervalSecondsInput");
   const retentionInput = form.querySelector("#cameraRetentionSnapshotCountInput");
+  const confidenceThresholdInput = form.querySelector("#cameraConfidenceThresholdInput");
+  const confirmationsRequiredInput = form.querySelector("#cameraConfirmationsRequiredInput");
 
   const sourceType = sourceTypeInput?.value || "disabled";
 
@@ -102,7 +111,11 @@ function cameraSettingsPayload(form) {
     sourceValue: sourceValueInput?.value?.trim() || "",
     captureIntervalSeconds: positiveInteger(captureIntervalInput?.value, 10),
     retentionSnapshotCount: positiveInteger(retentionInput?.value, 20),
-    analysisEnabled
+    analysisEnabled,
+    safetyEnabled,
+    pauseOnConfirmedSpaghetti,
+    confidenceThreshold: ratio(confidenceThresholdInput?.value, 0.85),
+    confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3)
   };
 }
 
@@ -110,6 +123,16 @@ function positiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+function ratio(value, fallback) {
+  const parsed = Number.parseFloat(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1) {
     return fallback;
   }
 

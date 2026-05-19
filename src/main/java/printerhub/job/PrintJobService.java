@@ -121,6 +121,10 @@ public final class PrintJobService {
         return printJobStore.findRecent(limit);
     }
 
+    public Optional<PrintJob> findActivePrintFileJobByPrinterId(String printerId) {
+        return printJobStore.findActivePrintFileJobByPrinterId(printerId);
+    }
+
     public PrintJob markRunning(String jobId) {
         PrintJob job = loadRequired(jobId);
         Instant now = Instant.now(clock);
