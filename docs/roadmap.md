@@ -2654,7 +2654,7 @@ Out of scope:
 
 ### 0.4.3 — Camera Analysis Sessions and Trace Review
 
-status: planned
+status: done
 
 Purpose:
 

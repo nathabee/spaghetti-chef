@@ -1,9 +1,13 @@
 import {
   captureCameraSnapshot,
+  getCameraAnalysisSamples,
+  getCameraAnalysisSessions,
   getCameraEvents,
   getCameraSettings,
   getCameraStatus,
-  saveCameraSettings
+  saveCameraSettings,
+  startCameraAnalysisSession,
+  stopCameraAnalysisSession
 } from "../api.js";
 
 import { escapeHtml } from "../utils/format.js";
@@ -43,13 +47,18 @@ export async function renderPrinterCamera(printer) {
   }
 
   try {
-    const [status, settings, events] = await Promise.all([
+    const [status, settings, events, sessions] = await Promise.all([
       getCameraStatus(printer.id),
       getCameraSettings(printer.id),
-      getCameraEvents(printer.id)
+      getCameraEvents(printer.id),
+      getCameraAnalysisSessions(printer.id)
     ]);
+    const selectedSession = sessions.find((session) => session.state === "RUNNING") || sessions[0];
+    const samples = selectedSession
+      ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
+      : [];
 
-    return renderCameraPage(printer.id, status, settings, events);
+    return renderCameraPage(printer.id, status, settings, events, sessions, samples);
   } catch (error) {
     return `
       <div class="empty-state error-state">
@@ -67,6 +76,14 @@ export async function capturePrinterCameraSnapshot(printerId) {
 export async function savePrinterCameraSettings(printerId, form) {
   const payload = cameraSettingsPayload(form);
   return saveCameraSettings(printerId, payload);
+}
+
+export async function startPrinterCameraAnalysisSession(printerId) {
+  return startCameraAnalysisSession(printerId);
+}
+
+export async function stopPrinterCameraAnalysisSession(printerId, sessionId) {
+  return stopCameraAnalysisSession(printerId, sessionId);
 }
 
 function cameraSettingsPayload(form) {

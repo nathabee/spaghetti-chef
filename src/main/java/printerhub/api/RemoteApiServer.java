@@ -59,7 +59,10 @@ import printerhub.security.ConfirmationRequiredException;
 import printerhub.security.DangerousAction;
 import printerhub.security.DangerousActionGuard;
 import printerhub.camera.CameraCaptureService;
+import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSettingsService;
+import printerhub.persistence.CameraAnalysisSampleStore;
+import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
@@ -221,17 +224,29 @@ public final class RemoteApiServer {
         CameraEventStore cameraEventStore = new CameraEventStore();
         CameraSnapshotMetadataStore cameraSnapshotMetadataStore = new CameraSnapshotMetadataStore();
 
+        Path cameraStorageDirectory = Path.of(System.getProperty(
+                "printerhub.camera.storageDirectory",
+                "printerhub-camera"));
+
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
                 cameraSettingsService,
                 cameraEventStore,
                 cameraSnapshotMetadataStore,
-                Path.of(System.getProperty("printerhub.camera.storageDirectory", "printerhub-camera")));
+                cameraStorageDirectory);
+
+        CameraAnalysisSessionService cameraAnalysisSessionService = new CameraAnalysisSessionService(
+                cameraCaptureService,
+                cameraSnapshotMetadataStore,
+                new CameraAnalysisSessionStore(),
+                new CameraAnalysisSampleStore(),
+                cameraStorageDirectory);
 
         this.cameraApiHandler = new CameraApiHandler(
                 cameraCaptureService,
                 cameraSettingsService,
                 cameraEventStore,
-                cameraSnapshotMetadataStore);
+                cameraSnapshotMetadataStore,
+                cameraAnalysisSessionService);
 
     }
 
@@ -1476,7 +1491,7 @@ public final class RemoteApiServer {
             return;
         }
 
-        if (parts.length != 3) {
+        if (parts.length < 3) {
             sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));
             return;
         }
@@ -1521,6 +1536,28 @@ public final class RemoteApiServer {
         if ("events".equals(cameraResource)) {
             cameraApiHandler.handleEvents(exchange, printerId);
             return;
+        }
+
+        if ("analysis-sessions".equals(cameraResource)) {
+            if (parts.length == 3) {
+                cameraApiHandler.handleAnalysisSessions(exchange, printerId);
+                return;
+            }
+
+            if (parts.length == 4) {
+                cameraApiHandler.handleAnalysisSession(exchange, printerId, parts[3]);
+                return;
+            }
+
+            if (parts.length == 5 && "stop".equals(parts[4])) {
+                cameraApiHandler.handleStopAnalysisSession(exchange, printerId, parts[3]);
+                return;
+            }
+
+            if (parts.length == 5 && "samples".equals(parts[4])) {
+                cameraApiHandler.handleAnalysisSessionSamples(exchange, printerId, parts[3]);
+                return;
+            }
         }
 
         sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));

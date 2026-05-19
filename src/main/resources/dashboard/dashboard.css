@@ -172,13 +172,15 @@ textarea:disabled {
 .sidebar {
   background: var(--bg-nav);
   color: var(--text-main);
-  padding: 1.5rem;
+  padding: 1rem;
   display: grid;
   align-content: start;
-  gap: 1.5rem;
+  gap: 1rem;
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   border-right: 1px solid var(--border);
 }
 
@@ -188,20 +190,21 @@ textarea:disabled {
 }
 
 .brand-block h1 {
-  margin-top: 0.2rem;
-  font-size: 1.65rem;
+  margin-top: 0.1rem;
+  font-size: 1.45rem;
 }
 
 .sidebar-lead {
-  margin-top: 0.7rem;
+  margin-top: 0.35rem;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.35;
+  font-size: 0.9rem;
 }
 
 .primary-nav,
 .secondary-nav {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.3rem;
 }
 
 .nav-button {
@@ -209,9 +212,10 @@ textarea:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1rem;
+  gap: 0.7rem;
   text-align: left;
-  border-radius: 14px;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
   background: transparent;
   color: inherit;
   border: 1px solid transparent;
@@ -230,12 +234,13 @@ textarea:disabled {
 
 .nav-meta {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .printer-nav-section {
   border-top: 1px solid var(--border);
-  padding-top: 1.25rem;
+  padding-top: 0.85rem;
 }
 
 
@@ -248,23 +253,23 @@ textarea:disabled {
 
 .sidebar-select-label {
   display: grid;
-  gap: 0.45rem;
-  margin-bottom: 0.9rem;
+  gap: 0.3rem;
+  margin-bottom: 0.55rem;
 }
 
 .sidebar-select {
   width: 100%;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-small);
-  padding: 0.7rem 0.8rem;
+  padding: 0.55rem 0.65rem;
   background: var(--bg-surface-muted);
   color: var(--text-main);
 }
 
 .sidebar-selected-printer-meta {
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.55rem;
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
 }
 
 .hidden {

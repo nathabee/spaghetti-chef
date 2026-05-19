@@ -1121,6 +1121,63 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void cameraAnalysisSessionEndpointsCreateStopAndListSamples() throws Exception {
+        System.setProperty(
+                "printerhub.camera.storageDirectory",
+                tempDir.resolve("camera-analysis-storage").toString());
+
+        TestContext context = createContext("camera-analysis-sessions.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","analysisEnabled":true}
+                            """);
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> startResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/analysis-sessions",
+                    null);
+            assertEquals(201, startResponse.statusCode());
+            assertTrue(startResponse.body().contains("\"printerId\":\"printer-1\""));
+            assertTrue(startResponse.body().contains("\"state\":\"RUNNING\""));
+
+            String sessionId = extractJsonString(startResponse.body(), "id");
+
+            HttpResponse<String> samplesResponse = context.get(
+                    "/printers/printer-1/camera/analysis-sessions/" + sessionId + "/samples");
+            assertEquals(200, samplesResponse.statusCode());
+            assertTrue(samplesResponse.body().contains("\"samples\":["));
+            assertTrue(samplesResponse.body().contains("\"sessionId\":\"" + sessionId + "\""));
+            assertTrue(samplesResponse.body().contains("\"deltaScore\":"));
+            assertTrue(samplesResponse.body().contains("\"confidence\":"));
+
+            HttpResponse<String> listResponse = context.get("/printers/printer-1/camera/analysis-sessions");
+            assertEquals(200, listResponse.statusCode());
+            assertTrue(listResponse.body().contains("\"sessions\":["));
+            assertTrue(listResponse.body().contains("\"id\":\"" + sessionId + "\""));
+
+            HttpResponse<String> stopResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/analysis-sessions/" + sessionId + "/stop",
+                    null);
+            assertEquals(200, stopResponse.statusCode());
+            assertTrue(stopResponse.body().contains("\"state\":\"COMPLETED\""));
+            assertTrue(stopResponse.body().contains("\"stoppedAt\":"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void cameraEndpointReturns404ForMissingPrinter() throws Exception {
         TestContext context = createContext("camera-missing-printer.db");
 

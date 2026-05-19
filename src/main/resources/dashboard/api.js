@@ -342,6 +342,28 @@ export async function getCameraEvents(printerId) {
   return Array.isArray(data) ? data : [];
 }
 
+export async function getCameraAnalysisSessions(printerId) {
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions`);
+  return Array.isArray(data.sessions) ? data.sessions : [];
+}
+
+export async function startCameraAnalysisSession(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions`, {
+    method: "POST"
+  });
+}
+
+export async function stopCameraAnalysisSession(printerId, sessionId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions/${encodeURIComponent(sessionId)}/stop`, {
+    method: "POST"
+  });
+}
+
+export async function getCameraAnalysisSamples(printerId, sessionId) {
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions/${encodeURIComponent(sessionId)}/samples`);
+  return Array.isArray(data.samples) ? data.samples : [];
+}
+
 export function cameraSnapshotUrl(printerId) {
   return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
 }
