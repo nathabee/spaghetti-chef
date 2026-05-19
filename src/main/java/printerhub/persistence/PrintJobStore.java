@@ -157,6 +157,56 @@ public final class PrintJobStore {
         }
     }
 
+    public Optional<PrintJob> findActivePrintFileJobByPrinterId(String printerId) {
+        if (printerId == null || printerId.isBlank()) {
+            throw new IllegalArgumentException(OperationMessages.PRINTER_ID_MUST_NOT_BE_BLANK);
+        }
+
+        String sql = """
+                SELECT
+                    id,
+                    name,
+                    type,
+                    state,
+                    printer_id,
+                    print_file_id,
+                    printer_sd_file_id,
+                    target_temperature,
+                    fan_speed,
+                    failure_reason,
+                    failure_detail,
+                    created_at,
+                    updated_at,
+                    started_at,
+                    finished_at
+                FROM print_jobs
+                WHERE printer_id = ?
+                    AND type = ?
+                    AND state = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, printerId.trim());
+            statement.setString(2, JobType.PRINT_FILE.name());
+            statement.setString(3, JobState.RUNNING.name());
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException(OperationMessages.FAILED_TO_LOAD_PRINT_JOB, exception);
+        }
+    }
+
     public void update(PrintJob job) {
         if (job == null) {
             throw new IllegalArgumentException(OperationMessages.fieldMustNotBeBlank("job"));

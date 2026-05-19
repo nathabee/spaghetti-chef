@@ -28,12 +28,14 @@ public final class CameraAnalysisSessionService {
     private final SpaghettiDetectionService spaghettiDetectionService;
     private final Path storageDirectory;
     private final Clock clock;
+    private final CameraSafetyDecisionService safetyDecisionService;
 
     public CameraAnalysisSessionService(
             CameraCaptureService captureService,
             CameraSnapshotMetadataStore snapshotMetadataStore,
             CameraAnalysisSessionStore sessionStore,
             CameraAnalysisSampleStore sampleStore,
+            CameraSafetyDecisionService safetyDecisionService,
             Path storageDirectory) {
         this(
                 captureService,
@@ -43,7 +45,8 @@ public final class CameraAnalysisSessionService {
                 new ImageDeltaFrameAnalyzer(),
                 new SpaghettiDetectionService(),
                 storageDirectory,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                safetyDecisionService);
     }
 
     public CameraAnalysisSessionService(
@@ -54,7 +57,8 @@ public final class CameraAnalysisSessionService {
             FrameAnalyzer frameAnalyzer,
             SpaghettiDetectionService spaghettiDetectionService,
             Path storageDirectory,
-            Clock clock) {
+            Clock clock,
+            CameraSafetyDecisionService safetyDecisionService) {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.sessionStore = Objects.requireNonNull(sessionStore, "sessionStore");
@@ -63,6 +67,7 @@ public final class CameraAnalysisSessionService {
         this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
         this.storageDirectory = Objects.requireNonNull(storageDirectory, "storageDirectory");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.safetyDecisionService = Objects.requireNonNull(safetyDecisionService, "safetyDecisionService");
     }
 
     public CameraAnalysisSession start(String printerId) {
@@ -131,7 +136,7 @@ public final class CameraAnalysisSessionService {
         CameraCaptureResult captureResult = captureService.capture(printerId);
         if (!captureResult.success()) {
             Instant now = Instant.now(clock);
-            return sampleStore.save(new CameraAnalysisSample(
+            CameraAnalysisSample sample = sampleStore.save(new CameraAnalysisSample(
                     null,
                     sessionId,
                     printerId,
@@ -147,6 +152,8 @@ public final class CameraAnalysisSessionService {
                     false,
                     "CAPTURE_FAILED",
                     captureResult.message().orElse("Camera capture failed")));
+            safetyDecisionService.evaluate(sample);
+            return sample;
         }
 
         CameraSnapshotMetadata latest = snapshotMetadataStore.findLatestByPrinterId(printerId)
@@ -169,7 +176,7 @@ public final class CameraAnalysisSessionService {
                 .sorted(Comparator.naturalOrder())
                 .collect(Collectors.joining(","));
 
-        return sampleStore.save(new CameraAnalysisSample(
+        CameraAnalysisSample sample = sampleStore.save(new CameraAnalysisSample(
                 null,
                 sessionId,
                 printerId,
@@ -185,6 +192,8 @@ public final class CameraAnalysisSessionService {
                 detection.suspected(),
                 reasons,
                 detection.message().or(() -> analysis.message()).orElse(null)));
+        safetyDecisionService.evaluate(sample);
+        return sample;
     }
 
     private static String extensionOf(Path path) {

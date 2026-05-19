@@ -56,6 +56,7 @@ import { renderPrinterSdCard } from "./views/printer-sd-card.js";
 import { renderSettingsPage } from "./views/settings.js";
 import {
   capturePrinterCameraSnapshot,
+  capturePrinterCameraAnalysisSample,
   renderPrinterCamera,
   renderPrinterCameraLoading,
   savePrinterCameraSettings,
@@ -505,6 +506,17 @@ function bindGlobalListeners() {
       return;
     }
 
+    const cameraAnalysisSampleButton = event.target.closest("[data-camera-analysis-sample]");
+    if (cameraAnalysisSampleButton) {
+      await handleCaptureCameraAnalysisSample(
+        cameraAnalysisSampleButton.dataset.cameraAnalysisSample,
+        cameraAnalysisSampleButton.dataset.sessionId
+      );
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+      return;
+    }
+
 
     const syncUploadStatusButton = event.target.closest("[data-sync-sd-upload-status]");
     if (syncUploadStatusButton) {
@@ -835,6 +847,19 @@ async function handleStopCameraAnalysis(printerId, sessionId) {
     setMessage(`Stopped camera analysis session for ${printerId}.`);
   } catch (error) {
     setMessage(`Failed to stop camera analysis for ${printerId}: ${error.message}`);
+  }
+}
+
+async function handleCaptureCameraAnalysisSample(printerId, sessionId) {
+  if (!printerId || !sessionId) {
+    return;
+  }
+
+  try {
+    await capturePrinterCameraAnalysisSample(printerId, sessionId);
+    setMessage(`Captured camera analysis sample for ${printerId}.`);
+  } catch (error) {
+    setMessage(`Failed to capture camera analysis sample for ${printerId}: ${error.message}`);
   }
 }
 

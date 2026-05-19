@@ -99,6 +99,16 @@ export function renderCameraSettingsCard(settings) {
           Enable frame analysis
         </label>
 
+        <label class="checkbox-label">
+          <input id="cameraSafetyEnabledInput" name="safetyEnabled" type="checkbox" ${settings?.safetyEnabled ? "checked" : ""}>
+          Enable safety decisions
+        </label>
+
+        <label class="checkbox-label">
+          <input id="cameraPauseOnConfirmedInput" name="pauseOnConfirmedSpaghetti" type="checkbox" ${settings?.pauseOnConfirmedSpaghetti ? "checked" : ""}>
+          Pause on confirmed spaghetti
+        </label>
+
         <label>
           Source type
           <select id="cameraSourceTypeInput" name="sourceType">
@@ -138,6 +148,29 @@ export function renderCameraSettingsCard(settings) {
             step="1"
             min="1"
             value="${escapeHtml(settings?.retentionSnapshotCount ?? 20)}">
+        </label>
+
+        <label>
+          Confidence threshold
+          <input
+            id="cameraConfidenceThresholdInput"
+            name="confidenceThreshold"
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="1"
+            value="${escapeHtml(settings?.confidenceThreshold ?? 0.85)}">
+        </label>
+
+        <label>
+          Confirmations required
+          <input
+            id="cameraConfirmationsRequiredInput"
+            name="confirmationsRequired"
+            type="number"
+            step="1"
+            min="1"
+            value="${escapeHtml(settings?.confirmationsRequired ?? 3)}">
         </label>
 
         <div class="form-actions">
@@ -229,6 +262,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples) {
         </div>
         <div class="action-row">
           <button type="button" data-camera-analysis-start="${escapeHtml(printerId)}" ${activeSession ? "disabled" : ""}>Start</button>
+          <button type="button" class="secondary-button" data-camera-analysis-sample="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Sample</button>
           <button type="button" class="secondary-button" data-camera-analysis-stop="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Stop</button>
         </div>
       </div>

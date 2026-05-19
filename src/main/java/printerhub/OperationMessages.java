@@ -85,6 +85,10 @@ public final class OperationMessages {
     public static final String EVENT_CAMERA_ANALYSIS_SKIPPED = "CAMERA_ANALYSIS_SKIPPED";
     public static final String EVENT_CAMERA_ANALYSIS_FAILED = "CAMERA_ANALYSIS_FAILED";
     public static final String EVENT_SPAGHETTI_SUSPECTED = "SPAGHETTI_SUSPECTED";
+    public static final String EVENT_SPAGHETTI_CONFIRMED = "SPAGHETTI_CONFIRMED";
+    public static final String EVENT_CAMERA_SAFETY_ACTION_SKIPPED = "CAMERA_SAFETY_ACTION_SKIPPED";
+    public static final String EVENT_CAMERA_SAFETY_ACTION_SUCCEEDED = "CAMERA_SAFETY_ACTION_SUCCEEDED";
+    public static final String EVENT_CAMERA_SAFETY_ACTION_FAILED = "CAMERA_SAFETY_ACTION_FAILED";
     public static final String EVENT_SD_CARD_FILES_LISTED = "SD_CARD_FILES_LISTED";
     public static final String EVENT_SD_CARD_FILE_LIST_FAILED = "SD_CARD_FILE_LIST_FAILED";
 
@@ -99,6 +103,10 @@ public final class OperationMessages {
     public static final String CAMERA_ANALYSIS_COMPLETED = "Camera frame analysis completed";
     public static final String CAMERA_ANALYSIS_FAILED = "Camera frame analysis failed";
     public static final String POSSIBLE_SPAGHETTI_FAILURE_DETECTED = "Possible spaghetti failure detected";
+    public static final String SPAGHETTI_FAILURE_CONFIRMED = "Spaghetti failure confirmed";
+    public static final String CAMERA_SAFETY_ACTION_SKIPPED = "Camera safety action skipped";
+    public static final String CAMERA_SAFETY_ACTION_SUCCEEDED = "Camera safety action succeeded";
+    public static final String CAMERA_SAFETY_ACTION_FAILED = "Camera safety action failed";
 
     public static final String PRINTER_NODE_DISABLED = "Printer node is disabled.";
     public static final String PRINTER_POLL_COMPLETED_SUCCESSFULLY = "Printer poll completed successfully.";

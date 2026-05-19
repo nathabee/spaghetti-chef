@@ -364,6 +364,12 @@ export async function getCameraAnalysisSamples(printerId, sessionId) {
   return Array.isArray(data.samples) ? data.samples : [];
 }
 
+export async function captureCameraAnalysisSample(printerId, sessionId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions/${encodeURIComponent(sessionId)}/samples`, {
+    method: "POST"
+  });
+}
+
 export function cameraSnapshotUrl(printerId) {
   return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
 }
