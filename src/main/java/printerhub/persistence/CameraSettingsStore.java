@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import printerhub.camera.CameraSourceType;
+import printerhub.config.RuntimeDefaults;
 
 public final class CameraSettingsStore {
 
@@ -27,6 +28,11 @@ public final class CameraSettingsStore {
                     pause_on_confirmed_spaghetti,
                     confidence_threshold,
                     confirmations_required,
+                    ffmpeg_command,
+                    ffmpeg_input_format,
+                    ffmpeg_video_size,
+                    ffmpeg_timeout_ms,
+                    ffmpeg_jpeg_quality,
                     updated_at
                 FROM camera_settings
                 WHERE printer_id = ?;
@@ -74,9 +80,14 @@ public final class CameraSettingsStore {
                     pause_on_confirmed_spaghetti,
                     confidence_threshold,
                     confirmations_required,
+                    ffmpeg_command,
+                    ffmpeg_input_format,
+                    ffmpeg_video_size,
+                    ffmpeg_timeout_ms,
+                    ffmpeg_jpeg_quality,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(printer_id) DO UPDATE SET
                     enabled = excluded.enabled,
                     source_type = excluded.source_type,
@@ -88,6 +99,11 @@ public final class CameraSettingsStore {
                     pause_on_confirmed_spaghetti = excluded.pause_on_confirmed_spaghetti,
                     confidence_threshold = excluded.confidence_threshold,
                     confirmations_required = excluded.confirmations_required,
+                    ffmpeg_command = excluded.ffmpeg_command,
+                    ffmpeg_input_format = excluded.ffmpeg_input_format,
+                    ffmpeg_video_size = excluded.ffmpeg_video_size,
+                    ffmpeg_timeout_ms = excluded.ffmpeg_timeout_ms,
+                    ffmpeg_jpeg_quality = excluded.ffmpeg_jpeg_quality,
                     updated_at = excluded.updated_at;
                 """;
 
@@ -106,7 +122,12 @@ public final class CameraSettingsStore {
             statement.setInt(9, settings.pauseOnConfirmedSpaghetti() ? 1 : 0);
             statement.setDouble(10, settings.confidenceThreshold());
             statement.setInt(11, settings.confirmationsRequired());
-            statement.setString(12, settings.updatedAt().toString());
+            statement.setString(12, settings.ffmpegCommand());
+            statement.setString(13, settings.ffmpegInputFormat().orElse(null));
+            statement.setString(14, settings.ffmpegVideoSize().orElse(null));
+            statement.setInt(15, settings.ffmpegTimeoutMs());
+            statement.setInt(16, settings.ffmpegJpegQuality());
+            statement.setString(17, settings.updatedAt().toString());
 
             statement.executeUpdate();
             return settings;
@@ -128,8 +149,30 @@ public final class CameraSettingsStore {
                 resultSet.getInt("pause_on_confirmed_spaghetti") == 1,
                 resultSet.getDouble("confidence_threshold"),
                 resultSet.getInt("confirmations_required"),
+                readStringOrDefault(resultSet, "ffmpeg_command", RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_COMMAND),
+                resultSet.getString("ffmpeg_input_format"),
+                resultSet.getString("ffmpeg_video_size"),
+                readIntOrDefault(resultSet, "ffmpeg_timeout_ms", RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS),
+                readIntOrDefault(resultSet, "ffmpeg_jpeg_quality", RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY),
                 parseInstant(resultSet.getString("updated_at"))
         );
+    }
+
+    private static String readStringOrDefault(ResultSet resultSet, String columnName, String fallback)
+            throws SQLException {
+        String value = resultSet.getString(columnName);
+        if (resultSet.wasNull() || value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value;
+    }
+
+    private static int readIntOrDefault(ResultSet resultSet, String columnName, int fallback) throws SQLException {
+        int value = resultSet.getInt(columnName);
+        if (resultSet.wasNull()) {
+            return fallback;
+        }
+        return value;
     }
 
     private static Instant parseInstant(String storedTimestamp) {

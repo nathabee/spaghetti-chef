@@ -102,6 +102,11 @@ function cameraSettingsPayload(form) {
   const retentionInput = form.querySelector("#cameraRetentionSnapshotCountInput");
   const confidenceThresholdInput = form.querySelector("#cameraConfidenceThresholdInput");
   const confirmationsRequiredInput = form.querySelector("#cameraConfirmationsRequiredInput");
+  const ffmpegCommandInput = form.querySelector("#cameraFfmpegCommandInput");
+  const ffmpegInputFormatInput = form.querySelector("#cameraFfmpegInputFormatInput");
+  const ffmpegVideoSizeInput = form.querySelector("#cameraFfmpegVideoSizeInput");
+  const ffmpegTimeoutMsInput = form.querySelector("#cameraFfmpegTimeoutMsInput");
+  const ffmpegJpegQualityInput = form.querySelector("#cameraFfmpegJpegQualityInput");
 
   const sourceType = sourceTypeInput?.value || "disabled";
 
@@ -115,7 +120,12 @@ function cameraSettingsPayload(form) {
     safetyEnabled,
     pauseOnConfirmedSpaghetti,
     confidenceThreshold: ratio(confidenceThresholdInput?.value, 0.85),
-    confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3)
+    confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3),
+    ffmpegCommand: ffmpegCommandInput?.value?.trim() || "ffmpeg",
+    ffmpegInputFormat: ffmpegInputFormatInput?.value?.trim() || "",
+    ffmpegVideoSize: ffmpegVideoSizeInput?.value?.trim() || "640x480",
+    ffmpegTimeoutMs: positiveInteger(ffmpegTimeoutMsInput?.value, 5000),
+    ffmpegJpegQuality: positiveInteger(ffmpegJpegQualityInput?.value, 3)
   };
 }
 

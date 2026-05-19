@@ -115,6 +115,7 @@ export function renderCameraSettingsCard(settings) {
             <option value="disabled" ${sourceType === "disabled" ? "selected" : ""}>disabled</option>
             <option value="simulated" ${sourceType === "simulated" ? "selected" : ""}>simulated</option>
             <option value="snapshot-folder" ${sourceType === "snapshot-folder" ? "selected" : ""}>snapshot-folder</option>
+            <option value="ffmpeg" ${sourceType === "ffmpeg" ? "selected" : ""}>ffmpeg webcam</option>
           </select>
         </label>
 
@@ -125,7 +126,59 @@ export function renderCameraSettingsCard(settings) {
             name="sourceValue"
             type="text"
             value="${escapeHtml(settings?.sourceValue || "")}"
-            placeholder="default or data/camera/p1">
+            placeholder="/dev/video0 or video=Integrated Camera">
+        </label>
+
+        <label>
+          ffmpeg command
+          <input
+            id="cameraFfmpegCommandInput"
+            name="ffmpegCommand"
+            type="text"
+            value="${escapeHtml(settings?.ffmpegCommand || "ffmpeg")}"
+            placeholder="ffmpeg">
+        </label>
+
+        <label>
+          ffmpeg input format
+          <input
+            id="cameraFfmpegInputFormatInput"
+            name="ffmpegInputFormat"
+            type="text"
+            value="${escapeHtml(settings?.ffmpegInputFormat || "")}"
+            placeholder="v4l2 or dshow">
+        </label>
+
+        <label>
+          ffmpeg video size
+          <input
+            id="cameraFfmpegVideoSizeInput"
+            name="ffmpegVideoSize"
+            type="text"
+            value="${escapeHtml(settings?.ffmpegVideoSize || "640x480")}"
+            placeholder="640x480">
+        </label>
+
+        <label>
+          ffmpeg timeout ms
+          <input
+            id="cameraFfmpegTimeoutMsInput"
+            name="ffmpegTimeoutMs"
+            type="number"
+            step="100"
+            min="100"
+            value="${escapeHtml(settings?.ffmpegTimeoutMs ?? 5000)}">
+        </label>
+
+        <label>
+          ffmpeg JPEG quality
+          <input
+            id="cameraFfmpegJpegQualityInput"
+            name="ffmpegJpegQuality"
+            type="number"
+            step="1"
+            min="1"
+            value="${escapeHtml(settings?.ffmpegJpegQuality ?? 3)}">
         </label>
 
         <label>

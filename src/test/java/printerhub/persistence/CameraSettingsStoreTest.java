@@ -47,6 +47,11 @@ class CameraSettingsStoreTest {
                 false,
                 0.85,
                 3,
+                "ffmpeg",
+                "v4l2",
+                "1280x720",
+                6000,
+                4,
                 Instant.parse("2026-05-18T10:00:00Z"));
 
         CameraSettings saved = store.save(settings);
@@ -70,6 +75,11 @@ class CameraSettingsStoreTest {
                                     pause_on_confirmed_spaghetti,
                                     confidence_threshold,
                                     confirmations_required,
+                                    ffmpeg_command,
+                                    ffmpeg_input_format,
+                                    ffmpeg_video_size,
+                                    ffmpeg_timeout_ms,
+                                    ffmpeg_jpeg_quality,
                                     updated_at
                                 FROM camera_settings
                                 WHERE printer_id = ?
@@ -89,6 +99,11 @@ class CameraSettingsStoreTest {
                 assertEquals(0, resultSet.getInt("pause_on_confirmed_spaghetti"));
                 assertEquals(0.85, resultSet.getDouble("confidence_threshold"));
                 assertEquals(3, resultSet.getInt("confirmations_required"));
+                assertEquals("ffmpeg", resultSet.getString("ffmpeg_command"));
+                assertEquals("v4l2", resultSet.getString("ffmpeg_input_format"));
+                assertEquals("1280x720", resultSet.getString("ffmpeg_video_size"));
+                assertEquals(6000, resultSet.getInt("ffmpeg_timeout_ms"));
+                assertEquals(4, resultSet.getInt("ffmpeg_jpeg_quality"));
                 assertEquals("2026-05-18T10:00:00Z", resultSet.getString("updated_at"));
             }
         }
@@ -116,6 +131,11 @@ class CameraSettingsStoreTest {
                 true,
                 0.9,
                 4,
+                "ffmpeg-custom",
+                "dshow",
+                "640x360",
+                7000,
+                2,
                 Instant.parse("2026-05-18T10:05:00Z")));
 
         CameraSettings loaded = store.findByPrinterId("printer-1").orElseThrow();
@@ -130,6 +150,11 @@ class CameraSettingsStoreTest {
         assertTrue(loaded.pauseOnConfirmedSpaghetti());
         assertEquals(0.9, loaded.confidenceThreshold());
         assertEquals(4, loaded.confirmationsRequired());
+        assertEquals("ffmpeg-custom", loaded.ffmpegCommand());
+        assertEquals("dshow", loaded.ffmpegInputFormat().orElseThrow());
+        assertEquals("640x360", loaded.ffmpegVideoSize().orElseThrow());
+        assertEquals(7000, loaded.ffmpegTimeoutMs());
+        assertEquals(2, loaded.ffmpegJpegQuality());
         assertEquals(Instant.parse("2026-05-18T10:05:00Z"), loaded.updatedAt());
     }
 
