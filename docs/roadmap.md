@@ -2539,7 +2539,7 @@ Out of scope:
 
 ### 0.4.1 — Cross-Platform Camera Capture Scripts
 
-status: planned
+status: done
 
 Goals:
 
@@ -2625,9 +2625,9 @@ Notes:
 
 ---
 
-### 0.4.2 — Frame Analysis & Spaghetti Heuristic Detection
+### 0.4.2 — Frame Analysis and Spaghetti Heuristic Detection
 
-status: planned
+status: done
 
 Goals:
 
@@ -2641,6 +2641,7 @@ Goals:
 * expose confidence score and reason codes
 * persist suspected visual anomalies
 * show analysis state in dashboard
+* change camera settings in the dashboard
 
 Out of scope:
 
@@ -2650,12 +2651,112 @@ Out of scope:
 
 ---
 
-### 0.4.3 — Camera Safety Intervention
+
+### 0.4.3 — Camera Analysis Sessions and Trace Review
+
+status: planned
+
+Purpose:
+
+Introduce reviewable camera analysis sessions for a selected printer. A camera analysis session records the visual-analysis timeline independently from print jobs, so spaghetti detection can be inspected, replayed, and tuned before any automatic safety intervention is introduced.
+
+Goals:
+
+* introduce a dedicated camera analysis session model
+* allow a camera analysis session to be started and stopped for a selected printer
+* keep camera analysis sessions separate from print jobs and print-file jobs
+* allow camera analysis to run in parallel with an active print job
+* persist per-frame analysis results in a dedicated table
+* store the visual delta score, confidence score, reason codes, frame timestamp, and related snapshot path
+* keep image files on disk and store only metadata/path references in SQLite
+* expose active and historical camera analysis sessions through the REST API
+* show active camera analysis state in the selected-printer Camera dashboard view
+* show previous camera analysis sessions for the selected printer
+* visualize spaghetti detector values as a time-series graph
+* allow timeline scrubbing with a slider or time selector
+* when the selected time changes, show the closest related snapshot and analysis result
+* support reviewing good, suspicious, and failed analysis points
+* keep the implementation independent from serial communication, SD upload, and job execution internals
+
+Pseudo specification:
+
+```text
+CameraAnalysisSession
+  id
+  printerId
+  state: CREATED | RUNNING | COMPLETED | FAILED | CANCELLED
+  startedAt
+  stoppedAt
+  createdAt
+  updatedAt
+  message
+
+CameraAnalysisSample
+  id
+  sessionId
+  printerId
+  capturedAt
+  analyzedAt
+  latestSnapshotPath
+  previousSnapshotPath
+  deltaSnapshotPath
+  deltaScore
+  changedPixelRatio
+  averagePixelDelta
+  confidence
+  suspected
+  reasonCodes
+  message
+````
+
+Suggested API endpoints:
+
+```text
+POST /printers/{printerId}/camera/analysis-sessions
+GET  /printers/{printerId}/camera/analysis-sessions
+GET  /printers/{printerId}/camera/analysis-sessions/{sessionId}
+POST /printers/{printerId}/camera/analysis-sessions/{sessionId}/stop
+GET  /printers/{printerId}/camera/analysis-sessions/{sessionId}/samples
+```
+
+Suggested dashboard behavior:
+
+```text
+Selected Printer -> Camera
+  Active analysis session card
+  Start analysis session button
+  Stop analysis session button
+  Recent analysis sessions list
+  Analysis graph:
+    x-axis = time
+    y-axis = confidence / delta score
+  Timeline slider:
+    selecting a timestamp updates:
+      latest snapshot
+      delta snapshot
+      reason codes
+      confidence
+      suspected/not suspected state
+```
+
+Out of scope:
+
+* automatic printer pause
+* automatic printer abort
+* safety intervention decisions
+* direct serial access from camera code
+* changing print job lifecycle behavior
+* storing image blobs in SQLite
+* replacing the existing print job model
+
+---
+
+### 0.4.4 — Camera Safety Intervention
 
 status: planned
 
 Goals:
-
+ 
 * introduce a safety decision layer
 * require repeated high-confidence detections before action
 * persist `SPAGHETTI_SUSPECTED` and `SPAGHETTI_CONFIRMED`
@@ -2671,7 +2772,7 @@ Out of scope:
 
 ---
 
-### 0.4.4 — Real Webcam Backend
+### 0.4.5 — Real Webcam Backend
 
 status: planned
 
@@ -2685,6 +2786,7 @@ Goals:
 * isolate native dependency handling
 * document installation and troubleshooting
 * keep camera backend replaceable behind the existing abstraction
+* keep camera settings configurable (printerhub.config.RuntimeDefaults : intialized with constante, persistet in database, changeable in the settings of the dashbord)
 
 Out of scope:
 
@@ -2694,7 +2796,7 @@ Out of scope:
 
 ---
 
-### 0.4.5 — Camera Dashboard Polish
+### 0.4.6 — Camera Dashboard Polish
 
 status: planned
 
@@ -2703,7 +2805,6 @@ Goals:
 * improve camera cards
 * add latest snapshot refresh
 * show last frame age
-* show anomaly confidence history
 * show camera event timeline
 * add camera settings editor
 * add safety mode indicator
@@ -2716,6 +2817,21 @@ Out of scope:
 * changing SD upload logic
 * changing serial communication ownership
  
+---
+
+### 0.4.7 — Code clean Up
+
+- check that the code is completly following :
+RuntimeDefaults.java       -> numeric/default runtime values
+OperationMessages.java     -> event names, error keys, fixed message vocabulary
+other java like :
+CameraCaptureService.java  -> orchestration only, no duplicated event constants
+
+- check that the code is not making saferecord when using the value of an operationmessage : if operation message not exist : code should not compile instead of writing an alternative message
+
+- check doc updated : README.md, docs/roadmap.md, docs/Dashboard.md, docs/specification.md
+
+
 
 ## 0.5.x Upload and Simulation Hardening 
 

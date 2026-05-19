@@ -35,6 +35,17 @@ public final class RuntimeDefaults {
     public static final String DEFAULT_ERROR_PERSISTENCE_BEHAVIOR = "DEDUPLICATED";
     public static final boolean DEFAULT_TRACE = false;
 
+
+    /* Camera analysis */
+    public static final boolean DEFAULT_CAMERA_ANALYSIS_ENABLED = true;
+    public static final boolean DEFAULT_CAMERA_DELTA_IMAGE_ENABLED = true;
+    public static final int DEFAULT_CAMERA_DELTA_PIXEL_THRESHOLD = 35;
+    public static final double DEFAULT_CAMERA_DELTA_SCORE_THRESHOLD = 0.08;
+    public static final double DEFAULT_CAMERA_SPAGHETTI_CONFIDENCE_THRESHOLD = 0.65;
+    public static final long DEFAULT_CAMERA_MIN_ANALYSIS_INTERVAL_SECONDS = 5L;
+
+
+
     /* SD upload */
     public static final int DEFAULT_SD_UPLOAD_BATCH_SIZE = 5;
 

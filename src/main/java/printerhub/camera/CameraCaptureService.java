@@ -3,11 +3,13 @@ package printerhub.camera;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
+import printerhub.OperationMessages;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSnapshotMetadata;
@@ -15,24 +17,25 @@ import printerhub.persistence.CameraSnapshotMetadataStore;
 
 public final class CameraCaptureService {
 
-    public static final String EVENT_CAMERA_FRAME_CAPTURED = "CAMERA_FRAME_CAPTURED";
-    public static final String EVENT_CAMERA_CAPTURE_SKIPPED = "CAMERA_CAPTURE_SKIPPED";
-    public static final String EVENT_CAMERA_CAPTURE_FAILED = "CAMERA_CAPTURE_FAILED";
-    public static final String EVENT_CAMERA_AVAILABLE = "CAMERA_AVAILABLE";
-    public static final String EVENT_CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
-
     private final CameraSettingsService settingsService;
     private final CameraEventStore eventStore;
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
     private final Path storageDirectory;
     private final Clock clock;
+    private final FrameAnalyzer frameAnalyzer;
+    private final SpaghettiDetectionService spaghettiDetectionService;
 
     public CameraCaptureService(
             CameraSettingsService settingsService,
             CameraEventStore eventStore,
             CameraSnapshotMetadataStore snapshotMetadataStore,
             Path storageDirectory) {
-        this(settingsService, eventStore, snapshotMetadataStore, storageDirectory, Clock.systemUTC());
+        this(
+                settingsService,
+                eventStore,
+                snapshotMetadataStore,
+                storageDirectory,
+                Clock.systemUTC());
     }
 
     public CameraCaptureService(
@@ -41,11 +44,31 @@ public final class CameraCaptureService {
             CameraSnapshotMetadataStore snapshotMetadataStore,
             Path storageDirectory,
             Clock clock) {
+        this(
+                settingsService,
+                eventStore,
+                snapshotMetadataStore,
+                storageDirectory,
+                clock,
+                new ImageDeltaFrameAnalyzer(),
+                new SpaghettiDetectionService());
+    }
+
+    public CameraCaptureService(
+            CameraSettingsService settingsService,
+            CameraEventStore eventStore,
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            Path storageDirectory,
+            Clock clock,
+            FrameAnalyzer frameAnalyzer,
+            SpaghettiDetectionService spaghettiDetectionService) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.storageDirectory = Objects.requireNonNull(storageDirectory, "storageDirectory");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.frameAnalyzer = Objects.requireNonNull(frameAnalyzer, "frameAnalyzer");
+        this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
     }
 
     public CameraStatus status(String printerId) {
@@ -61,7 +84,11 @@ public final class CameraCaptureService {
                     .map(CameraSnapshotMetadata::capturedAt);
 
             if (device.isAvailable()) {
-                safeRecord(settings.printerId(), EVENT_CAMERA_AVAILABLE, "Camera available");
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_AVAILABLE,
+                        OperationMessages.CAMERA_AVAILABLE);
+
                 return CameraStatus.available(
                         settings.printerId(),
                         settings.sourceType(),
@@ -70,13 +97,17 @@ public final class CameraCaptureService {
                         lastCaptureAt.orElse(null));
             }
 
-            safeRecord(settings.printerId(), EVENT_CAMERA_UNAVAILABLE, "Camera unavailable");
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_UNAVAILABLE,
+                    OperationMessages.CAMERA_UNAVAILABLE);
+
             return CameraStatus.unavailable(
                     settings.printerId(),
                     settings.sourceType(),
                     settings.sourceValue().orElse(null),
                     device.describe(),
-                    "Camera unavailable");
+                    OperationMessages.CAMERA_UNAVAILABLE);
         }
     }
 
@@ -84,30 +115,52 @@ public final class CameraCaptureService {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
 
         if (!settings.enabled()) {
-            safeRecord(settings.printerId(), EVENT_CAMERA_CAPTURE_SKIPPED, "Camera disabled");
-            return CameraCaptureResult.skipped("Camera disabled");
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED,
+                    OperationMessages.CAMERA_DISABLED);
+
+            return CameraCaptureResult.skipped(OperationMessages.CAMERA_DISABLED);
         }
 
         try (CameraDevice device = createDevice(settings)) {
             if (!device.isAvailable()) {
-                safeRecord(settings.printerId(), EVENT_CAMERA_CAPTURE_FAILED, "Camera unavailable");
-                return CameraCaptureResult.failed("Camera unavailable");
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                        OperationMessages.CAMERA_UNAVAILABLE);
+
+                return CameraCaptureResult.failed(OperationMessages.CAMERA_UNAVAILABLE);
             }
 
             Optional<CameraFrame> frame = device.captureFrame();
 
             if (frame.isEmpty()) {
-                safeRecord(settings.printerId(), EVENT_CAMERA_CAPTURE_FAILED, "Camera returned no frame");
-                return CameraCaptureResult.failed("Camera returned no frame");
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                        OperationMessages.CAMERA_RETURNED_NO_FRAME);
+
+                return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
             }
 
-            persistFrame(frame.get());
-            safeRecord(settings.printerId(), EVENT_CAMERA_FRAME_CAPTURED, "Camera frame captured");
+            PersistedCameraFramePaths persistedPaths = persistFrame(frame.get());
+
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_FRAME_CAPTURED,
+                    OperationMessages.CAMERA_FRAME_CAPTURED);
+
+            analyzeCapturedFrame(settings, persistedPaths);
 
             return CameraCaptureResult.captured(frame.get());
         } catch (RuntimeException exception) {
-            safeRecord(settings.printerId(), EVENT_CAMERA_CAPTURE_FAILED, exception.getMessage());
-            return CameraCaptureResult.failed("Camera capture failed: " + exception.getMessage());
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                    OperationMessages.cameraCaptureFailed(exception.getMessage()));
+
+            return CameraCaptureResult.failed(OperationMessages.cameraCaptureFailed(exception.getMessage()));
         }
     }
 
@@ -136,7 +189,7 @@ public final class CameraCaptureService {
         return new NoopCameraDevice("unsupported-camera-source:" + settings.sourceType().wireValue());
     }
 
-    private void persistFrame(CameraFrame frame) {
+    private PersistedCameraFramePaths persistFrame(CameraFrame frame) {
         Path printerDirectory = storageDirectory.resolve(safePathSegment(frame.printerId()));
         Path snapshotsDirectory = printerDirectory.resolve("snapshots");
 
@@ -145,9 +198,17 @@ public final class CameraCaptureService {
 
         Path snapshotPath = snapshotsDirectory.resolve(fileName);
         Path latestPath = printerDirectory.resolve("latest" + extension);
+        Path previousPath = printerDirectory.resolve("previous" + extension);
+        Path deltaPath = printerDirectory.resolve("delta.jpg");
 
         try {
             Files.createDirectories(snapshotsDirectory);
+            Files.createDirectories(printerDirectory);
+
+            if (Files.isRegularFile(latestPath)) {
+                Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
             Files.write(snapshotPath, frame.bytes());
             Files.write(latestPath, frame.bytes());
 
@@ -159,20 +220,78 @@ public final class CameraCaptureService {
                     frame.width().isPresent() ? frame.width().getAsInt() : null,
                     frame.height().isPresent() ? frame.height().getAsInt() : null,
                     frame.sourceDescription().orElse(null)));
+
+            return new PersistedCameraFramePaths(
+                    snapshotPath,
+                    latestPath,
+                    previousPath,
+                    deltaPath);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist camera frame", exception);
         }
     }
 
-    private void safeRecord(String printerId, String eventType, String message) {
-        try {
-            eventStore.record(
-                    printerId,
-                    eventType,
-                    message == null || message.isBlank() ? eventType : message);
-        } catch (RuntimeException ignored) {
-            // Capture must not crash only because event persistence failed.
+    private void analyzeCapturedFrame(CameraSettings settings, PersistedCameraFramePaths persistedPaths) {
+        if (!settings.analysisEnabled()) {
+            return;
         }
+
+        try {
+            FrameAnalysisResult analysisResult = frameAnalyzer.analyze(
+                    settings.printerId(),
+                    persistedPaths.previousPath(),
+                    persistedPaths.latestPath(),
+                    Optional.of(persistedPaths.deltaPath()));
+
+            if (!analysisResult.completed()) {
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_ANALYSIS_SKIPPED,
+                        analysisMessage(OperationMessages.CAMERA_ANALYSIS_SKIPPED, analysisResult));
+
+                return;
+            }
+
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_ANALYSIS_COMPLETED,
+                    analysisMessage(OperationMessages.CAMERA_ANALYSIS_COMPLETED, analysisResult));
+
+            SpaghettiDetectionResult detectionResult = spaghettiDetectionService.detect(analysisResult);
+
+            if (detectionResult.suspected()) {
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_SPAGHETTI_SUSPECTED,
+                        detectionMessage(detectionResult),
+                        detectionResult.confidence());
+            }
+        } catch (RuntimeException exception) {
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
+                    OperationMessages.cameraAnalysisFailed(exception.getMessage()));
+        }
+    }
+
+    private static String analysisMessage(String prefix, FrameAnalysisResult result) {
+        return OperationMessages.cameraAnalysisMessage(
+                prefix,
+                formatRatio(result.deltaScore()),
+                formatRatio(result.changedPixelRatio()),
+                formatRatio(result.averagePixelDelta()),
+                result.reasons().toString());
+    }
+
+    private static String detectionMessage(SpaghettiDetectionResult result) {
+        return OperationMessages.spaghettiDetectionMessage(
+                result.message().orElse(OperationMessages.POSSIBLE_SPAGHETTI_FAILURE_DETECTED),
+                formatRatio(result.confidence()),
+                result.reasons().toString());
+    }
+
+    private static String formatRatio(double value) {
+        return String.format(java.util.Locale.ROOT, "%.4f", value);
     }
 
     private static String extensionFor(String contentType) {
@@ -203,5 +322,12 @@ public final class CameraCaptureService {
         }
 
         return printerId.trim();
+    }
+
+    private record PersistedCameraFramePaths(
+            Path snapshotPath,
+            Path latestPath,
+            Path previousPath,
+            Path deltaPath) {
     }
 }

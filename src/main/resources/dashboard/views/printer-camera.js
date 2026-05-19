@@ -5,7 +5,8 @@ import {
   getCameraStatus,
   saveCameraSettings
 } from "../api.js";
-import { escapeHtml } from "../dashboard.js";
+
+import { escapeHtml } from "../utils/format.js";
 import { renderCameraPage } from "../components/camera-card.js";
 
 export function renderPrinterCameraLoading(printer) {
@@ -70,6 +71,7 @@ export async function savePrinterCameraSettings(printerId, form) {
 
 function cameraSettingsPayload(form) {
   const enabled = form.querySelector("#cameraEnabledInput")?.checked === true;
+  const analysisEnabled = form.querySelector("#cameraAnalysisEnabledInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const captureIntervalInput = form.querySelector("#cameraCaptureIntervalSecondsInput");
@@ -82,7 +84,8 @@ function cameraSettingsPayload(form) {
     sourceType: enabled ? sourceType : "disabled",
     sourceValue: sourceValueInput?.value?.trim() || "",
     captureIntervalSeconds: positiveInteger(captureIntervalInput?.value, 10),
-    retentionSnapshotCount: positiveInteger(retentionInput?.value, 20)
+    retentionSnapshotCount: positiveInteger(retentionInput?.value, 20),
+    analysisEnabled
   };
 }
 

@@ -1,4 +1,6 @@
-import { escapeHtml, isSimulatedMode } from "../dashboard.js";
+import {  isSimulatedMode } from "../dashboard.js";
+import { escapeHtml } from "../utils/format.js";
+
 
 export function serialPortKind(mode, portName) {
   if (isSimulatedMode(mode)) {

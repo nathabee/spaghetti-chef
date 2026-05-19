@@ -1,4 +1,6 @@
-import { escapeHtml, isSimulatedMode } from "../dashboard.js";
+import {  isSimulatedMode } from "../dashboard.js";
+
+import { escapeHtml } from "../utils/format.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
 import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } from "../state.js";

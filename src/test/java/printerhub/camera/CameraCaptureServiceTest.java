@@ -27,6 +27,8 @@ import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadata;
 import printerhub.persistence.CameraSnapshotMetadataStore;
 import printerhub.persistence.DatabaseInitializer;
+import printerhub.OperationMessages;
+
 
 class CameraCaptureServiceTest {
 
@@ -58,7 +60,7 @@ class CameraCaptureServiceTest {
 
         List<CameraEvent> events = new CameraEventStore().findRecentByPrinterId("printer-1", 10);
         assertEquals(1, events.size());
-        assertEquals(CameraCaptureService.EVENT_CAMERA_CAPTURE_SKIPPED, events.get(0).eventType());
+        assertEquals(OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED, events.get(0).eventType());
     }
 
     @Test
@@ -96,7 +98,7 @@ class CameraCaptureServiceTest {
 
         List<CameraEvent> events = new CameraEventStore().findRecentByPrinterId("printer-1", 10);
         assertEquals(1, events.size());
-        assertEquals(CameraCaptureService.EVENT_CAMERA_FRAME_CAPTURED, events.get(0).eventType());
+        assertEquals(OperationMessages.EVENT_CAMERA_FRAME_CAPTURED, events.get(0).eventType());
     }
 
     @Test
@@ -151,7 +153,7 @@ class CameraCaptureServiceTest {
 
         List<CameraEvent> events = new CameraEventStore().findRecentByPrinterId("printer-1", 10);
         assertEquals(1, events.size());
-        assertEquals(CameraCaptureService.EVENT_CAMERA_CAPTURE_FAILED, events.get(0).eventType());
+        assertEquals(OperationMessages.EVENT_CAMERA_CAPTURE_FAILED, events.get(0).eventType());
     }
 
     @Test

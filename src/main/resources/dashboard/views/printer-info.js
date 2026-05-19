@@ -1,6 +1,7 @@
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml } from "../utils/format.js";
+
 
 export function renderPrinterInfo(printer) {
   return `

@@ -76,8 +76,29 @@ public final class OperationMessages {
     public static final String EVENT_PRINTER_ERROR = "PRINTER_ERROR";
     public static final String EVENT_COMMAND_EXECUTED = "COMMAND_EXECUTED";
     public static final String EVENT_COMMAND_FAILED = "COMMAND_FAILED";
+    public static final String EVENT_CAMERA_FRAME_CAPTURED = "CAMERA_FRAME_CAPTURED";
+    public static final String EVENT_CAMERA_CAPTURE_SKIPPED = "CAMERA_CAPTURE_SKIPPED";
+    public static final String EVENT_CAMERA_CAPTURE_FAILED = "CAMERA_CAPTURE_FAILED";
+    public static final String EVENT_CAMERA_AVAILABLE = "CAMERA_AVAILABLE";
+    public static final String EVENT_CAMERA_UNAVAILABLE = "CAMERA_UNAVAILABLE";
+    public static final String EVENT_CAMERA_ANALYSIS_COMPLETED = "CAMERA_ANALYSIS_COMPLETED";
+    public static final String EVENT_CAMERA_ANALYSIS_SKIPPED = "CAMERA_ANALYSIS_SKIPPED";
+    public static final String EVENT_CAMERA_ANALYSIS_FAILED = "CAMERA_ANALYSIS_FAILED";
+    public static final String EVENT_SPAGHETTI_SUSPECTED = "SPAGHETTI_SUSPECTED";
     public static final String EVENT_SD_CARD_FILES_LISTED = "SD_CARD_FILES_LISTED";
     public static final String EVENT_SD_CARD_FILE_LIST_FAILED = "SD_CARD_FILE_LIST_FAILED";
+
+    
+    public static final String CAMERA_AVAILABLE = "Camera available";
+    public static final String CAMERA_UNAVAILABLE = "Camera unavailable";
+    public static final String CAMERA_DISABLED = "Camera disabled";
+    public static final String CAMERA_RETURNED_NO_FRAME = "Camera returned no frame";
+    public static final String CAMERA_FRAME_CAPTURED = "Camera frame captured";
+    public static final String CAMERA_CAPTURE_FAILED = "Camera capture failed";
+    public static final String CAMERA_ANALYSIS_SKIPPED = "Camera frame analysis skipped";
+    public static final String CAMERA_ANALYSIS_COMPLETED = "Camera frame analysis completed";
+    public static final String CAMERA_ANALYSIS_FAILED = "Camera frame analysis failed";
+    public static final String POSSIBLE_SPAGHETTI_FAILURE_DETECTED = "Possible spaghetti failure detected";
 
     public static final String PRINTER_NODE_DISABLED = "Printer node is disabled.";
     public static final String PRINTER_POLL_COMPLETED_SUCCESSFULLY = "Printer poll completed successfully.";
@@ -207,6 +228,36 @@ public final class OperationMessages {
     public static final String EVENT_JOB_RESTARTED = "JOB_RESTARTED";
 
     public static final String SERIAL_TRANSFER_SETTINGS_STORE_MUST_NOT_BE_NULL = "serialTransferSettingsStore must not be null";
+
+    public static String cameraCaptureFailed(String detail) {
+        return CAMERA_CAPTURE_FAILED + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
+    }
+
+    public static String cameraAnalysisFailed(String detail) {
+        return CAMERA_ANALYSIS_FAILED + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
+    }
+
+    public static String cameraAnalysisMessage(
+            String prefix,
+            String deltaScore,
+            String changedPixelRatio,
+            String averagePixelDelta,
+            String reasons) {
+        return prefix
+                + ": deltaScore=" + deltaScore
+                + ", changedPixelRatio=" + changedPixelRatio
+                + ", averagePixelDelta=" + averagePixelDelta
+                + ", reasons=" + reasons;
+    }
+
+    public static String spaghettiDetectionMessage(
+            String message,
+            String confidence,
+            String reasons) {
+        return safeDetail(message, POSSIBLE_SPAGHETTI_FAILURE_DETECTED)
+                + ": confidence=" + confidence
+                + ", reasons=" + reasons;
+    }
 
     public static String simulatedPrinterDisconnected(String portName) {
         return "Simulated printer is disconnected: " + portName;

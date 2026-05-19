@@ -84,7 +84,7 @@ export function renderCameraSettingsCard(settings) {
         <div>
           <div class="kicker">Settings</div>
           <h3>Camera configuration</h3>
-          <p class="muted">0.4.0 supports disabled, simulated, and snapshot-folder sources.</p>
+          <p class="muted">Configure this printer's camera source and optional 0.4.2 frame analysis.</p>
         </div>
       </div>
 
@@ -92,6 +92,11 @@ export function renderCameraSettingsCard(settings) {
         <label class="checkbox-label">
           <input id="cameraEnabledInput" name="enabled" type="checkbox" ${settings?.enabled ? "checked" : ""}>
           Enable camera monitoring
+        </label>
+
+        <label class="checkbox-label">
+          <input id="cameraAnalysisEnabledInput" name="analysisEnabled" type="checkbox" ${settings?.analysisEnabled ? "checked" : ""}>
+          Enable frame analysis
         </label>
 
         <label>
@@ -110,7 +115,7 @@ export function renderCameraSettingsCard(settings) {
             name="sourceValue"
             type="text"
             value="${escapeHtml(settings?.sourceValue || "")}"
-            placeholder="default or /tmp/printerhub-camera/p1">
+            placeholder="default or data/camera/p1">
         </label>
 
         <label>

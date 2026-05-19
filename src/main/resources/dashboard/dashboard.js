@@ -100,6 +100,7 @@ import {
 } from "./state.js";
 
 
+import { escapeHtml, formatDateTime , formatTemperature } from "./utils/format.js";
 
 const pageTitleElement = document.getElementById("pageTitle");
 const pageLeadElement = document.getElementById("pageLead");
@@ -1883,22 +1884,7 @@ function updateLivePrinterFields(container, printer) {
   }
 }
 
-export function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
-export function formatTemperature(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    return "n/a";
-  }
-
-  return `${Number(value).toFixed(1)} °C`;
-}
 
 
 

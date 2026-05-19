@@ -1,4 +1,6 @@
-import { escapeHtml } from "../dashboard.js";
+
+import { escapeHtml } from "../utils/format.js";
+
 
 export function renderPlaceholderCard(title, caption, items = []) {
   return `
