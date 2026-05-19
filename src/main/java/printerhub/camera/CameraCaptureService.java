@@ -20,7 +20,6 @@ public final class CameraCaptureService {
     private final CameraSettingsService settingsService;
     private final CameraEventStore eventStore;
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
-    private final Path storageDirectory;
     private final Clock clock;
     private final FrameAnalyzer frameAnalyzer;
     private final SpaghettiDetectionService spaghettiDetectionService;
@@ -65,7 +64,7 @@ public final class CameraCaptureService {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
-        this.storageDirectory = Objects.requireNonNull(storageDirectory, "storageDirectory");
+        Objects.requireNonNull(storageDirectory, "storageDirectory");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.frameAnalyzer = Objects.requireNonNull(frameAnalyzer, "frameAnalyzer");
         this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
@@ -121,7 +120,8 @@ public final class CameraCaptureService {
                 + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
                 + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
                 + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
-                + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality());
+                + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
+                + " storageDirectory=" + settings.storageDirectory());
 
         if (!settings.enabled()) {
             eventStore.record(
@@ -160,7 +160,7 @@ public final class CameraCaptureService {
                 return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
             }
 
-            PersistedCameraFramePaths persistedPaths = persistFrame(frame.get());
+            PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get());
             System.out.println("[PrinterHub] Camera capture persisted printerId=" + settings.printerId()
                     + " latest=" + persistedPaths.latestPath()
                     + " snapshot=" + persistedPaths.snapshotPath());
@@ -228,8 +228,8 @@ public final class CameraCaptureService {
         return new NoopCameraDevice("unsupported-camera-source:" + settings.sourceType().wireValue());
     }
 
-    private PersistedCameraFramePaths persistFrame(CameraFrame frame) {
-        Path printerDirectory = storageDirectory.resolve(safePathSegment(frame.printerId()));
+    private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
+        Path printerDirectory = Path.of(settings.storageDirectory()).resolve(safePathSegment(frame.printerId()));
         Path snapshotsDirectory = printerDirectory.resolve("snapshots");
         Path archiveDirectory = printerDirectory.resolve("archive");
 

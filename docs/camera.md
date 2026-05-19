@@ -426,7 +426,7 @@ So the dashboard/log can say:
 
 ```text
 simulated-camera
-snapshot-folder:/tmp/printerhub-camera/p1
+snapshot-folder:data/camera/p1
 opencv:index=0
 ```
 
@@ -584,23 +584,18 @@ Filesystem:
 Example filesystem layout:
 
 ```text
-printerhub-camera/
+data/camera/
   p1/
     latest.jpg
     snapshots/
       2026-05-18T10-42-03.123.jpg
 ```
 
-Add a runtime property later:
+Storage is a per-printer camera setting persisted in SQLite and editable from
+the selected-printer Camera dashboard view.
 
 ```text
-printerhub.camera.storageDirectory
-```
-
-Default:
-
-```text
-printerhub-camera
+data/camera
 ```
 
 ---
@@ -1182,7 +1177,7 @@ Add defaults:
 
 ```java
 DEFAULT_CAMERA_MONITORING_INTERVAL_SECONDS = 10
-DEFAULT_CAMERA_STORAGE_DIRECTORY = "printerhub-camera"
+DEFAULT_CAMERA_STORAGE_DIRECTORY = "data/camera"
 DEFAULT_CAMERA_ENABLED = false
 ```
 
@@ -1306,7 +1301,8 @@ Example settings JSON:
 {
   "enabled": true,
   "sourceType": "snapshot-folder",
-  "sourceValue": "/tmp/printerhub-camera/p1",
+  "sourceValue": "data/camera/p1",
+  "storageDirectory": "data/camera",
   "captureIntervalSeconds": 10,
   "retentionSnapshotCount": 20,
   "analysisEnabled": false,

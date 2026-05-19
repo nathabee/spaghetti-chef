@@ -160,7 +160,9 @@ public final class CameraAnalysisSessionService {
                 .orElseThrow(() -> new IllegalStateException("captured camera snapshot metadata was not found"));
         Path latestPath = Path.of(latest.filePath());
         String extension = extensionOf(latestPath);
-        Path printerDirectory = storageDirectory.resolve(safePathSegment(printerId));
+        Path printerDirectory = latestPath.getParent() == null || latestPath.getParent().getParent() == null
+                ? storageDirectory.resolve(safePathSegment(printerId))
+                : latestPath.getParent().getParent();
         Path previousPath = printerDirectory.resolve("previous" + extension);
         Path deltaPath = printerDirectory.resolve("delta.jpg");
 

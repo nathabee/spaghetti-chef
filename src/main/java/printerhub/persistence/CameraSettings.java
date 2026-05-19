@@ -30,6 +30,7 @@ public final class CameraSettings {
     private final String ffmpegVideoSize;
     private final int ffmpegTimeoutMs;
     private final int ffmpegJpegQuality;
+    private final String storageDirectory;
     private final Instant updatedAt;
 
     public CameraSettings(
@@ -62,6 +63,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
+                RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 updatedAt);
     }
 
@@ -82,6 +84,7 @@ public final class CameraSettings {
             String ffmpegVideoSize,
             int ffmpegTimeoutMs,
             int ffmpegJpegQuality,
+            String storageDirectory,
             Instant updatedAt) {
         this.printerId = requireText(printerId, "printerId");
         this.enabled = enabled;
@@ -102,6 +105,10 @@ public final class CameraSettings {
         this.ffmpegVideoSize = normalizeNullableText(ffmpegVideoSize);
         this.ffmpegTimeoutMs = requirePositive(ffmpegTimeoutMs, "ffmpegTimeoutMs");
         this.ffmpegJpegQuality = requirePositive(ffmpegJpegQuality, "ffmpegJpegQuality");
+        this.storageDirectory = requireTextOrDefault(
+                storageDirectory,
+                RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
+                "storageDirectory");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
 
         if (!enabled && sourceType != CameraSourceType.DISABLED) {
@@ -130,6 +137,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
+                RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 updatedAt);
     }
 
@@ -151,6 +159,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
+                RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 updatedAt);
     }
 
@@ -216,6 +225,10 @@ public final class CameraSettings {
 
     public int ffmpegJpegQuality() {
         return ffmpegJpegQuality;
+    }
+
+    public String storageDirectory() {
+        return storageDirectory;
     }
 
     public Instant updatedAt() {
