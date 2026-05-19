@@ -101,6 +101,11 @@ if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
     $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
 }
 
+$cameraStorageDirectory = 'C:\printerhub\data\camera'
+if ($envMap.ContainsKey('PRINTERHUB_CAMERA_STORAGE_DIRECTORY')) {
+    $cameraStorageDirectory = $envMap['PRINTERHUB_CAMERA_STORAGE_DIRECTORY']
+}
+
 $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
@@ -127,7 +132,7 @@ catch {
 }
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-"[$stamp] start requested task=$taskName apiPort=$apiPort databaseFile=$databaseFile java=$javaCommand" | Add-Content -LiteralPath $startLog
+"[$stamp] start requested task=$taskName apiPort=$apiPort databaseFile=$databaseFile cameraStorageDirectory=$cameraStorageDirectory java=$javaCommand" | Add-Content -LiteralPath $startLog
 
 Write-Host "Starting scheduled task '$taskName'"
 schtasks /Run /TN $taskName | Out-Null
@@ -174,4 +179,5 @@ if ($stableChecks -lt 8) {
 Write-Host "PrinterHub started successfully through Task Scheduler."
 Write-Host "API port: $apiPort"
 Write-Host "Database file: $databaseFile"
+Write-Host "Camera storage: $cameraStorageDirectory"
 Write-Host "Java command: $javaCommand"

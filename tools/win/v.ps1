@@ -49,6 +49,7 @@ $serialPort = 'COM3'
 $mode = 'real'
 $databaseFile = 'printerhub.db'
 $javaCommand = ''
+$cameraStorageDirectory = ''
 
 if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
     $apiPort = $envMap['PRINTERHUB_API_PORT']
@@ -58,6 +59,9 @@ if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
 }
 if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
     $javaCommand = $envMap['PRINTERHUB_JAVA']
+}
+if ($envMap.ContainsKey('PRINTERHUB_CAMERA_STORAGE_DIRECTORY')) {
+    $cameraStorageDirectory = $envMap['PRINTERHUB_CAMERA_STORAGE_DIRECTORY']
 }
 
 $targets = Get-CimInstance Win32_Process | Where-Object {
@@ -81,6 +85,7 @@ Write-Host "Launcher exists: $(Test-Path -LiteralPath $launcherPath)"
 Write-Host "Task wrapper exists: $(Test-Path -LiteralPath $taskCmdPath)"
 Write-Host "Configured API port: $apiPort" 
 Write-Host "Configured database file: $databaseFile"
+Write-Host "Configured camera storage: $cameraStorageDirectory"
 Write-Host "Configured Java command: $javaCommand"
 Write-Host "PrinterHub-related process count: $($targets.Count)"
 

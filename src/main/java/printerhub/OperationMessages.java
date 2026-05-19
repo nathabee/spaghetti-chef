@@ -241,6 +241,56 @@ public final class OperationMessages {
         return CAMERA_CAPTURE_FAILED + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
     }
 
+    public static String cameraFfmpegCaptureStarting(
+            String printerId,
+            String sourceDescription,
+            String command,
+            String outputPath,
+            int timeoutMs) {
+        return "[PrinterHub] Camera ffmpeg capture starting printerId=" + safeDetail(printerId, "unknown")
+                + " source=" + safeDetail(sourceDescription, "unknown")
+                + " timeoutMs=" + timeoutMs
+                + " output=" + safeDetail(outputPath, "unknown")
+                + " command=" + safeDetail(command, "unknown");
+    }
+
+    public static String cameraFfmpegCaptureSucceeded(String printerId, int byteCount, String outputPath) {
+        return "[PrinterHub] Camera ffmpeg capture succeeded printerId=" + safeDetail(printerId, "unknown")
+                + " bytes=" + byteCount
+                + " output=" + safeDetail(outputPath, "unknown");
+    }
+
+    public static String cameraFfmpegCaptureFailed(String printerId, String detail) {
+        return "[PrinterHub] Camera ffmpeg capture failed printerId=" + safeDetail(printerId, "unknown")
+                + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
+    }
+
+    public static String cameraFfmpegTimedOut(int timeoutMs, String processOutput) {
+        return "ffmpeg timed out after " + timeoutMs + " ms" + processOutputSuffix(processOutput);
+    }
+
+    public static String cameraFfmpegExited(int exitCode, String processOutput) {
+        return "ffmpeg exited with code " + exitCode + processOutputSuffix(processOutput);
+    }
+
+    public static String cameraFfmpegOutputMissing(String outputPath, String processOutput) {
+        return "ffmpeg completed but output file was not created: "
+                + safeDetail(outputPath, "unknown") + processOutputSuffix(processOutput);
+    }
+
+    public static String cameraFfmpegOutputEmpty(String outputPath, String processOutput) {
+        return "ffmpeg completed but output file is empty: "
+                + safeDetail(outputPath, "unknown") + processOutputSuffix(processOutput);
+    }
+
+    public static String cameraFfmpegIoFailed(String detail) {
+        return "ffmpeg capture I/O failed: " + safeDetail(detail, UNKNOWN_API_ERROR);
+    }
+
+    public static String cameraFfmpegInterrupted() {
+        return "ffmpeg capture was interrupted";
+    }
+
     public static String cameraAnalysisFailed(String detail) {
         return CAMERA_ANALYSIS_FAILED + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
     }
@@ -453,7 +503,15 @@ public final class OperationMessages {
             return fallback;
         }
 
-        return detail;
+        return detail.trim();
+    }
+
+    private static String processOutputSuffix(String processOutput) {
+        if (processOutput == null || processOutput.isBlank()) {
+            return "";
+        }
+
+        return ": " + processOutput.trim();
     }
 
     public static String permissionDenied(LocalRole role, Permission permission) {
