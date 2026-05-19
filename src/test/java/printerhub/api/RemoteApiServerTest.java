@@ -61,7 +61,6 @@ class RemoteApiServerTest {
     @AfterEach
     void clearDatabaseProperty() {
         System.clearProperty("printerhub.databaseFile");
-        System.clearProperty("printerhub.camera.storageDirectory");
     }
 
     @Test
@@ -1016,7 +1015,6 @@ class RemoteApiServerTest {
     @Test
     void postCameraSnapshotCapturesSimulatedFrameAndGetSnapshotReturnsImage() throws Exception {
         Path cameraStorageDirectory = tempDir.resolve("camera-api-storage");
-        System.setProperty("printerhub.camera.storageDirectory", cameraStorageDirectory.toString());
 
         TestContext context = createContext("camera-snapshot-simulated.db");
 
@@ -1030,8 +1028,9 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
-                            """);
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
+                            """.formatted(cameraStorageDirectory)
+            );
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1061,7 +1060,7 @@ class RemoteApiServerTest {
 
     @Test
     void getCameraStatusIncludesLastCaptureAfterSnapshot() throws Exception {
-        System.setProperty("printerhub.camera.storageDirectory", tempDir.resolve("camera-status-storage").toString());
+        Path cameraStorageDirectory = tempDir.resolve("camera-status-storage");
 
         TestContext context = createContext("camera-status-after-capture.db");
 
@@ -1075,8 +1074,9 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
-                            """);
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
+                            """.formatted(cameraStorageDirectory)
+            );
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1101,7 +1101,7 @@ class RemoteApiServerTest {
 
     @Test
     void getCameraEventsReturnsCaptureEvents() throws Exception {
-        System.setProperty("printerhub.camera.storageDirectory", tempDir.resolve("camera-events-storage").toString());
+        Path cameraStorageDirectory = tempDir.resolve("camera-events-storage");
 
         TestContext context = createContext("camera-events.db");
 
@@ -1115,8 +1115,9 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default"}
-                            """);
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
+                            """.formatted(cameraStorageDirectory)
+            );
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1137,9 +1138,7 @@ class RemoteApiServerTest {
 
     @Test
     void cameraAnalysisSessionEndpointsCreateStopAndListSamples() throws Exception {
-        System.setProperty(
-                "printerhub.camera.storageDirectory",
-                tempDir.resolve("camera-analysis-storage").toString());
+        Path cameraStorageDirectory = tempDir.resolve("camera-analysis-storage");
 
         TestContext context = createContext("camera-analysis-sessions.db");
 
@@ -1153,8 +1152,9 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","analysisEnabled":true}
-                            """);
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","analysisEnabled":true,"storageDirectory":"%s"}
+                            """.formatted(cameraStorageDirectory)
+            );
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> startResponse = context.request(

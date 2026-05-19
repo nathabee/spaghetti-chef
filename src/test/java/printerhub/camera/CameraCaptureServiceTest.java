@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import printerhub.persistence.CameraEvent;
 import printerhub.persistence.CameraEventStore;
+import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadata;
 import printerhub.persistence.CameraSnapshotMetadataStore;
@@ -66,7 +67,7 @@ class CameraCaptureServiceTest {
         useDatabase("camera-capture-simulated.db");
 
         CameraSettingsService settingsService = settingsService();
-        settingsService.enableSimulated("printer-1");
+        settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
 
         CameraCaptureService service = captureService(settingsService);
 
@@ -107,7 +108,7 @@ class CameraCaptureServiceTest {
         writeImage(sourceFolder.resolve("snapshot.png"), "png", 80, 60);
 
         CameraSettingsService settingsService = settingsService();
-        settingsService.enableSnapshotFolder("printer-1", sourceFolder);
+        settingsService.save(withTestStorage(settingsService.enableSnapshotFolder("printer-1", sourceFolder)));
 
         CameraCaptureService service = captureService(settingsService);
 
@@ -176,7 +177,7 @@ class CameraCaptureServiceTest {
         useDatabase("camera-status-simulated.db");
 
         CameraSettingsService settingsService = settingsService();
-        settingsService.enableSimulated("printer-1");
+        settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
 
         CameraCaptureService service = captureService(settingsService);
 
@@ -194,7 +195,7 @@ class CameraCaptureServiceTest {
         useDatabase("camera-status-last-capture.db");
 
         CameraSettingsService settingsService = settingsService();
-        settingsService.enableSimulated("printer-1");
+        settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
 
         CameraCaptureService service = captureService(settingsService);
         service.capture("printer-1");
@@ -302,6 +303,28 @@ class CameraCaptureServiceTest {
                 new CameraSnapshotMetadataStore(),
                 tempDir.resolve("camera-storage"),
                 FIXED_CLOCK);
+    }
+
+    private CameraSettings withTestStorage(CameraSettings settings) {
+        return new CameraSettings(
+                settings.printerId(),
+                settings.enabled(),
+                settings.sourceType(),
+                settings.sourceValue().orElse(null),
+                settings.captureIntervalSeconds(),
+                settings.retentionSnapshotCount(),
+                settings.analysisEnabled(),
+                settings.safetyEnabled(),
+                settings.pauseOnConfirmedSpaghetti(),
+                settings.confidenceThreshold(),
+                settings.confirmationsRequired(),
+                settings.ffmpegCommand(),
+                settings.ffmpegInputFormat().orElse(null),
+                settings.ffmpegVideoSize().orElse(null),
+                settings.ffmpegTimeoutMs(),
+                settings.ffmpegJpegQuality(),
+                tempDir.resolve("camera-storage").toString(),
+                settings.updatedAt());
     }
 
     private void useDatabase(String fileName) {

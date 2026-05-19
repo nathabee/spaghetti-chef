@@ -65,22 +65,10 @@ C:\printerhub\data\camera\<printerId>\
   snapshots\
 ```
 
-Missing directories are created automatically.
-
-The runtime picks the storage directory in this order:
-
-```text
-1. Java property: -Dprinterhub.camera.storageDirectory=...
-2. environment/run.env: PRINTERHUB_CAMERA_STORAGE_DIRECTORY=...
-3. database folder + camera, for example C:\printerhub\data\camera
-4. fallback: ./data/camera
-```
-
-On the Windows service install, keep this in `C:\printerhub\data\run.env`:
-
-```text
-PRINTERHUB_CAMERA_STORAGE_DIRECTORY=C:\printerhub\data\camera
-```
+Missing directories are created automatically. The storage directory is a
+per-printer camera setting in the dashboard Camera view. Use
+`C:\printerhub\data\camera` on the Windows service install when you want the
+dashboard backend to write to the same location as the diagnostic scripts.
 
 When using the dashboard `snapshot-folder` backend, point `Source value` at a
 folder containing incoming camera images, not at PrinterHub's own output folder.

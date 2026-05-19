@@ -108,6 +108,8 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS);
             ensureColumn(connection, "camera_settings", "ffmpeg_jpeg_quality",
                     "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY);
+            ensureColumn(connection, "camera_settings", "storage_directory",
+                    "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY + "'");
 
             ensureBuiltInRoleProfiles(connection);
 
@@ -406,6 +408,7 @@ public final class DatabaseInitializer {
                     ffmpeg_video_size TEXT DEFAULT '640x480',
                     ffmpeg_timeout_ms INTEGER NOT NULL DEFAULT 5000,
                     ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
+                    storage_directory TEXT NOT NULL DEFAULT 'data/camera',
                     updated_at TEXT NOT NULL
                 );
                 """;

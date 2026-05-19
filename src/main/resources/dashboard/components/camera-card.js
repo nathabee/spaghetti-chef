@@ -120,6 +120,16 @@ export function renderCameraSettingsCard(settings) {
         </label>
 
         <label>
+          Storage directory
+          <input
+            id="cameraStorageDirectoryInput"
+            name="storageDirectory"
+            type="text"
+            value="${escapeHtml(settings?.storageDirectory || "data/camera")}"
+            placeholder="data/camera or C:\\printerhub\\data\\camera">
+        </label>
+
+        <label>
           Source value
           <input
             id="cameraSourceValueInput"

@@ -291,6 +291,9 @@ public final class CameraApiHandler {
         int ffmpegJpegQuality = readIntegerField(body, "ffmpegJpegQuality")
                 .orElse(current.ffmpegJpegQuality());
 
+        String storageDirectory = readStringField(body, "storageDirectory")
+                .orElse(current.storageDirectory());
+
         return new CameraSettings(
                 current.printerId(),
                 enabled,
@@ -308,6 +311,7 @@ public final class CameraApiHandler {
                 ffmpegVideoSize,
                 ffmpegTimeoutMs,
                 ffmpegJpegQuality,
+                storageDirectory,
                 Instant.now());
     }
 
@@ -342,6 +346,7 @@ public final class CameraApiHandler {
                 + jsonField("ffmpegVideoSize", settings.ffmpegVideoSize().orElse(null)) + ","
                 + jsonField("ffmpegTimeoutMs", settings.ffmpegTimeoutMs()) + ","
                 + jsonField("ffmpegJpegQuality", settings.ffmpegJpegQuality()) + ","
+                + jsonField("storageDirectory", settings.storageDirectory()) + ","
                 + jsonField("updatedAt", settings.updatedAt().toString())
                 + "}";
     }

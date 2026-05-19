@@ -98,6 +98,7 @@ function cameraSettingsPayload(form) {
   const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
+  const storageDirectoryInput = form.querySelector("#cameraStorageDirectoryInput");
   const captureIntervalInput = form.querySelector("#cameraCaptureIntervalSecondsInput");
   const retentionInput = form.querySelector("#cameraRetentionSnapshotCountInput");
   const confidenceThresholdInput = form.querySelector("#cameraConfidenceThresholdInput");
@@ -114,6 +115,7 @@ function cameraSettingsPayload(form) {
     enabled,
     sourceType: enabled ? sourceType : "disabled",
     sourceValue: sourceValueInput?.value?.trim() || "",
+    storageDirectory: storageDirectoryInput?.value?.trim() || "data/camera",
     captureIntervalSeconds: positiveInteger(captureIntervalInput?.value, 10),
     retentionSnapshotCount: positiveInteger(retentionInput?.value, 20),
     analysisEnabled,

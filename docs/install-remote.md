@@ -160,7 +160,6 @@ Current launcher behavior:
 * Java command: `PRINTERHUB_JAVA` from `C:\printerhub\data\run.env`, otherwise `java`
 * API port: `PRINTERHUB_API_PORT` from `C:\printerhub\data\run.env`, otherwise `18080`
 * database file: `PRINTERHUB_DATABASE_FILE` from `C:\printerhub\data\run.env`, otherwise `printerhub.db`. 
-* camera storage directory: `PRINTERHUB_CAMERA_STORAGE_DIRECTORY` from `C:\printerhub\data\run.env`, otherwise the database folder plus `camera`.
 
 Use full path for PRINTERHUB_DATABASE_FILE : 
 
@@ -294,7 +293,6 @@ Initial example content:
 PRINTERHUB_JAVA=
 PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
 PRINTERHUB_API_PORT=18080
-PRINTERHUB_CAMERA_STORAGE_DIRECTORY=C:\printerhub\data\camera
 ```
 
 Adjust values if needed for the target Windows laptop.

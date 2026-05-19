@@ -68,7 +68,6 @@ import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
-import printerhub.persistence.DatabaseConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -114,6 +113,7 @@ public final class RemoteApiServer {
     private final ActionPermissionResolver actionPermissionResolver;
     private final DangerousActionGuard dangerousActionGuard;
     private final CameraApiHandler cameraApiHandler;
+    private final Path cameraStorageDirectory;
 
     private HttpServer server;
 
@@ -227,14 +227,15 @@ public final class RemoteApiServer {
         CameraEventStore cameraEventStore = new CameraEventStore();
         CameraSnapshotMetadataStore cameraSnapshotMetadataStore = new CameraSnapshotMetadataStore();
 
-        Path cameraStorageDirectory = cameraStorageDirectory();
-        System.out.println("[PrinterHub] Camera storage: " + cameraStorageDirectory.toAbsolutePath().normalize());
+        this.cameraStorageDirectory = Path.of(RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY);
+        System.out.println("[PrinterHub] Default camera storage: "
+                + this.cameraStorageDirectory.toAbsolutePath().normalize());
 
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
                 cameraSettingsService,
                 cameraEventStore,
                 cameraSnapshotMetadataStore,
-                cameraStorageDirectory);
+                this.cameraStorageDirectory);
 
         CameraAnalysisSampleStore cameraAnalysisSampleStore = new CameraAnalysisSampleStore();
         CameraSafetyDecisionService cameraSafetyDecisionService = new CameraSafetyDecisionService(
@@ -250,7 +251,7 @@ public final class RemoteApiServer {
                 new CameraAnalysisSessionStore(),
                 cameraAnalysisSampleStore,
                 cameraSafetyDecisionService,
-                cameraStorageDirectory);
+                this.cameraStorageDirectory);
 
         this.cameraApiHandler = new CameraApiHandler(
                 cameraCaptureService,
@@ -259,24 +260,6 @@ public final class RemoteApiServer {
                 cameraSnapshotMetadataStore,
                 cameraAnalysisSessionService);
 
-    }
-
-    private static Path cameraStorageDirectory() {
-        String configured = System.getProperty(RuntimeDefaults.CAMERA_STORAGE_DIRECTORY_PROPERTY);
-        if (configured == null || configured.isBlank()) {
-            configured = System.getenv(RuntimeDefaults.CAMERA_STORAGE_DIRECTORY_ENV);
-        }
-        if (configured != null && !configured.isBlank()) {
-            return Path.of(configured.trim());
-        }
-
-        Path databaseFile = Path.of(DatabaseConfig.databaseFile());
-        Path databaseParent = databaseFile.toAbsolutePath().normalize().getParent();
-        if (databaseParent != null) {
-            return databaseParent.resolve("camera");
-        }
-
-        return Path.of(RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY);
     }
 
     public void start() {
