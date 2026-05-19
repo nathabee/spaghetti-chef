@@ -10,6 +10,7 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
   const printFileSettings = state.printFileSettings || {};
   const serialTransferSettings = state.serialTransferSettings || {};
   const securitySettings = state.securitySettings || {};
+  const appVersion = state.appVersion || {};
   const securityRoles = state.securityRoles || [];
   const printers = state.printers;
   const settingsDisabled = disabledUnlessPermission("SETTINGS_UPDATE");
@@ -23,7 +24,7 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
         <div>
           <div class="kicker">Local access</div>
           <h2>${escapeHtml(securityModeLabel())}</h2>
-          <p class="lead">Current dashboard role: ${escapeHtml(currentLocalRole())}. Controls that this role cannot execute are disabled before the API guard rejects them.</p>
+          <p class="lead">Current dashboard role: ${escapeHtml(currentLocalRole())}. Running PrinterHub ${escapeHtml(appVersion.version || "unknown")}.</p>
         </div>
         <span class="badge ${securitySettings.securityEnabled === true ? "badge-enabled" : "badge-disabled"}">${escapeHtml(currentLocalRole())}</span>
       </div>

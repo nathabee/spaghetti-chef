@@ -26,6 +26,10 @@ export async function getMonitoringOverview() {
   return requestJson("/monitoring");
 }
 
+export async function getAppVersion() {
+  return requestJson("/version");
+}
+
 export async function getOperatorAuditEvents() {
   const data = await requestJson("/operator-audit");
   return Array.isArray(data.auditEvents) ? data.auditEvents : [];

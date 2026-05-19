@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,7 +60,7 @@ class SnapshotFolderCameraDeviceTest {
         Path folder = Files.createDirectory(tempDir.resolve("camera"));
 
         Path older = folder.resolve("older.jpg");
-        Path latest = folder.resolve("latest.jpg");
+        Path latest = folder.resolve("fresh-camera-frame.jpg");
 
         writeImage(older, "jpg", 80, 60);
         Thread.sleep(5);
@@ -79,7 +77,20 @@ class SnapshotFolderCameraDeviceTest {
         assertEquals(120, frame.get().width().orElseThrow());
         assertEquals(90, frame.get().height().orElseThrow());
         assertTrue(frame.get().byteCount() > 0);
-        assertTrue(frame.get().sourceDescription().orElseThrow().contains("latest.jpg"));
+        assertTrue(frame.get().sourceDescription().orElseThrow().contains("fresh-camera-frame.jpg"));
+    }
+
+    @Test
+    void snapshotFolderCameraIgnoresPrinterHubGeneratedFrames() throws Exception {
+        Path folder = Files.createDirectory(tempDir.resolve("camera"));
+
+        writeImage(folder.resolve("latest.jpg"), "jpg", 120, 90);
+        writeImage(folder.resolve("previous.jpg"), "jpg", 120, 90);
+        writeImage(folder.resolve("delta.jpg"), "jpg", 120, 90);
+
+        SnapshotFolderCameraDevice device = new SnapshotFolderCameraDevice("p1", folder, FIXED_CLOCK);
+
+        assertTrue(device.captureFrame().isEmpty());
     }
 
     @Test
@@ -138,15 +149,11 @@ class SnapshotFolderCameraDeviceTest {
 
     private static void writeImage(Path path, String format, int width, int height) throws Exception {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
-
-        try {
-            graphics.setColor(Color.WHITE);
-            graphics.fillRect(0, 0, width, height);
-            graphics.setColor(Color.BLACK);
-            graphics.drawRect(5, 5, width - 10, height - 10);
-        } finally {
-            graphics.dispose();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                boolean border = x == 0 || y == 0 || x == width - 1 || y == height - 1;
+                image.setRGB(x, y, border ? 0x000000 : 0xFFFFFF);
+            }
         }
 
         boolean written = ImageIO.write(image, format, path.toFile());

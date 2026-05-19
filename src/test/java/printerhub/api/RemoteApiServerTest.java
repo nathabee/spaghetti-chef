@@ -130,6 +130,20 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getVersionReturnsRuntimeVersion() throws Exception {
+        TestContext context = createContext("version.db");
+
+        try {
+            HttpResponse<String> response = context.get("/version");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"version\":"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void wrongMethodOnHealthReturns405() throws Exception {
         TestContext context = createContext("health-405.db");
 
@@ -1033,6 +1047,7 @@ class RemoteApiServerTest {
             assertTrue(captureResponse.body().contains("\"height\":240"));
 
             assertTrue(Files.exists(cameraStorageDirectory.resolve("printer-1").resolve("latest.jpg")));
+            assertTrue(Files.isDirectory(cameraStorageDirectory.resolve("printer-1").resolve("archive")));
 
             HttpResponse<String> snapshotResponse = context.get("/printers/printer-1/camera/snapshot");
 

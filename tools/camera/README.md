@@ -1,13 +1,49 @@
-# PrinterHub Camera Capture Scripts
+# PrinterHub Camera Capture
 
-Temporary helper scripts for testing real webcam snapshot capture.
+PrinterHub now supports direct ffmpeg webcam capture from the dashboard. The old
+helper scripts are still useful for diagnostics, but they are no longer the
+preferred runtime path.
 
-The scripts save camera images using the same filesystem layout planned for the
-PrinterHub Java runtime.
+## Dashboard ffmpeg Backend
+
+Open the selected printer Camera view and configure:
+
+Linux:
+
+```text
+Source type: ffmpeg webcam
+Source value: /dev/video0
+ffmpeg command: ffmpeg
+ffmpeg input format: v4l2
+ffmpeg video size: 640x480
+```
+
+Windows:
+
+```text
+Source type: ffmpeg webcam
+Source value: video=AUKEY Webcam
+ffmpeg command: ffmpeg
+ffmpeg input format: dshow
+ffmpeg video size: 640x480
+```
+
+For Windows, list camera names with:
+
+```powershell
+ffmpeg -list_devices true -f dshow -i dummy
+```
+
+The value usually needs the `video=` prefix, for example:
+
+```text
+video=Integrated Camera
+```
 
 ## Storage Layout
 
-The camera folder name must match the PrinterHub printer id.
+PrinterHub writes captured snapshots under its camera storage directory. The
+camera folder name matches the PrinterHub printer id.
 
 Linux default:
 
@@ -16,6 +52,7 @@ Linux default:
   latest.jpg
   previous.jpg
   archive/
+  snapshots/
 ```
 
 Windows default:
@@ -25,9 +62,15 @@ C:\printerhub\data\camera\<printerId>\
   latest.jpg
   previous.jpg
   archive\
+  snapshots\
 ```
 
 Missing directories are created automatically.
+
+When using the dashboard `snapshot-folder` backend, point `Source value` at a
+folder containing incoming camera images, not at PrinterHub's own output folder.
+PrinterHub ignores its generated `latest.*`, `previous.*`, and `delta.*` files
+to avoid recapturing its own output.
 
 ## Requirements
 
