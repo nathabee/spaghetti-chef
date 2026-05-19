@@ -1,6 +1,8 @@
-import { renderPlaceholderCard } from "../components/placeholder-card.js";
-import { escapeHtml } from "../dashboard.js";
+import { renderPlaceholderCard } from "../components/placeholder-card.js"; 
 import { disabledUnlessPermission, hasPermission, state } from "../state.js";
+
+import { escapeHtml } from "../utils/format.js";
+
 
 export function renderPrinterControl(printer) {
   const commandResult = state.printerCommandResults.get(printer.id) ?? "No manual command executed yet.";

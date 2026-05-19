@@ -16,6 +16,7 @@ next:
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.2 — Frame Analysis and Spaghetti Heuristic Detection
 - 0.4.1 — Cross-Platform Camera Capture Scripts
 - 0.4.0 — Camera Monitoring Foundation
 

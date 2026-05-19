@@ -20,7 +20,6 @@ jacoco-pretty.xml
 scripts/**
 **/to_ignore/**
 
-printerhub-print-files/**
 
 # AI
 .codex
@@ -28,3 +27,6 @@ chat.txt
 
 # data
 data/
+printerhub-print-files/**
+printerhub-camera/**
+*.jpg

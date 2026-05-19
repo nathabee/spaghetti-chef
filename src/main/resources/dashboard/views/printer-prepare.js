@@ -1,5 +1,7 @@
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
-import { escapeHtml } from "../dashboard.js";
+import { escapeHtml } from "../utils/format.js";
+
+
 
 export function renderPrinterPrepare(printer) {
   return `
