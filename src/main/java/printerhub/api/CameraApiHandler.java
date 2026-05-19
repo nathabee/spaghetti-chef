@@ -4,8 +4,11 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import printerhub.camera.CameraCaptureResult;
 import printerhub.camera.CameraCaptureService;
+import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSourceType;
 import printerhub.camera.CameraStatus;
+import printerhub.persistence.CameraAnalysisSample;
+import printerhub.persistence.CameraAnalysisSession;
 import printerhub.persistence.CameraEvent;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettings;
@@ -30,16 +33,19 @@ public final class CameraApiHandler {
     private final printerhub.camera.CameraSettingsService settingsService;
     private final CameraEventStore eventStore;
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
+    private final CameraAnalysisSessionService analysisSessionService;
 
     public CameraApiHandler(
             CameraCaptureService captureService,
             printerhub.camera.CameraSettingsService settingsService,
             CameraEventStore eventStore,
-            CameraSnapshotMetadataStore snapshotMetadataStore) {
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            CameraAnalysisSessionService analysisSessionService) {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
+        this.analysisSessionService = Objects.requireNonNull(analysisSessionService, "analysisSessionService");
     }
 
     public void handleStatus(HttpExchange exchange, String printerId) throws IOException {
@@ -156,6 +162,73 @@ public final class CameraApiHandler {
             sendError(exchange, 400, "invalid_camera_events_request", exception.getMessage());
         } catch (RuntimeException exception) {
             sendError(exchange, 500, "camera_events_failed", exception.getMessage());
+        }
+    }
+
+    public void handleAnalysisSessions(HttpExchange exchange, String printerId) throws IOException {
+        try {
+            if (isMethod(exchange, "POST")) {
+                CameraAnalysisSession session = analysisSessionService.start(printerId);
+                sendJson(exchange, 201, sessionJson(session));
+                return;
+            }
+
+            if (isMethod(exchange, "GET")) {
+                sendJson(exchange, 200, sessionsJson(analysisSessionService.list(printerId)));
+                return;
+            }
+
+            sendMethodNotAllowed(exchange, "GET, POST");
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_analysis_session_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_analysis_session_failed", exception.getMessage());
+        }
+    }
+
+    public void handleAnalysisSession(HttpExchange exchange, String printerId, String sessionId) throws IOException {
+        if (!isMethod(exchange, "GET")) {
+            sendMethodNotAllowed(exchange, "GET");
+            return;
+        }
+
+        try {
+            sendJson(exchange, 200, sessionJson(analysisSessionService.find(printerId, sessionId)));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 404, "camera_analysis_session_not_found", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_analysis_session_failed", exception.getMessage());
+        }
+    }
+
+    public void handleStopAnalysisSession(HttpExchange exchange, String printerId, String sessionId) throws IOException {
+        if (!isMethod(exchange, "POST")) {
+            sendMethodNotAllowed(exchange, "POST");
+            return;
+        }
+
+        try {
+            sendJson(exchange, 200, sessionJson(analysisSessionService.stop(printerId, sessionId)));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 404, "camera_analysis_session_not_found", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_analysis_session_stop_failed", exception.getMessage());
+        }
+    }
+
+    public void handleAnalysisSessionSamples(HttpExchange exchange, String printerId, String sessionId)
+            throws IOException {
+        if (!isMethod(exchange, "GET")) {
+            sendMethodNotAllowed(exchange, "GET");
+            return;
+        }
+
+        try {
+            sendJson(exchange, 200, samplesJson(analysisSessionService.samples(printerId, sessionId)));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 404, "camera_analysis_session_not_found", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_analysis_samples_failed", exception.getMessage());
         }
     }
 
@@ -289,6 +362,62 @@ public final class CameraApiHandler {
         }
 
         builder.append("]");
+        return builder.toString();
+    }
+
+    private static String sessionsJson(List<CameraAnalysisSession> sessions) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\"sessions\":[");
+        for (int index = 0; index < sessions.size(); index++) {
+            if (index > 0) {
+                builder.append(",");
+            }
+            builder.append(sessionJson(sessions.get(index)));
+        }
+        builder.append("]}");
+        return builder.toString();
+    }
+
+    private static String sessionJson(CameraAnalysisSession session) {
+        return "{"
+                + jsonField("id", session.id()) + ","
+                + jsonField("printerId", session.printerId()) + ","
+                + jsonField("state", session.state().name()) + ","
+                + jsonField("startedAt", session.startedAt().map(Instant::toString).orElse(null)) + ","
+                + jsonField("stoppedAt", session.stoppedAt().map(Instant::toString).orElse(null)) + ","
+                + jsonField("createdAt", session.createdAt().toString()) + ","
+                + jsonField("updatedAt", session.updatedAt().toString()) + ","
+                + jsonField("message", session.message().orElse(null))
+                + "}";
+    }
+
+    private static String samplesJson(List<CameraAnalysisSample> samples) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\"samples\":[");
+        for (int index = 0; index < samples.size(); index++) {
+            CameraAnalysisSample sample = samples.get(index);
+            if (index > 0) {
+                builder.append(",");
+            }
+            builder.append("{")
+                    .append(jsonField("id", sample.id().orElse(null))).append(",")
+                    .append(jsonField("sessionId", sample.sessionId())).append(",")
+                    .append(jsonField("printerId", sample.printerId())).append(",")
+                    .append(jsonField("capturedAt", sample.capturedAt().toString())).append(",")
+                    .append(jsonField("analyzedAt", sample.analyzedAt().toString())).append(",")
+                    .append(jsonField("latestSnapshotPath", sample.latestSnapshotPath().orElse(null))).append(",")
+                    .append(jsonField("previousSnapshotPath", sample.previousSnapshotPath().orElse(null))).append(",")
+                    .append(jsonField("deltaSnapshotPath", sample.deltaSnapshotPath().orElse(null))).append(",")
+                    .append(jsonField("deltaScore", sample.deltaScore())).append(",")
+                    .append(jsonField("changedPixelRatio", sample.changedPixelRatio())).append(",")
+                    .append(jsonField("averagePixelDelta", sample.averagePixelDelta())).append(",")
+                    .append(jsonField("confidence", sample.confidence())).append(",")
+                    .append(jsonField("suspected", sample.suspected())).append(",")
+                    .append(jsonField("reasonCodes", sample.reasonCodes().orElse(null))).append(",")
+                    .append(jsonField("message", sample.message().orElse(null)))
+                    .append("}");
+        }
+        builder.append("]}");
         return builder.toString();
     }
 

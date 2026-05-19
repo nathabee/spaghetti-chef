@@ -213,6 +213,155 @@ export function renderCameraEventsCard(events) {
   `;
 }
 
+export function renderCameraAnalysisCard(printerId, sessions, samples) {
+  const safeSessions = Array.isArray(sessions) ? sessions : [];
+  const activeSession = safeSessions.find((session) => session.state === "RUNNING");
+  const selectedSession = activeSession || safeSessions[0];
+  const safeSamples = Array.isArray(samples) ? samples : [];
+  const selectedSample = safeSamples[safeSamples.length - 1];
+
+  return `
+    <article class="section-card camera-analysis-card">
+      <div class="section-header compact">
+        <div>
+          <div class="kicker">Analysis session</div>
+          <h3>Spaghetti trace review</h3>
+        </div>
+        <div class="action-row">
+          <button type="button" data-camera-analysis-start="${escapeHtml(printerId)}" ${activeSession ? "disabled" : ""}>Start</button>
+          <button type="button" class="secondary-button" data-camera-analysis-stop="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Stop</button>
+        </div>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span class="metric-label">Active state</span>
+          <strong>${formatNullable(activeSession?.state || "idle")}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Samples</span>
+          <strong>${safeSamples.length}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Confidence</span>
+          <strong>${formatRatio(selectedSample?.confidence)}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Delta score</span>
+          <strong>${formatRatio(selectedSample?.deltaScore)}</strong>
+        </div>
+      </div>
+
+      ${renderAnalysisGraph(safeSamples)}
+      ${renderTimelineScrubber(safeSamples)}
+
+      <dl class="detail-list">
+        <div>
+          <dt>Selected sample</dt>
+          <dd>${selectedSample?.capturedAt ? escapeHtml(formatDateTime(selectedSample.capturedAt)) : "—"}</dd>
+        </div>
+        <div>
+          <dt>State</dt>
+          <dd>${selectedSample ? (selectedSample.suspected ? "Suspicious" : "Good") : "—"}</dd>
+        </div>
+        <div>
+          <dt>Reason codes</dt>
+          <dd id="cameraAnalysisReasonCodes">${formatNullable(selectedSample?.reasonCodes)}</dd>
+        </div>
+        <div>
+          <dt>Message</dt>
+          <dd id="cameraAnalysisMessage">${formatNullable(selectedSample?.message)}</dd>
+        </div>
+      </dl>
+
+      <div class="camera-analysis-snapshots">
+        <div>
+          <span class="metric-label">Latest snapshot path</span>
+          <code id="cameraAnalysisLatestPath">${formatNullable(selectedSample?.latestSnapshotPath)}</code>
+        </div>
+        <div>
+          <span class="metric-label">Delta snapshot path</span>
+          <code id="cameraAnalysisDeltaPath">${formatNullable(selectedSample?.deltaSnapshotPath)}</code>
+        </div>
+      </div>
+
+      ${renderSessionsList(safeSessions, selectedSession)}
+    </article>
+  `;
+}
+
+function renderAnalysisGraph(samples) {
+  if (samples.length === 0) {
+    return `
+      <div class="empty-state">
+        <h4>No analysis samples</h4>
+        <p class="muted">Start a session to capture reviewable spaghetti detector values.</p>
+      </div>
+    `;
+  }
+
+  const points = samples.map((sample, index) => {
+    const x = samples.length === 1 ? 4 : 4 + (index / (samples.length - 1)) * 92;
+    const confidenceY = 96 - Number(sample.confidence || 0) * 92;
+    const deltaY = 96 - Number(sample.deltaScore || 0) * 92;
+    return { x, confidenceY, deltaY, suspected: sample.suspected };
+  });
+
+  const confidenceLine = points.map((point) => `${point.x.toFixed(2)},${point.confidenceY.toFixed(2)}`).join(" ");
+  const deltaLine = points.map((point) => `${point.x.toFixed(2)},${point.deltaY.toFixed(2)}`).join(" ");
+
+  return `
+    <svg class="camera-analysis-graph" viewBox="0 0 100 100" role="img" aria-label="Camera analysis confidence and delta score graph">
+      <polyline points="${confidenceLine}" fill="none" stroke="currentColor" stroke-width="2"></polyline>
+      <polyline points="${deltaLine}" fill="none" stroke="#b56d18" stroke-width="2"></polyline>
+      ${points.map((point) => `<circle cx="${point.x.toFixed(2)}" cy="${point.confidenceY.toFixed(2)}" r="2.2" class="${point.suspected ? "suspected" : ""}"></circle>`).join("")}
+    </svg>
+  `;
+}
+
+function renderTimelineScrubber(samples) {
+  if (samples.length === 0) {
+    return "";
+  }
+
+  const encodedSamples = escapeHtml(JSON.stringify(samples));
+
+  return `
+    <label class="camera-analysis-slider">
+      Timeline
+      <input id="cameraAnalysisTimelineInput" type="range" min="0" max="${samples.length - 1}" value="${samples.length - 1}" step="1" data-analysis-samples="${encodedSamples}">
+    </label>
+  `;
+}
+
+function renderSessionsList(sessions, selectedSession) {
+  if (sessions.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="event-list compact-list">
+      ${sessions.slice(0, 6).map((session) => `
+        <article class="event-item ${session.id === selectedSession?.id ? "selected" : ""}">
+          <div>
+            <strong>${formatNullable(session.state)}</strong>
+            <p>${escapeHtml(session.startedAt ? formatDateTime(session.startedAt) : formatDateTime(session.createdAt))}</p>
+          </div>
+          <time>${session.stoppedAt ? escapeHtml(formatDateTime(session.stoppedAt)) : "active"}</time>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function formatRatio(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "—";
+  }
+  return `${Math.round(numeric * 100)}%`;
+}
+
 function renderCameraEvent(event) {
   return `
     <article class="event-item">
@@ -225,7 +374,7 @@ function renderCameraEvent(event) {
   `;
 }
 
-export function renderCameraPage(printerId, status, settings, events) {
+export function renderCameraPage(printerId, status, settings, events, sessions, samples) {
   return `
     <div class="view printer-camera-view">
       <div class="section-header">
@@ -246,6 +395,10 @@ export function renderCameraPage(printerId, status, settings, events) {
       <section class="two-column-grid">
         ${renderCameraSettingsCard(settings)}
         ${renderCameraEventsCard(events)}
+      </section>
+
+      <section>
+        ${renderCameraAnalysisCard(printerId, sessions, samples)}
       </section>
     </div>
   `;

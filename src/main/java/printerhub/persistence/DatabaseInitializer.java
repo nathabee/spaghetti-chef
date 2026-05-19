@@ -29,6 +29,8 @@ public final class DatabaseInitializer {
             createCameraSettingsTable(statement);
             createCameraEventsTable(statement);
             createCameraSnapshotMetadataTable(statement);
+            createCameraAnalysisSessionsTable(statement);
+            createCameraAnalysisSamplesTable(statement);
             createSecuritySettingsTable(statement);
             createRoleProfilesTable(statement);
 
@@ -228,6 +230,47 @@ public final class DatabaseInitializer {
                     event_type TEXT NOT NULL,
                     message TEXT,
                     created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraAnalysisSessionsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_analysis_sessions (
+                    id TEXT PRIMARY KEY,
+                    printer_id TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    started_at TEXT,
+                    stopped_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    message TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraAnalysisSamplesTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_analysis_samples (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    printer_id TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    analyzed_at TEXT NOT NULL,
+                    latest_snapshot_path TEXT,
+                    previous_snapshot_path TEXT,
+                    delta_snapshot_path TEXT,
+                    delta_score REAL NOT NULL,
+                    changed_pixel_ratio REAL NOT NULL,
+                    average_pixel_delta REAL NOT NULL,
+                    confidence REAL NOT NULL,
+                    suspected INTEGER NOT NULL,
+                    reason_codes TEXT,
+                    message TEXT
                 );
                 """;
 

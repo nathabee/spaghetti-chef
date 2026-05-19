@@ -8,14 +8,14 @@ see ROADMAP.md
 
 next:
 
-- 0.2.4 — Real-printer correction, SD upload hardening, and local packaging
-- 0.2.4 — Step E — transfer settings administration foundation
+0.4.3 — Camera Analysis Sessions and Trace Review
 
 ## Version (done)
 
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.3 — Camera Analysis Sessions and Trace Review
 - 0.4.2 — Frame Analysis and Spaghetti Heuristic Detection
 - 0.4.1 — Cross-Platform Camera Capture Scripts
 - 0.4.0 — Camera Monitoring Foundation

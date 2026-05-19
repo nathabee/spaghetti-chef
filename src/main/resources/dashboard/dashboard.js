@@ -58,7 +58,9 @@ import {
   capturePrinterCameraSnapshot,
   renderPrinterCamera,
   renderPrinterCameraLoading,
-  savePrinterCameraSettings
+  savePrinterCameraSettings,
+  startPrinterCameraAnalysisSession,
+  stopPrinterCameraAnalysisSession
 } from "./views/printer-camera.js";
 
 import {
@@ -484,6 +486,25 @@ function bindGlobalListeners() {
       return;
     }
 
+    const cameraAnalysisStartButton = event.target.closest("[data-camera-analysis-start]");
+    if (cameraAnalysisStartButton) {
+      await handleStartCameraAnalysis(cameraAnalysisStartButton.dataset.cameraAnalysisStart);
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+      return;
+    }
+
+    const cameraAnalysisStopButton = event.target.closest("[data-camera-analysis-stop]");
+    if (cameraAnalysisStopButton) {
+      await handleStopCameraAnalysis(
+        cameraAnalysisStopButton.dataset.cameraAnalysisStop,
+        cameraAnalysisStopButton.dataset.sessionId
+      );
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+      return;
+    }
+
 
     const syncUploadStatusButton = event.target.closest("[data-sync-sd-upload-status]");
     if (syncUploadStatusButton) {
@@ -690,6 +711,12 @@ function bindPageListeners() {
     });
   }
 
+  const cameraAnalysisTimelineInput = document.getElementById("cameraAnalysisTimelineInput");
+  if (cameraAnalysisTimelineInput) {
+    cameraAnalysisTimelineInput.addEventListener("input", () => {
+      updateCameraAnalysisSelection(cameraAnalysisTimelineInput);
+    });
+  }
 
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
@@ -782,6 +809,64 @@ async function handleSaveCameraSettings(form) {
     setMessage(`Saved camera settings for ${selectedPrinter.id}.`);
   } catch (error) {
     setMessage(`Failed to save camera settings for ${selectedPrinter.id}: ${error.message}`);
+  }
+}
+
+async function handleStartCameraAnalysis(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  try {
+    await startPrinterCameraAnalysisSession(printerId);
+    setMessage(`Started camera analysis session for ${printerId}.`);
+  } catch (error) {
+    setMessage(`Failed to start camera analysis for ${printerId}: ${error.message}`);
+  }
+}
+
+async function handleStopCameraAnalysis(printerId, sessionId) {
+  if (!printerId || !sessionId) {
+    return;
+  }
+
+  try {
+    await stopPrinterCameraAnalysisSession(printerId, sessionId);
+    setMessage(`Stopped camera analysis session for ${printerId}.`);
+  } catch (error) {
+    setMessage(`Failed to stop camera analysis for ${printerId}: ${error.message}`);
+  }
+}
+
+function updateCameraAnalysisSelection(input) {
+  let samples = [];
+  try {
+    samples = JSON.parse(input.dataset.analysisSamples || "[]");
+  } catch {
+    samples = [];
+  }
+
+  const sample = samples[Number.parseInt(input.value, 10)];
+  if (!sample) {
+    return;
+  }
+
+  const reasonCodes = document.getElementById("cameraAnalysisReasonCodes");
+  const message = document.getElementById("cameraAnalysisMessage");
+  const latestPath = document.getElementById("cameraAnalysisLatestPath");
+  const deltaPath = document.getElementById("cameraAnalysisDeltaPath");
+
+  if (reasonCodes) {
+    reasonCodes.textContent = sample.reasonCodes || "—";
+  }
+  if (message) {
+    message.textContent = sample.message || "—";
+  }
+  if (latestPath) {
+    latestPath.textContent = sample.latestSnapshotPath || "—";
+  }
+  if (deltaPath) {
+    deltaPath.textContent = sample.deltaSnapshotPath || "—";
   }
 }
 
