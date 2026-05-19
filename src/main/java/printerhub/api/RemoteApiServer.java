@@ -3,6 +3,7 @@ package printerhub.api;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import printerhub.AppVersion;
 import printerhub.OperationMessages;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
@@ -270,6 +271,7 @@ public final class RemoteApiServer {
             server.setExecutor(Executors.newFixedThreadPool(RuntimeDefaults.DEFAULT_API_THREAD_POOL_SIZE));
 
             server.createContext("/health", exchange -> safeHandle(exchange, this::handleHealth));
+            server.createContext("/version", exchange -> safeHandle(exchange, this::handleVersion));
             server.createContext("/printers", exchange -> safeHandle(exchange, this::handlePrinters));
             server.createContext("/print-files", exchange -> safeHandle(exchange, this::handlePrintFiles));
             server.createContext("/printer-sd-files", exchange -> safeHandle(exchange, this::handlePrinterSdFiles));
@@ -480,6 +482,15 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 200, "{\"status\":\"ok\"}");
+    }
+
+    private void handleVersion(HttpExchange exchange) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        sendJson(exchange, 200, "{\"version\":\"" + escapeJson(AppVersion.current()) + "\"}");
     }
 
     private void handleMonitoringSettings(HttpExchange exchange) throws IOException {

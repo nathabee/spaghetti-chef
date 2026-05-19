@@ -83,10 +83,24 @@ public final class SnapshotFolderCameraDevice implements CameraDevice {
             return stream
                     .filter(Files::isRegularFile)
                     .filter(SnapshotFolderCameraDevice::isSupportedImage)
+                    .filter(SnapshotFolderCameraDevice::isNotPrinterHubGeneratedFrame)
                     .max(Comparator.comparingLong(SnapshotFolderCameraDevice::lastModifiedMillis));
         } catch (IOException exception) {
             return Optional.empty();
         }
+    }
+
+    private static boolean isNotPrinterHubGeneratedFrame(Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return !"latest.jpg".equals(fileName)
+                && !"latest.jpeg".equals(fileName)
+                && !"latest.png".equals(fileName)
+                && !"previous.jpg".equals(fileName)
+                && !"previous.jpeg".equals(fileName)
+                && !"previous.png".equals(fileName)
+                && !"delta.jpg".equals(fileName)
+                && !"delta.jpeg".equals(fileName)
+                && !"delta.png".equals(fileName);
     }
 
     private static boolean isSupportedImage(Path path) {

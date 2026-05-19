@@ -11,6 +11,7 @@ import {
   getJobEvents,
   getJobExecutionSteps,
   getJobs,
+  getAppVersion,
   getMonitoringOverview,
   getMonitoringRules,
   getOperatorAuditEvents,
@@ -78,6 +79,7 @@ import {
   setJob,
   setJobSynchronization,
   setJobs,
+  setAppVersion,
   setLastRefreshLabel,
   setMessage,
   setMonitoringOverview,
@@ -139,7 +141,8 @@ async function refreshAllData(options = {}) {
       securitySettings,
       securityRoles,
       monitoringOverview,
-      operatorAuditEvents
+      operatorAuditEvents,
+      appVersion
     ] = await Promise.all([
       getPrinters(),
       getJobs(),
@@ -151,7 +154,8 @@ async function refreshAllData(options = {}) {
       getSecuritySettings(),
       getSecurityRoles(),
       getMonitoringOverview(),
-      getOperatorAuditEvents()
+      getOperatorAuditEvents(),
+      getAppVersion()
     ]);
 
     setPrinters(printers);
@@ -165,6 +169,7 @@ async function refreshAllData(options = {}) {
     setSecurityRoles(securityRoles);
     setMonitoringOverview(monitoringOverview);
     setOperatorAuditEvents(operatorAuditEvents);
+    setAppVersion(appVersion);
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 

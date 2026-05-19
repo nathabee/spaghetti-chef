@@ -210,17 +210,20 @@ public final class CameraCaptureService {
     private PersistedCameraFramePaths persistFrame(CameraFrame frame) {
         Path printerDirectory = storageDirectory.resolve(safePathSegment(frame.printerId()));
         Path snapshotsDirectory = printerDirectory.resolve("snapshots");
+        Path archiveDirectory = printerDirectory.resolve("archive");
 
         String extension = extensionFor(frame.contentType());
         String fileName = safeTimestamp(frame.capturedAt()) + extension;
 
         Path snapshotPath = snapshotsDirectory.resolve(fileName);
+        Path archivePath = archiveDirectory.resolve(fileName);
         Path latestPath = printerDirectory.resolve("latest" + extension);
         Path previousPath = printerDirectory.resolve("previous" + extension);
         Path deltaPath = printerDirectory.resolve("delta.jpg");
 
         try {
             Files.createDirectories(snapshotsDirectory);
+            Files.createDirectories(archiveDirectory);
             Files.createDirectories(printerDirectory);
 
             if (Files.isRegularFile(latestPath)) {
@@ -228,6 +231,7 @@ public final class CameraCaptureService {
             }
 
             Files.write(snapshotPath, frame.bytes());
+            Files.write(archivePath, frame.bytes());
             Files.write(latestPath, frame.bytes());
 
             snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(

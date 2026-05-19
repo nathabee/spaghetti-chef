@@ -29,6 +29,7 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  appVersion: null,
   securitySettings: null,
   securityRoles: [],
   monitoringOverview: null,
@@ -95,6 +96,10 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setAppVersion(versionInfo) {
+  state.appVersion = versionInfo || null;
 }
 
 export function setSecuritySettings(settings) {

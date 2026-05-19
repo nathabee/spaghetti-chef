@@ -247,13 +247,25 @@ for ($i = 0; $i -lt 15; $i++) {
     }
     catch {
         if ($i -eq 14) {
-            Fail "App directory is still locked after stop: $($_.Exception.Message)"
+            Write-Warning "App directory rename is still locked after stop: $($_.Exception.Message)"
+            Write-Warning "Attempting in-place replacement of package files."
         }
         Start-Sleep -Seconds 2
     }
 }
 
 New-Item -ItemType Directory -Force -Path $appDir | Out-Null
+foreach ($itemName in @('printer-hub.jar', 'printerhub.bat', 'printerhub-task.cmd', 'dashboard')) {
+    $target = Join-Path $appDir $itemName
+    if (Test-Path -LiteralPath $target) {
+        try {
+            Remove-Item -LiteralPath $target -Recurse -Force
+        }
+        catch {
+            Write-Warning "Could not remove '$target' before copy: $($_.Exception.Message)"
+        }
+    }
+}
 Copy-Item -Path (Join-Path $sourceDir '*') -Destination $appDir -Recurse -Force
 
 Write-Host "App directory content after copy:"
