@@ -916,21 +916,31 @@ exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${
 EOF
             chmod +x package/linux/printerhub.sh
 
-            # BEGIN Camera tools
-            mkdir -p package/linux/camera
-            mkdir -p package/windows/camera
+            # BEGIN Platform tools
+            mkdir -p package/linux/tools/camera
+            mkdir -p package/admin/camera
 
-            cp tools/camera/README.md package/linux/camera/README.md
-            cp tools/camera/README.md package/windows/camera/README.md
+            if [ -f tools/README.md ]; then
+              cp tools/README.md package/linux/TOOLS.md
+              cp tools/README.md package/admin/TOOLS.md
+            fi
 
-            cp tools/camera/linux/camera-capture-once.sh package/linux/camera/
-            cp tools/camera/linux/camera-capture-loop.sh package/linux/camera/
-            chmod +x package/linux/camera/camera-capture-once.sh
-            chmod +x package/linux/camera/camera-capture-loop.sh
+            if [ -f tools/linux/README.md ]; then
+              cp tools/linux/README.md package/linux/tools/README.md
+            fi
 
-            cp tools/camera/win/camera-capture-once.ps1 package/windows/camera/
-            cp tools/camera/win/camera-capture-loop.ps1 package/windows/camera/
-            # END Camera tools
+            if [ -f tools/win/README.md ]; then
+              cp tools/win/README.md package/admin/README-WINDOWS-TOOLS.md
+            fi
+
+            cp tools/linux/camera/camera-capture-once.sh package/linux/tools/camera/
+            cp tools/linux/camera/camera-capture-loop.sh package/linux/tools/camera/
+            chmod +x package/linux/tools/camera/camera-capture-once.sh
+            chmod +x package/linux/tools/camera/camera-capture-loop.sh
+
+            cp tools/win/camera/camera-capture-once.ps1 package/admin/camera/
+            cp tools/win/camera/camera-capture-loop.ps1 package/admin/camera/
+            # END Platform tools
 
             cp tools/win/run.env.example package/admin/
             cp tools/win/t.ps1 package/admin/
@@ -950,10 +960,17 @@ Contents:
 - r.ps1 : start PrinterHub through Task Scheduler
 - s.ps1 : stop PrinterHub
 - v.ps1 : status and health check
+- camera/ : Windows camera helper scripts for diagnostics and fallback capture
 - INSTALL-REMOTE.md : setup instructions
+- README-WINDOWS-TOOLS.md : Windows tool notes
+- TOOLS.md : general tool layout notes
 
 Copy the PowerShell scripts to C:\\printerhub\\bin on the Windows host.
+Copy the camera directory to C:\\printerhub\\bin\\camera on the Windows host.
 Copy run.env.example to C:\\printerhub\\data\\run.env and adjust values if needed.
+
+The Windows application package should contain the runtime app only.
+Camera PowerShell helper scripts belong in the admin/bin layer, not in app\\camera.
 EOF
 
             tar -C package -czf "dist/${LINUX_PACKAGE}" linux
