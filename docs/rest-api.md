@@ -1,27 +1,41 @@
-# REST API
+# PrinterHub REST API
 
+This document is a practical endpoint reference for the current local PrinterHub API.
 
-# list of endpoint 
+The API and dashboard are served from the same host and port.
 
-- they are defined in the api/RemoteApiServer.java
+Example:
 
- 
+```text
+http://localhost:18080
+```
 
-## Health
+Most endpoints return JSON. Snapshot image endpoints return image bytes.
+
+---
+
+## Health And Version
 
 ```text
 GET /health
+GET /version
 ```
 
-Returns:
+`GET /health` returns:
 
 ```json
 {"status":"ok"}
 ```
 
+`GET /version` returns the runtime application version:
+
+```json
+{"version":"0.4.5"}
+```
+
 ---
 
-## Dashboard static resources
+## Dashboard Static Resources
 
 ```text
 GET /dashboard
@@ -37,7 +51,8 @@ GET /dashboard/dashboard.css
 GET /dashboard/dashboard.js
 GET /dashboard/api.js
 GET /dashboard/components/nav.js
-GET /dashboard/views/farm-home.js
+GET /dashboard/components/camera-card.js
+GET /dashboard/views/printer-camera.js
 GET /dashboard/favicon.svg
 ```
 
@@ -55,65 +70,41 @@ POST   /printers/{printerId}/enable
 POST   /printers/{printerId}/disable
 GET    /printers/{printerId}/status
 GET    /printers/{printerId}/events
+POST   /printers/{printerId}/commands
 ```
 
-Purpose:
+Example create/update body:
 
-```text
-GET /printers
-  List registered runtime printers.
-
-POST /printers
-  Create/register a printer.
-
-GET /printers/{printerId}
-  Get one printer.
-
-PUT /printers/{printerId}
-  Update printer configuration.
-
-DELETE /printers/{printerId}
-  Delete/unregister printer.
-
-POST /printers/{printerId}/enable
-  Enable printer.
-
-POST /printers/{printerId}/disable
-  Disable printer.
-
-GET /printers/{printerId}/status
-  Read latest cached printer snapshot.
-
-GET /printers/{printerId}/events
-  Read recent printer events.
+```json
+{
+  "id": "p1",
+  "displayName": "Printer 1",
+  "portName": "COM3",
+  "mode": "serial",
+  "enabled": true
+}
 ```
 
----
+Manual command example:
 
-## Printer manual commands
-
-```text
-POST /printers/{printerId}/commands
+```json
+{
+  "command": "M105"
+}
 ```
 
-Purpose:
+Temperature command example:
 
-```text
-Execute an allowed manual command through PrinterCommandService.
-```
-
-Current controlled examples include things like:
-
-```text
-M105
-M114
-M115
-M104 with targetTemperature
+```json
+{
+  "command": "M104",
+  "targetTemperature": 200
+}
 ```
 
 ---
 
-## Printer SD card
+## Printer SD Card
 
 ```text
 GET  /printers/{printerId}/sd-card/files
@@ -122,25 +113,20 @@ GET  /printers/{printerId}/sd-card/uploads/status
 POST /printers/{printerId}/sd-card/recovery/close-upload
 ```
 
-Purpose:
+Upload body:
 
-```text
-GET /printers/{printerId}/sd-card/files
-  Ask firmware for SD card file list and register discovered files.
-
-POST /printers/{printerId}/sd-card/uploads
-  Upload a known PrintFile to the printer SD card.
-
-GET /printers/{printerId}/sd-card/uploads/status
-  Read current SD upload progress.
-
-POST /printers/{printerId}/sd-card/recovery/close-upload
-  Attempt M29 close-upload recovery for an open upload session.
+```json
+{
+  "printFileId": "file-1",
+  "targetPath": "/model.gco"
+}
 ```
+
+The upload status endpoint reports active progress and transfer diagnostics.
 
 ---
 
-## Camera monitoring, new 0.4.0 endpoints
+## Camera Status, Settings, Snapshot, Events
 
 ```text
 GET  /printers/{printerId}/camera/status
@@ -151,51 +137,154 @@ GET  /printers/{printerId}/camera/snapshot
 GET  /printers/{printerId}/camera/events
 ```
 
-Purpose:
+Supported `sourceType` values:
 
 ```text
-GET /printers/{printerId}/camera/status
-  Read camera availability/status for the printer.
-
-GET /printers/{printerId}/camera/settings
-  Read camera settings for the printer.
-
-PUT /printers/{printerId}/camera/settings
-  Save camera settings for the printer.
-
-POST /printers/{printerId}/camera/snapshot
-  Capture a new camera snapshot.
-
-GET /printers/{printerId}/camera/snapshot
-  Return the latest snapshot image.
-
-GET /printers/{printerId}/camera/events
-  Return recent camera events.
+disabled
+simulated
+snapshot-folder
+ffmpeg
 ```
 
-Example camera settings body:
+Example simulated settings:
 
 ```json
 {
   "enabled": true,
   "sourceType": "simulated",
   "sourceValue": "default",
+  "storageDirectory": "camera",
   "captureIntervalSeconds": 10,
-  "retentionSnapshotCount": 20
+  "retentionSnapshotCount": 20,
+  "analysisEnabled": false,
+  "safetyEnabled": false,
+  "pauseOnConfirmedSpaghetti": false,
+  "confidenceThreshold": 0.85,
+  "confirmationsRequired": 3,
+  "ffmpegCommand": "ffmpeg",
+  "ffmpegInputFormat": "",
+  "ffmpegVideoSize": "640x480",
+  "ffmpegTimeoutMs": 5000,
+  "ffmpegJpegQuality": 3
 }
 ```
 
-Supported camera source types for 0.4.0:
+Example Windows ffmpeg settings:
 
-```text
-disabled
-simulated
-snapshot-folder
+```json
+{
+  "enabled": true,
+  "sourceType": "ffmpeg",
+  "sourceValue": "video=PC-LM1E Camera",
+  "storageDirectory": "camera",
+  "captureIntervalSeconds": 10,
+  "retentionSnapshotCount": 20,
+  "analysisEnabled": true,
+  "safetyEnabled": false,
+  "pauseOnConfirmedSpaghetti": false,
+  "confidenceThreshold": 0.85,
+  "confirmationsRequired": 3,
+  "ffmpegCommand": "ffmpeg",
+  "ffmpegInputFormat": "dshow",
+  "ffmpegVideoSize": "640x480",
+  "ffmpegTimeoutMs": 5000,
+  "ffmpegJpegQuality": 3
+}
 ```
+
+Example Linux ffmpeg settings:
+
+```json
+{
+  "enabled": true,
+  "sourceType": "ffmpeg",
+  "sourceValue": "/dev/video0",
+  "storageDirectory": "camera",
+  "captureIntervalSeconds": 10,
+  "retentionSnapshotCount": 20,
+  "analysisEnabled": true,
+  "safetyEnabled": false,
+  "pauseOnConfirmedSpaghetti": false,
+  "confidenceThreshold": 0.85,
+  "confirmationsRequired": 3,
+  "ffmpegCommand": "ffmpeg",
+  "ffmpegInputFormat": "v4l2",
+  "ffmpegVideoSize": "640x480",
+  "ffmpegTimeoutMs": 5000,
+  "ffmpegJpegQuality": 3
+}
+```
+
+Capture response example:
+
+```json
+{
+  "success": true,
+  "hasFrame": true,
+  "message": "camera frame captured",
+  "contentType": "image/jpeg",
+  "width": 320,
+  "height": 240
+}
+```
+
+If capture fails, the response and camera events include the failure detail.
 
 ---
 
-## Print files
+## Camera Analysis Sessions
+
+```text
+POST /printers/{printerId}/camera/analysis-sessions
+GET  /printers/{printerId}/camera/analysis-sessions
+GET  /printers/{printerId}/camera/analysis-sessions/{sessionId}
+POST /printers/{printerId}/camera/analysis-sessions/{sessionId}/stop
+GET  /printers/{printerId}/camera/analysis-sessions/{sessionId}/samples
+POST /printers/{printerId}/camera/analysis-sessions/{sessionId}/samples
+```
+
+Start response example:
+
+```json
+{
+  "id": "camera-analysis-...",
+  "printerId": "p1",
+  "state": "RUNNING",
+  "startedAt": "2026-05-20T10:00:00Z",
+  "stoppedAt": null,
+  "createdAt": "2026-05-20T10:00:00Z",
+  "updatedAt": "2026-05-20T10:00:00Z",
+  "message": "Camera analysis session started"
+}
+```
+
+Sample response example:
+
+```json
+{
+  "id": 1,
+  "sessionId": "camera-analysis-...",
+  "printerId": "p1",
+  "capturedAt": "2026-05-20T10:01:00Z",
+  "analyzedAt": "2026-05-20T10:01:00Z",
+  "latestSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\latest.jpg",
+  "previousSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\previous.jpg",
+  "deltaSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\delta.jpg",
+  "deltaScore": 0.12,
+  "changedPixelRatio": 0.08,
+  "averagePixelDelta": 0.21,
+  "confidence": 0.74,
+  "suspected": true,
+  "reasonCodes": "[HIGH_DELTA_SCORE, HIGH_CHANGED_PIXEL_RATIO]",
+  "message": "Possible spaghetti failure detected"
+}
+```
+
+The dashboard currently displays samples as a table. The future graph X axis is `capturedAt`; useful Y series are `confidence`, `deltaScore`, `changedPixelRatio`, and `averagePixelDelta`.
+
+---
+
+## Print Files
 
 ```text
 GET  /print-files
@@ -205,31 +294,29 @@ GET  /print-files/{printFileId}
 GET  /print-files/{printFileId}/content
 ```
 
-Purpose:
+Register existing file body:
+
+```json
+{
+  "path": "/home/user/models/cube.gcode"
+}
+```
+
+Upload content with:
 
 ```text
-GET /print-files
-  List known print files.
-
-POST /print-files
-  Register an existing host-side print file by path.
-
-POST /print-files/uploads?filename={filename}
-  Upload print file content through HTTP.
-
-GET /print-files/{printFileId}
-  Get print file metadata.
-
-GET /print-files/{printFileId}/content
-  Get print file metadata plus content.
+POST /print-files/uploads?filename=cube.gcode
 ```
+
+The request body is the file content.
 
 ---
 
-## Printer SD file registry
+## Printer SD File Registry
 
 ```text
 GET    /printer-sd-files
+GET    /printer-sd-files?printerId={printerId}
 POST   /printer-sd-files
 GET    /printer-sd-files/{printerSdFileId}
 POST   /printer-sd-files/{printerSdFileId}/enable
@@ -237,35 +324,15 @@ POST   /printer-sd-files/{printerSdFileId}/disable
 DELETE /printer-sd-files/{printerSdFileId}
 ```
 
-Query variant:
+Create body:
 
-```text
-GET /printer-sd-files?printerId={printerId}
-```
-
-Purpose:
-
-```text
-GET /printer-sd-files
-  List all registered printer-side SD files.
-
-GET /printer-sd-files?printerId={printerId}
-  List SD files for one printer.
-
-POST /printer-sd-files
-  Manually register a printer-side SD file target.
-
-GET /printer-sd-files/{printerSdFileId}
-  Get one registered SD file.
-
-POST /printer-sd-files/{printerSdFileId}/enable
-  Enable a registered SD file for job use.
-
-POST /printer-sd-files/{printerSdFileId}/disable
-  Disable a registered SD file.
-
-DELETE /printer-sd-files/{printerSdFileId}
-  Delete/mark deleted, and if needed try firmware-side delete.
+```json
+{
+  "printerId": "p1",
+  "path": "/cube.gco",
+  "displayName": "cube.gco",
+  "enabled": true
+}
 ```
 
 ---
@@ -286,42 +353,18 @@ GET    /jobs/{jobId}/events
 GET    /jobs/{jobId}/execution-steps
 ```
 
-Purpose:
+Create body example:
 
-```text
-GET /jobs
-  List recent jobs.
-
-POST /jobs
-  Create a job.
-
-GET /jobs/{jobId}
-  Get one job.
-
-DELETE /jobs/{jobId}
-  Delete one job.
-
-POST /jobs/{jobId}/start
-  Start a job asynchronously.
-
-POST /jobs/{jobId}/pause
-  Pause a running autonomous print file job.
-
-POST /jobs/{jobId}/resume
-  Resume a paused autonomous print file job.
-
-POST /jobs/{jobId}/cancel
-  Cancel a job.
-
-POST /jobs/{jobId}/restart
-  Create a new job from a terminal print-file job.
-
-GET /jobs/{jobId}/events
-  Read job-related printer events.
-
-GET /jobs/{jobId}/execution-steps
-  Read structured execution diagnostics.
+```json
+{
+  "printerId": "p1",
+  "type": "PRINT_FILE",
+  "printFileId": "file-1",
+  "printerSdFileId": "sd-1"
+}
 ```
+
+Start is asynchronous. Inspect job state, events, and execution steps for progress.
 
 ---
 
@@ -331,36 +374,23 @@ GET /jobs/{jobId}/execution-steps
 GET /monitoring
 ```
 
-Purpose:
+Returns a global runtime snapshot:
 
-```text
-Return a global runtime monitoring snapshot:
-- summary
-- printers
-- active jobs
-- active uploads
-```
+* fleet summary
+* printer snapshots
+* active jobs
+* active upload status
 
 ---
 
-## Monitoring settings
+## Monitoring Settings
 
 ```text
 GET /settings/monitoring
 PUT /settings/monitoring
 ```
 
-Purpose:
-
-```text
-GET /settings/monitoring
-  Read monitoring rules.
-
-PUT /settings/monitoring
-  Update monitoring rules and apply them to the scheduler.
-```
-
-Fields currently handled:
+Fields:
 
 ```text
 pollIntervalSeconds
@@ -373,21 +403,11 @@ debugWireTracingEnabled
 
 ---
 
-## Print file settings
+## Print File Settings
 
 ```text
 GET /settings/print-files
 PUT /settings/print-files
-```
-
-Purpose:
-
-```text
-GET /settings/print-files
-  Read print file storage settings.
-
-PUT /settings/print-files
-  Update print file storage directory.
 ```
 
 Example body:
@@ -400,24 +420,14 @@ Example body:
 
 ---
 
-## Serial transfer settings
+## Serial Transfer Settings
 
 ```text
 GET /settings/serial-transfer
 PUT /settings/serial-transfer
 ```
 
-Purpose:
-
-```text
-GET /settings/serial-transfer
-  Read SD upload / serial transfer settings.
-
-PUT /settings/serial-transfer
-  Update SD upload / serial transfer settings.
-```
-
-Fields currently handled:
+Fields:
 
 ```text
 sdUploadBatchSize
@@ -442,24 +452,17 @@ fileStreamingRecoveryReplayDelayMs
 
 ---
 
-## Security settings
+## Security
 
 ```text
 GET /settings/security
 PUT /settings/security
+GET /security/profile
+GET /security/roles
+PUT /security/roles
 ```
 
-Purpose:
-
-```text
-GET /settings/security
-  Read local security settings.
-
-PUT /settings/security
-  Update local security settings.
-```
-
-Fields:
+Security settings fields:
 
 ```text
 securityEnabled
@@ -469,47 +472,21 @@ requireDangerousActionConfirmation
 
 ---
 
-## Security profiles / roles
-
-```text
-GET /security/profile
-GET /security/roles
-PUT /security/roles
-```
-
-Purpose:
-
-```text
-GET /security/profile
-  Return active security settings plus default role profile.
-
-GET /security/roles
-  Return role profiles.
-
-PUT /security/roles
-  Update a role profile.
-```
-
----
-
-## Operator audit
+## Operator Audit
 
 ```text
 GET /operator-audit
 ```
 
-Purpose:
-
-```text
-Return recent local operator audit events.
-```
+Returns recent local operator audit events.
 
 ---
 
-# Condensed endpoint table
+## Condensed Endpoint Table
 
 ```text
 GET    /health
+GET    /version
 
 GET    /dashboard
 GET    /dashboard/
@@ -520,11 +497,11 @@ POST   /printers
 GET    /printers/{printerId}
 PUT    /printers/{printerId}
 DELETE /printers/{printerId}
-GET    /printers/{printerId}/status
 POST   /printers/{printerId}/enable
 POST   /printers/{printerId}/disable
-POST   /printers/{printerId}/commands
+GET    /printers/{printerId}/status
 GET    /printers/{printerId}/events
+POST   /printers/{printerId}/commands
 
 GET    /printers/{printerId}/sd-card/files
 POST   /printers/{printerId}/sd-card/uploads
@@ -537,6 +514,12 @@ PUT    /printers/{printerId}/camera/settings
 POST   /printers/{printerId}/camera/snapshot
 GET    /printers/{printerId}/camera/snapshot
 GET    /printers/{printerId}/camera/events
+POST   /printers/{printerId}/camera/analysis-sessions
+GET    /printers/{printerId}/camera/analysis-sessions
+GET    /printers/{printerId}/camera/analysis-sessions/{sessionId}
+POST   /printers/{printerId}/camera/analysis-sessions/{sessionId}/stop
+GET    /printers/{printerId}/camera/analysis-sessions/{sessionId}/samples
+POST   /printers/{printerId}/camera/analysis-sessions/{sessionId}/samples
 
 GET    /print-files
 POST   /print-files
@@ -568,13 +551,10 @@ GET    /monitoring
 
 GET    /settings/monitoring
 PUT    /settings/monitoring
-
 GET    /settings/print-files
 PUT    /settings/print-files
-
 GET    /settings/serial-transfer
 PUT    /settings/serial-transfer
-
 GET    /settings/security
 PUT    /settings/security
 
@@ -584,5 +564,3 @@ PUT    /security/roles
 
 GET    /operator-audit
 ```
-
-Current technical debt is clear: `RemoteApiServer` is doing routing, parsing, authorization, auditing, serialization, static resource serving, and domain delegation in one file. Camera is now a good proof that the next architecture cleanup should be route-handler extraction by domain.

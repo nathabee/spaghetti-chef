@@ -2796,13 +2796,34 @@ Out of scope:
 
 ---
 
-### 0.4.6 — Camera Dashboard Polish
+### 0.4.6 — Camera Dashboard Job Debug
+
+status: in progress
+
+Goals:
+
+* hardened u.ps1
+* update docs/dashboard.md
+* update docs/specification.md
+* update docs/rest-api.md
+* show camera analysis parameters and computed detector values in table form before graph polish
+* show the analysis session card in the Camera view and Control view
+* list pictures in a camera analysis session, with links to display them
+* support start/stop time filters for camera archive review
+* tune the spaghetti detection
+
+
+---
+
+### 0.4.7 — Camera Dashboard Polish
 
 status: planned
 
 Goals:
 
 * improve camera cards
+* create graph for camera jobs to check evolution of spaghetti detection values over time
+* access old archive pictures on demand depending on an event status in the graph
 * add latest snapshot refresh
 * show last frame age
 * show camera event timeline
@@ -2819,9 +2840,9 @@ Out of scope:
  
 ---
 
-### 0.4.7 — Code clean Up
+### 0.4.8 — Code Clean Up
 
-- check that the code is completly following :
+- check that the code is completely following:
 RuntimeDefaults.java       -> numeric/default runtime values
 OperationMessages.java     -> event names, error keys, fixed message vocabulary
 other java like :
@@ -2829,7 +2850,7 @@ CameraCaptureService.java  -> orchestration only, no duplicated event constants
 
 - check that the code is not making saferecord when using the value of an operationmessage : if operation message not exist : code should not compile instead of writing an alternative message
 
-- check doc updated : README.md, docs/roadmap.md, docs/Dashboard.md, docs/specification.md
+- check docs updated: README.md, docs/roadmap.md, docs/dashboard.md, docs/specification.md, docs/rest-api.md
 
 
 

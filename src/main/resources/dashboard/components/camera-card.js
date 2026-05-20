@@ -349,8 +349,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples) {
         </div>
       </div>
 
-      ${renderAnalysisGraph(safeSamples)}
-      ${renderTimelineScrubber(safeSamples)}
+      ${renderAnalysisSamplesTable(safeSamples)}
 
       <dl class="detail-list">
         <div>
@@ -387,7 +386,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples) {
   `;
 }
 
-function renderAnalysisGraph(samples) {
+function renderAnalysisSamplesTable(samples) {
   if (samples.length === 0) {
     return `
       <div class="empty-state">
@@ -397,37 +396,49 @@ function renderAnalysisGraph(samples) {
     `;
   }
 
-  const points = samples.map((sample, index) => {
-    const x = samples.length === 1 ? 4 : 4 + (index / (samples.length - 1)) * 92;
-    const confidenceY = 96 - Number(sample.confidence || 0) * 92;
-    const deltaY = 96 - Number(sample.deltaScore || 0) * 92;
-    return { x, confidenceY, deltaY, suspected: sample.suspected };
-  });
-
-  const confidenceLine = points.map((point) => `${point.x.toFixed(2)},${point.confidenceY.toFixed(2)}`).join(" ");
-  const deltaLine = points.map((point) => `${point.x.toFixed(2)},${point.deltaY.toFixed(2)}`).join(" ");
-
   return `
-    <svg class="camera-analysis-graph" viewBox="0 0 100 100" role="img" aria-label="Camera analysis confidence and delta score graph">
-      <polyline points="${confidenceLine}" fill="none" stroke="currentColor" stroke-width="2"></polyline>
-      <polyline points="${deltaLine}" fill="none" stroke="#b56d18" stroke-width="2"></polyline>
-      ${points.map((point) => `<circle cx="${point.x.toFixed(2)}" cy="${point.confidenceY.toFixed(2)}" r="2.2" class="${point.suspected ? "suspected" : ""}"></circle>`).join("")}
-    </svg>
+    <div class="table-wrap">
+      <table class="data-table camera-analysis-table">
+        <thead>
+          <tr>
+            <th>Captured at</th>
+            <th>Analyzed at</th>
+            <th>State</th>
+            <th>Confidence</th>
+            <th>Delta score</th>
+            <th>Changed pixels</th>
+            <th>Average delta</th>
+            <th>Reason codes</th>
+            <th>Message</th>
+            <th>Latest snapshot</th>
+            <th>Previous snapshot</th>
+            <th>Delta snapshot</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${samples.map(renderAnalysisSampleRow).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
-function renderTimelineScrubber(samples) {
-  if (samples.length === 0) {
-    return "";
-  }
-
-  const encodedSamples = escapeHtml(JSON.stringify(samples));
-
+function renderAnalysisSampleRow(sample) {
   return `
-    <label class="camera-analysis-slider">
-      Timeline
-      <input id="cameraAnalysisTimelineInput" type="range" min="0" max="${samples.length - 1}" value="${samples.length - 1}" step="1" data-analysis-samples="${encodedSamples}">
-    </label>
+    <tr class="${sample.suspected ? "analysis-suspected" : "analysis-good"}">
+      <td>${sample.capturedAt ? escapeHtml(formatDateTime(sample.capturedAt)) : "—"}</td>
+      <td>${sample.analyzedAt ? escapeHtml(formatDateTime(sample.analyzedAt)) : "—"}</td>
+      <td>${sample.suspected ? '<span class="badge status-error">Suspicious</span>' : '<span class="badge badge-enabled">Good</span>'}</td>
+      <td>${formatRatio(sample.confidence)}</td>
+      <td>${formatRatio(sample.deltaScore)}</td>
+      <td>${formatRatio(sample.changedPixelRatio)}</td>
+      <td>${formatRatio(sample.averagePixelDelta)}</td>
+      <td>${formatNullable(sample.reasonCodes)}</td>
+      <td>${formatNullable(sample.message)}</td>
+      <td><code>${formatNullable(sample.latestSnapshotPath)}</code></td>
+      <td><code>${formatNullable(sample.previousSnapshotPath)}</code></td>
+      <td><code>${formatNullable(sample.deltaSnapshotPath)}</code></td>
+    </tr>
   `;
 }
 

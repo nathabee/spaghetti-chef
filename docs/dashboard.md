@@ -1,770 +1,442 @@
-# PrinterHub Dashboard
+# PrinterHub Dashboard User Manual
 
-The PrinterHub dashboard is the embedded browser UI served by the local runtime.
+PrinterHub includes a local browser dashboard served by the same runtime as the REST API.
 
-Open it from the same API port used to start PrinterHub:
+Open:
 
 ```text
-http://localhost:<printerhub.api.port>/dashboard
+http://localhost:<api-port>/dashboard
 ```
 
-Example:
-
-```bash
-mvn exec:java \
-  -Dprinterhub.databaseFile="printerhub.db" \
-  -Dprinterhub.api.port=18080 \
-  -Dexec.mainClass="printerhub.Main"
-```
-
-Then open:
+Typical local example:
 
 ```text
 http://localhost:18080/dashboard
 ```
 
-The dashboard uses relative API requests. It does not hardcode port `8080`; `8080` is only the backend default when no `printerhub.api.port` system property is provided.
-
----
-
-## Purpose
-
-The dashboard is the local operator console for:
-
-* viewing the printer farm
-* monitoring runtime state across all printers
-* selecting and operating one printer
-* creating and starting controlled jobs
-* managing printer-side SD-card targets
-* registering and uploading host-side `.gcode` files
-* observing SD-card upload progress and adaptive transfer behavior
-* reviewing job events and execution diagnostics
-* managing printer configuration
-* editing monitoring and serial transfer settings
-
-PrinterHub currently targets printers that speak a Marlin-compatible G-code serial protocol. The real-printer development reference is a Creality Ender-series Marlin workflow, but the UI is not intended to be tied to one printer model.
-
----
-
-## Navigation Model
-
-The dashboard uses a two-level navigation model.
-
-Primary navigation:
+If PrinterHub runs on another machine, replace `localhost` with that machine name or IP address:
 
 ```text
-PrinterHub
-├── Farm Home
-├── Printers
-├── Jobs
-├── Monitoring
-├── History
-└── Settings
+http://192.168.178.39:18080/dashboard
 ```
 
-Selected-printer navigation:
-
-```text
-Selected Printer
-├── Home
-├── Print
-├── SD Card
-├── Prepare
-├── Control
-├── Info
-└── History
-```
-
-This split is intentional:
-
-* the primary navigation handles farm-level administration and cross-printer runtime monitoring
-* the selected-printer navigation follows the practical operating logic of one printer
-* printer-specific operations stay close to the selected printer context
-* global observability stays separate from selected-printer operation
+The dashboard uses relative API calls, so it follows the port and host you used to open it.
 
 ---
 
-## Pages
+## What The Dashboard Is For
 
-### Farm Home
+Use the dashboard to:
 
-Farm Home gives the runtime overview.
+* see all configured printers
+* select one printer for detailed work
+* watch live printer status
+* create and control print jobs
+* upload or register G-code files
+* manage printer-side SD-card file targets
+* inspect job history and execution diagnostics
+* configure camera capture
+* start and review camera analysis sessions
+* tune monitoring, serial transfer, security, and storage settings
+
+The dashboard is an operator tool. It is not meant to expose every internal detail; deeper implementation notes belong in [specification.md](specification.md).
+
+---
+
+## Navigation
+
+The left navigation has two levels.
+
+Farm-level pages:
+
+```text
+Farm Home
+Jobs
+Monitoring
+History
+Settings
+```
+
+Selected-printer pages:
+
+```text
+Home
+Print
+SD Card
+Camera
+Prepare
+Control
+Info
+History
+```
+
+On small laptop screens the navigation scrolls, so all menu entries should remain reachable.
+
+---
+
+## First Use
+
+1. Open `Settings`.
+2. Add or check your printer configuration.
+3. Enable the printer.
+4. Select the printer from the navigation.
+5. Open `Home` or `Monitoring` to confirm PrinterHub can poll it.
+
+For a simulated printer, use a simulated port/mode. For a real Marlin printer, use the serial port shown by your operating system.
+
+---
+
+## Farm Home
+
+Farm Home is the quick overview.
 
 It shows:
 
-* fleet summary
-* printer cards
-* current printer state
+* configured printers
+* enabled/disabled state
+* current runtime state
 * hotend and bed temperatures
 * last response
 * current error
-* recent update time
+* last update time
 
-Data source:
-
-```text
-GET /printers
-```
+Use this page to choose the printer you want to operate.
 
 ---
 
-### Printers
+## Jobs
 
-Printers is the farm-level printer list and selection area.
+The Jobs page shows recent jobs across the local PrinterHub runtime.
 
-It shows configured printers and lets the operator choose the selected printer used by the selected-printer navigation.
+Common actions:
 
-Data source:
+* create a job
+* start a job
+* pause or resume a running print-file job
+* cancel a job
+* restart a terminal print-file job
+* delete old jobs
+* expand job events
+* expand execution steps
+
+Typical states:
 
 ```text
-GET /printers
+CREATED
+QUEUED
+RUNNING
+PAUSED
+COMPLETED
+FAILED
+CANCELLED
 ```
 
-Printer administration itself is currently in Settings.
+If a job fails, open the execution diagnostics. They show the workflow step, command, response, and failure detail.
 
 ---
 
-### Jobs
+## Monitoring
 
-Jobs is the global job view.
+Monitoring is the cross-printer live view.
 
-It shows:
+It is useful when you want to know:
 
-* all recent jobs
-* job state
-* assigned printer
-* start, pause, resume, cancel, restart, and delete actions where supported
-* expandable job history
-* expandable execution diagnostics
+* which printers are active
+* which jobs are running
+* whether an SD upload is active
+* whether upload recovery or adaptive batching is happening
+* where to jump next
 
-Supported job endpoints include:
-
-```text
-POST   /jobs
-GET    /jobs
-GET    /jobs/{id}
-POST   /jobs/{id}/start
-POST   /jobs/{id}/pause
-POST   /jobs/{id}/resume
-POST   /jobs/{id}/cancel
-POST   /jobs/{id}/restart
-DELETE /jobs/{id}
-GET    /jobs/{id}/events
-GET    /jobs/{id}/execution-steps
-```
-
-Job start is asynchronous:
-
-```text
-POST /jobs/{id}/start
-├── validates the job and printer state
-├── marks or queues the job for execution
-├── submits execution in the background job executor
-└── returns quickly with the accepted/queued execution result
-```
-
-The dashboard then observes progress through job state, job events, and execution steps.
+Use follow actions to jump from a global item to the selected-printer page that owns it.
 
 ---
 
-### Monitoring
+## Settings
 
-Monitoring is the global cross-printer runtime observability page.
+Settings contains configuration that affects the local runtime.
 
-It shows:
-
-* fleet runtime summary
-* printer runtime states
-* active and recent jobs
-* active or last-known SD uploads
-* upload health
-* adaptive transfer diagnostics
-* follow actions for jobs and uploads
-
-Data source:
-
-```text
-GET /monitoring
-```
-
-The Monitoring page is not a replacement for the selected-printer SD Card page. It is a fleet-level observation workspace.
-
-Typical use:
-
-* open Monitoring to see what is active across the whole local runtime
-* identify an active upload or job
-* click a follow action
-* jump into the selected printer page that owns the detailed workflow
-
-Follow actions:
-
-```text
-upload follow -> selected printer / SD Card + upload synchronization
-job follow    -> selected printer / Print
-```
-
----
-
-### History
-
-History is the global review area for persisted runtime activity.
-
-Current dashboard history support is focused on:
-
-* printer events
-* job events
-* job execution diagnostics
-* runtime events related to monitoring, upload, recovery, and controlled actions
-
-Execution diagnostics show the actual workflow steps persisted by the backend, including:
-
-* step index
-* step name
-* wire command
-* printer response
-* outcome
-* success/failure
-* failure reason
-* failure detail
-
----
-
-### Settings
-
-Settings contains runtime configuration and printer administration.
-
-Available today:
+Available settings include:
 
 * monitoring rules
 * serial transfer settings
-* print-file storage settings
+* print-file storage directory
+* security settings and roles
 * printer create/update/delete
 * printer enable/disable
 
-Monitoring rules API:
-
-```text
-GET /settings/monitoring
-PUT /settings/monitoring
-```
-
-Serial transfer settings API:
-
-```text
-GET /settings/serial-transfer
-PUT /settings/serial-transfer
-```
-
-Print-file settings API:
-
-```text
-GET /settings/print-files
-PUT /settings/print-files
-```
-
-Printer administration API:
-
-```text
-POST   /printers
-PUT    /printers/{id}
-DELETE /printers/{id}
-POST   /printers/{id}/enable
-POST   /printers/{id}/disable
-```
-
-Serial transfer settings are persistent operator settings. They define limits and thresholds used by the SD-card upload runtime, but they are not the same thing as the live adaptive state of one running upload.
+The app version is shown in Settings so you can confirm which release is running after a remote update.
 
 ---
 
-## Selected Printer Pages
+## Selected Printer: Home
 
-### Home
+Home is the selected printer summary.
 
-Selected Printer / Home is the live overview for one printer.
+Use it to confirm:
 
-It shows:
-
-* identity
-* mode
-* enabled/disabled state
-* current runtime state
-* temperatures
-* last response
-* current error
-* latest update time
-
-Data source:
-
-```text
-GET /printers
-```
+* the selected printer is correct
+* PrinterHub can poll the printer
+* temperatures and state are updating
+* recent events look normal
 
 ---
 
-### Print
+## Selected Printer: Print
 
-Selected Printer / Print is the printer-specific job area.
+Print is focused on print-file jobs for the selected printer.
 
-It shows jobs assigned to the selected printer and provides job actions such as:
+Use this page to:
 
-* start
-* pause
-* resume
-* cancel
-* restart
-* delete
-* load job history
-* load execution diagnostics
-* show read-only `.gcode` file content for file-backed jobs
-
-The Print page uses registered printer-side SD targets for `PRINT_FILE` jobs. A print job does not directly select an arbitrary host file; it selects a known printer-side target that can be verified, registered, enabled, and reused.
-
-Relevant data sources:
-
-```text
-GET /jobs
-GET /printer-sd-files?printerId={id}
-GET /jobs/{id}/events
-GET /jobs/{id}/execution-steps
-```
+* see jobs for the selected printer
+* create a print workflow
+* start, pause, resume, cancel, or restart jobs
+* inspect job state and recent history
 
 ---
 
-### SD Card
+## Selected Printer: SD Card
 
-Selected Printer / SD Card is the printer-side file and upload workspace.
+The SD Card page is for printer-side SD file management.
 
-It supports:
+Use it to:
 
-* manual refresh of the printer SD-card file list
-* file names reported by firmware
-* size when available from firmware
-* raw firmware response review
-* registration of firmware-reported files as PrinterHub printable targets
-* manual registration of known printer-side paths
-* enabling and disabling registered SD targets
-* deleting registered SD targets
-* registering host-side `.gcode` files
-* uploading dashboard-selected `.gcode` files to PrinterHub storage
-* guarded host-to-printer SD-card upload
-* live upload progress
-* transfer quality display
-* upload performance metrics
-* adaptive transfer diagnostics
-* manual or synchronized upload-status refresh
+* list files from the printer firmware
+* register a known printer-side file
+* enable or disable a registered target
+* upload a host-side print file to the printer SD card
+* watch upload progress and transfer diagnostics
+* close an interrupted upload session when recovery is needed
 
-Primary data sources:
-
-```text
-GET  /printers/{id}/sd-card/files
-GET  /printer-sd-files?printerId={id}
-GET  /print-files
-POST /print-files
-POST /print-files/uploads
-POST /printer-sd-files
-POST /printers/{id}/sd-card/uploads
-GET  /printers/{id}/sd-card/uploads/status
-POST /printers/{id}/sd-card/recovery/close-upload
-```
-
-The SD Card page separates two concepts:
-
-```text
-printer-side SD files
-```
-
-and:
-
-```text
-PrinterHub registered printable targets
-```
-
-A firmware-reported SD file becomes usable for `PRINT_FILE` jobs after it is registered as a PrinterHub SD target.
+The upload controls are designed to use PrinterHub's controlled command flow. They are not raw serial access.
 
 ---
 
-### SD-card Upload Monitor
+## Selected Printer: Camera
 
-The SD Card page includes an upload monitor.
+The Camera page is for snapshots and visual analysis.
 
-It is split into operator-facing status and adaptive diagnostics.
+It contains:
 
-Upload status focuses on:
+* camera status
+* latest snapshot preview
+* camera settings
+* recent camera events
+* camera analysis sessions
+* camera analysis sample table
 
-* state
-* file name
-* progress
-* confirmed lines / total lines
-* confirmed bytes / total bytes
-* elapsed time
-* estimated remaining time
-* bytes per second
-* lines per second
-* rejected/resend count
-* transfer quality
-* detail message
+### Camera Settings
 
-Adaptive diagnostics focus on:
+Important fields:
 
-* configured max batch size
-* configured min batch size
-* active batch size
-* batch upgrade step
-* batch downgrade step
-* stable lines for upgrade
-* accepted lines since last resend
-* recent resend count
-* resend threshold for downgrade
-* recovery threshold for minimum batch
-* current transport mode
-* single-send/fallback state
-* last adaptation reason
-* last adaptation timestamp
+| Field | Meaning | Example |
+| --- | --- | --- |
+| Enable camera monitoring | Allows capture for this printer | checked |
+| Source type | Camera backend | `ffmpeg` |
+| Source value | Backend-specific input | `video=PC-LM1E Camera` |
+| Storage directory | Base folder for snapshots | `camera` or `C:\printerhub\data\camera` |
+| ffmpeg command | ffmpeg executable | `ffmpeg` |
+| ffmpeg input format | OS/backend input type | `dshow` on Windows, `v4l2` on Linux |
+| ffmpeg video size | Capture size | `640x480` |
+| ffmpeg timeout ms | Capture timeout | `5000` |
+| ffmpeg JPEG quality | ffmpeg JPEG quality | `3` |
 
-The operator can use the first card to check whether the upload works. The second card is for deeper analysis during long or unstable transfers.
+The storage directory is a base directory. PrinterHub adds the printer id automatically.
 
----
-
-### Upload Synchronization
-
-The SD Card page supports manual refresh and explicit upload synchronization.
-
-Manual refresh checks the upload status once.
-
-Synchronization starts periodic upload-status polling for the selected printer, useful when the dashboard is opened from another PC or browser while an upload is already running.
-
-The synchronization control polls:
+Example with Windows package database:
 
 ```text
-GET /printers/{id}/sd-card/uploads/status
+database file:       C:\printerhub\data\printerhub.db
+storage setting:    camera
+printer id:         p1
+actual image folder: C:\printerhub\data\camera\p1
 ```
 
-It does not repeatedly refresh the full SD-card file list. This avoids expensive or unsafe firmware file-list requests during upload.
-
-Typical remote observation flow:
+Example explicit Windows storage:
 
 ```text
-PC remote:
-  PrinterHub runs locally and is physically connected to the printer.
-
-PC user or PC chef:
-  opens http://<pc-remote-ip>:<port>/dashboard
-  selects the printer
-  opens SD Card
-  clicks Synchronize
-  watches the live upload-status feed
+C:\printerhub\data\camera
 ```
 
----
-
-### Prepare
-
-Selected Printer / Prepare is the place for preparation-oriented printer actions.
-
-Current and intended examples:
-
-* home axes
-* set nozzle temperature
-* set bed temperature
-* fan control
-* preparation workflows before printing
-
-The available controlled job/action types currently include:
+PrinterHub still adds the printer id:
 
 ```text
-HOME_AXES
-SET_NOZZLE_TEMPERATURE
-SET_BED_TEMPERATURE
-SET_FAN_SPEED
-TURN_FAN_OFF
+C:\printerhub\data\camera\p1
 ```
 
----
+### Windows ffmpeg Camera Example
 
-### Control
+List Windows cameras:
 
-Selected Printer / Control is the place for direct machine control.
+```powershell
+ffmpeg -list_devices true -f dshow -i dummy
+```
 
-The dashboard can send allowed manual commands through:
+If the listed camera name is:
 
 ```text
-POST /printers/{id}/commands
+PC-LM1E Camera
 ```
 
-This area is intended for controlled low-level operations, not for bypassing the safer job workflows.
+Use these dashboard values:
+
+```text
+Source type:          ffmpeg
+Source value:         video=PC-LM1E Camera
+ffmpeg input format:  dshow
+ffmpeg video size:    640x480
+Storage directory:    camera
+```
+
+Do not type extra quotes around the source value.
+
+### Linux ffmpeg Camera Example
+
+Common Linux values:
+
+```text
+Source type:          ffmpeg
+Source value:         /dev/video0
+ffmpeg input format:  v4l2
+ffmpeg video size:    640x480
+Storage directory:    camera
+```
+
+### Capture Now
+
+Use `Capture now` to test the camera.
+
+Expected result:
+
+* latest image updates
+* `latest.jpg` or `latest.png` is written
+* an archive/snapshot file is written
+* a camera event is recorded
+
+If capture fails, read the camera event message. It should include the ffmpeg exit detail.
+
+### Analysis Sessions
+
+A camera analysis session records analysis samples independently from print jobs.
+
+Use:
+
+* `Start` to begin a session
+* `Sample` to capture one analysis point
+* `Stop` to end the session
+
+The sample table shows the values that will later become graph series:
+
+| Column | Meaning |
+| --- | --- |
+| Captured at | Future graph X axis |
+| Analyzed at | When analysis finished |
+| State | Good or suspicious |
+| Confidence | Spaghetti detector confidence |
+| Delta score | Visual delta between previous and latest frame |
+| Changed pixels | Ratio of changed pixels |
+| Average delta | Average pixel difference |
+| Reason codes | Detector/analysis reasons |
+| Message | Human-readable result |
+| Latest snapshot | Image used as latest frame |
+| Previous snapshot | Image used as previous frame |
+| Delta snapshot | Generated delta image path |
+
+This table is intentionally plain. It is the debugging view before graph polish.
 
 ---
 
-### Info
+## Selected Printer: Control
 
-Selected Printer / Info is the read-only technical summary.
+Control contains manual command tools and selected-printer operational helpers.
 
-It is intended for:
+Today it includes:
 
-* printer identity
-* port
-* serial path type and stability guidance
-* mode
-* current state
-* last response
-* current error
-* firmware-oriented information as the backend grows
+* read temperature
+* read position
+* read firmware
+* latest command result
+* camera analysis session review
 
-For real Linux printers, the dashboard accepts the configured path exactly as entered and does not rewrite it. Prefer `/dev/serial/by-id/...` for stable identity. If a real printer uses `/dev/ttyUSB*` or `/dev/ttyACM*`, Settings and Info show guidance because those names may change after reconnect or reboot.
-
-Firmware information is currently available through controlled job or command flows rather than as a dedicated profile endpoint.
+The same camera analysis card appears here so you can sample or review camera analysis while staying near printer control actions.
 
 ---
 
-### History
+## Selected Printer: Info
 
-Selected Printer / History is the printer-specific review area.
+Info is the read-only technical page for the selected printer.
 
-It can show:
+Use it to inspect printer identity and configuration without changing anything.
+
+---
+
+## Selected Printer: History
+
+History shows selected-printer persisted activity.
+
+Use it for:
 
 * printer events
-* jobs for the selected printer
-* job events loaded on demand
-* job execution diagnostics loaded on demand
-
-Data sources:
-
-```text
-GET /printers/{id}/events
-GET /jobs
-GET /jobs/{id}/events
-GET /jobs/{id}/execution-steps
-```
+* job events
+* camera events
+* safety intervention events
+* execution diagnostics
 
 ---
 
-## Refresh Behavior
+## Troubleshooting
 
-Dashboard refresh is split into several categories.
+### Dashboard Opens But Actions Fail
 
-### Manual Refresh Now
+Check:
 
-The top-right **Refresh now** button refreshes general dashboard data and may rerender the current page.
+* the runtime is still running
+* the browser URL uses the correct host and port
+* the selected printer exists
+* the current role has permission for the action
 
-This is explicit user action, so it is acceptable for panels to redraw.
+### Camera Capture Fails On Windows With dshow
 
-### Automatic Background Refresh
-
-Automatic background refresh is intentionally narrow.
-
-It updates live printer fields only:
-
-* printer state
-* temperatures
-* last response
-* error message
-* updated timestamp
-
-It must not rerender whole pages such as Jobs, Print, History, Settings, or SD Card during normal idle observation.
-
-It must not reset:
-
-* expanded job details
-* forms
-* selected tabs
-* scroll position
-* loaded diagnostics
-* selected printer context
-* upload synchronization state
-
-### Upload Status Polling
-
-Upload status polling is separate from full dashboard refresh.
-
-It reads only:
+If the event says:
 
 ```text
-GET /printers/{id}/sd-card/uploads/status
+Malformed dshow input string
 ```
 
-This supports live upload observation without triggering heavier printer-side actions such as SD-card file listing.
+check the source value. It usually needs `video=`.
 
-### Monitoring Refresh
-
-The Monitoring page reads aggregated runtime state through:
+Correct:
 
 ```text
-GET /monitoring
+video=PC-LM1E Camera
 ```
 
-This endpoint is intended for cross-printer visibility. It aggregates runtime state, job state, and upload state without making the dashboard manually stitch together all detailed endpoints.
-
-### Action-Based Refresh
-
-Actions refresh the data needed for that action.
-
-Examples:
+Wrong:
 
 ```text
-create printer -> refresh printers and rerender current page
-create job -> refresh jobs and rerender current page
-start job -> refresh jobs/events/diagnostics as needed
-load history -> fetch job events only
-load diagnostics -> fetch execution steps only
-delete job -> refresh jobs and current view
-upload file to SD -> start upload status polling and refresh relevant SD-card data afterward
-synchronize upload -> poll upload status only
+PC-LM1E Camera
 ```
 
-Job history and diagnostics panels remember their expanded/collapsed state while the page is rerendered.
+### Camera Files Are Written To The Wrong Folder
+
+Check the camera `Storage directory` field.
+
+Recommended package install value:
+
+```text
+camera
+```
+
+This resolves relative to the folder containing the configured database file.
+
+### Version Looks Wrong After Update
+
+Open Settings and check the displayed version. If it is not the version you installed, restart the runtime and check the update logs.
 
 ---
 
-## Frontend Files
+## Related Documents
 
-Current dashboard files:
-
-```text
-src/main/resources/dashboard/
-├── index.html
-├── dashboard.css
-├── dashboard.js
-├── api.js
-├── state.js
-├── components/
-│   ├── event-list.js
-│   ├── job-card.js
-│   ├── nav.js
-│   ├── placeholder-card.js
-│   ├── printer-card.js
-│   └── status-panels.js
-└── views/
-    ├── farm-home.js
-    ├── jobs.js
-    ├── monitoring.js
-    ├── printer-control.js
-    ├── printer-history.js
-    ├── printer-home.js
-    ├── printer-info.js
-    ├── printer-prepare.js
-    ├── printer-print.js
-    ├── printer-sd-card.js
-    └── settings.js
-```
-
-Important notes:
-
-* `dashboard.js` is the dashboard entrypoint
-* `api.js` contains relative API calls
-* `state.js` stores selected view, selected printer, cached data, loaded events, loaded diagnostics, upload status, synchronization state, and expanded job-card sections
-* view modules render page-level content
-* component modules render reusable cards, navigation, events, diagnostics, and status panels
-* `printer-sd-card.js` owns selected-printer SD-card upload display
-* `monitoring.js` owns global cross-printer runtime observability
-
----
-
-## Backend/API Mapping
-
-| Dashboard area             | API                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------- |
-| Farm Home                  | `GET /printers`                                                                        |
-| Printers                   | `GET /printers`                                                                        |
-| Monitoring                 | `GET /monitoring`                                                                      |
-| Selected Printer / Home    | `GET /printers`                                                                        |
-| Selected Printer / Print   | `GET /jobs`, job action endpoints, `GET /printer-sd-files?printerId={id}`              |
-| Selected Printer / SD Card | SD-card, print-file, upload, and upload-status endpoints                               |
-| Selected Printer / Prepare | `POST /jobs`, `POST /jobs/{id}/start`                                                  |
-| Selected Printer / Control | `POST /printers/{id}/commands`                                                         |
-| Selected Printer / Info    | `GET /printers`, command/job flows for firmware info                                   |
-| Selected Printer / History | `GET /printers/{id}/events`, `GET /jobs/{id}/events`, `GET /jobs/{id}/execution-steps` |
-| Jobs                       | `GET /jobs`, job action endpoints                                                      |
-| History                    | event and execution-step endpoints                                                     |
-| Settings / Monitoring      | `GET /settings/monitoring`, `PUT /settings/monitoring`                                 |
-| Settings / Serial transfer | `GET /settings/serial-transfer`, `PUT /settings/serial-transfer`                       |
-| Settings / Print files     | `GET /settings/print-files`, `PUT /settings/print-files`                               |
-| Settings / Printer admin   | printer CRUD and enable/disable endpoints                                              |
-
----
-
-## Key API Endpoints
-
-Printer runtime:
-
-```text
-GET /printers
-GET /printers/{id}
-GET /printers/{id}/status
-GET /printers/{id}/events
-```
-
-Global monitoring:
-
-```text
-GET /monitoring
-```
-
-Jobs:
-
-```text
-POST   /jobs
-GET    /jobs
-GET    /jobs/{id}
-POST   /jobs/{id}/start
-POST   /jobs/{id}/pause
-POST   /jobs/{id}/resume
-POST   /jobs/{id}/cancel
-POST   /jobs/{id}/restart
-DELETE /jobs/{id}
-GET    /jobs/{id}/events
-GET    /jobs/{id}/execution-steps
-```
-
-SD card and files:
-
-```text
-GET    /printers/{id}/sd-card/files
-POST   /printers/{id}/sd-card/uploads
-GET    /printers/{id}/sd-card/uploads/status
-POST   /printers/{id}/sd-card/recovery/close-upload
-
-GET    /print-files
-POST   /print-files
-POST   /print-files/uploads
-GET    /print-files/{id}
-GET    /print-files/{id}/content
-
-GET    /printer-sd-files
-GET    /printer-sd-files?printerId={id}
-POST   /printer-sd-files
-GET    /printer-sd-files/{id}
-POST   /printer-sd-files/{id}/enable
-POST   /printer-sd-files/{id}/disable
-DELETE /printer-sd-files/{id}
-```
-
-Settings:
-
-```text
-GET /settings/monitoring
-PUT /settings/monitoring
-
-GET /settings/serial-transfer
-PUT /settings/serial-transfer
-
-GET /settings/print-files
-PUT /settings/print-files
-```
-
----
-
-## Current Limitations
-
-The dashboard does not yet provide:
-
-* slicer integration
-* model slicing
-* G-code editing
-* printer-specific monitoring rules
-* printer-specific serial transfer settings
-* a dedicated firmware profile endpoint
-* complete rich supervision of every firmware-side print phase
-* production-grade multi-site orchestration
-
-Current SD-print supervision is still early-stage. PrinterHub can start a registered printer-side file-backed print and observe completion in supported cases, but richer print progress, pause, cancel, and recovery behavior remains future work.
- 
+* [rest-api.md](rest-api.md) for API endpoints
+* [specification.md](specification.md) for implementation architecture
+* [camera.md](camera.md) for deeper camera notes and ffmpeg examples
+* [install-remote.md](install-remote.md) for remote installation workflow

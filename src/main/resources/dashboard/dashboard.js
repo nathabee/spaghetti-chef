@@ -59,6 +59,7 @@ import {
   capturePrinterCameraSnapshot,
   capturePrinterCameraAnalysisSample,
   renderPrinterCamera,
+  renderPrinterCameraAnalysisPanel,
   renderPrinterCameraLoading,
   savePrinterCameraSettings,
   startPrinterCameraAnalysisSession,
@@ -365,6 +366,7 @@ function renderPage() {
 
   if (state.activePrinterView === PRINTER_VIEW_IDS.CONTROL) {
     pageContentElement.innerHTML = renderPrinterControl(selectedPrinter);
+    void loadPrinterControlCameraAnalysisIntoPage(selectedPrinter);
     return;
   }
 
@@ -496,6 +498,7 @@ function bindGlobalListeners() {
     if (cameraAnalysisStartButton) {
       await handleStartCameraAnalysis(cameraAnalysisStartButton.dataset.cameraAnalysisStart);
       await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
       renderGlobalMessage();
       return;
     }
@@ -507,6 +510,7 @@ function bindGlobalListeners() {
         cameraAnalysisStopButton.dataset.sessionId
       );
       await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
       renderGlobalMessage();
       return;
     }
@@ -518,6 +522,7 @@ function bindGlobalListeners() {
         cameraAnalysisSampleButton.dataset.sessionId
       );
       await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
       renderGlobalMessage();
       return;
     }
@@ -728,13 +733,6 @@ function bindPageListeners() {
     });
   }
 
-  const cameraAnalysisTimelineInput = document.getElementById("cameraAnalysisTimelineInput");
-  if (cameraAnalysisTimelineInput) {
-    cameraAnalysisTimelineInput.addEventListener("input", () => {
-      updateCameraAnalysisSelection(cameraAnalysisTimelineInput);
-    });
-  }
-
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
     jobForm.addEventListener("submit", async (event) => {
@@ -865,38 +863,6 @@ async function handleCaptureCameraAnalysisSample(printerId, sessionId) {
     setMessage(`Captured camera analysis sample for ${printerId}.`);
   } catch (error) {
     setMessage(`Failed to capture camera analysis sample for ${printerId}: ${error.message}`);
-  }
-}
-
-function updateCameraAnalysisSelection(input) {
-  let samples = [];
-  try {
-    samples = JSON.parse(input.dataset.analysisSamples || "[]");
-  } catch {
-    samples = [];
-  }
-
-  const sample = samples[Number.parseInt(input.value, 10)];
-  if (!sample) {
-    return;
-  }
-
-  const reasonCodes = document.getElementById("cameraAnalysisReasonCodes");
-  const message = document.getElementById("cameraAnalysisMessage");
-  const latestPath = document.getElementById("cameraAnalysisLatestPath");
-  const deltaPath = document.getElementById("cameraAnalysisDeltaPath");
-
-  if (reasonCodes) {
-    reasonCodes.textContent = sample.reasonCodes || "—";
-  }
-  if (message) {
-    message.textContent = sample.message || "—";
-  }
-  if (latestPath) {
-    latestPath.textContent = sample.latestSnapshotPath || "—";
-  }
-  if (deltaPath) {
-    deltaPath.textContent = sample.deltaSnapshotPath || "—";
   }
 }
 
@@ -2182,6 +2148,46 @@ async function loadPrinterCameraIntoPage(printer) {
       <div class="empty-state error-state">
         <h3>Camera view failed</h3>
         <p>${escapeHtml(error.message || "Unable to load camera monitoring data.")}</p>
+      </div>
+    `;
+  }
+}
+
+async function loadPrinterControlCameraAnalysisIntoPage(printer) {
+  if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CONTROL) {
+    return;
+  }
+
+  const expectedPrinterId = printer.id;
+  const mount = document.getElementById("controlCameraAnalysisMount");
+  if (!mount) {
+    return;
+  }
+
+  try {
+    const html = await renderPrinterCameraAnalysisPanel(printer);
+
+    if (
+      state.activePrinterView !== PRINTER_VIEW_IDS.CONTROL
+      || state.selectedPrinterId !== expectedPrinterId
+    ) {
+      return;
+    }
+
+    mount.innerHTML = html;
+    bindPageListeners();
+  } catch (error) {
+    if (
+      state.activePrinterView !== PRINTER_VIEW_IDS.CONTROL
+      || state.selectedPrinterId !== expectedPrinterId
+    ) {
+      return;
+    }
+
+    mount.innerHTML = `
+      <div class="empty-state error-state">
+        <h3>Camera analysis failed</h3>
+        <p>${escapeHtml(error.message || "Unable to load camera analysis data.")}</p>
       </div>
     `;
   }
