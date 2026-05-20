@@ -15,6 +15,7 @@ next:
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.6 — Camera Dashboard Job Debug
 - 0.4.5 — Real Webcam Backend
 - 0.4.4 — Camera Safety Intervention
 - 0.4.3 — Camera Analysis Sessions and Trace Review

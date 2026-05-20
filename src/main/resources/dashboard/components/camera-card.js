@@ -1,5 +1,5 @@
 import { escapeHtml, formatDateTime } from "../utils/format.js";
-import { cameraSnapshotUrl } from "../api.js";
+import { cameraArchiveFileUrl, cameraSnapshotUrl } from "../api.js";
 
 function formatBoolean(value) {
   return value ? "Yes" : "No";
@@ -462,6 +462,107 @@ function renderSessionsList(sessions, selectedSession) {
   `;
 }
 
+export function renderCameraArchiveCard(printerId, files, archiveRange = {}) {
+  const safeFiles = Array.isArray(files) ? files : [];
+
+  return `
+    <article class="section-card camera-archive-card">
+      <div class="section-header compact">
+        <div>
+          <div class="kicker">Camera files</div>
+          <h3>Snapshot archive</h3>
+          <p class="muted">Review files written by the camera backend for the selected time window.</p>
+        </div>
+      </div>
+
+      <form id="cameraArchiveForm" class="inline-form">
+        <label>
+          Start
+          <input id="cameraArchiveFromInput" name="from" type="datetime-local" value="${escapeHtml(datetimeLocalValue(archiveRange.from))}">
+        </label>
+        <label>
+          Stop
+          <input id="cameraArchiveToInput" name="to" type="datetime-local" value="${escapeHtml(datetimeLocalValue(archiveRange.to))}">
+        </label>
+        <button type="submit">List files</button>
+      </form>
+
+      ${renderArchiveFilesTable(printerId, safeFiles)}
+    </article>
+  `;
+}
+
+function renderArchiveFilesTable(printerId, files) {
+  if (files.length === 0) {
+    return `
+      <div class="empty-state">
+        <h4>No camera files</h4>
+        <p class="muted">Capture a snapshot or widen the time window.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="table-wrap">
+      <table class="data-table camera-archive-table">
+        <thead>
+          <tr>
+            <th>Modified at</th>
+            <th>Type</th>
+            <th>File name</th>
+            <th>Relative path</th>
+            <th>Size</th>
+            <th>Open</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${files.map((file) => renderArchiveFileRow(printerId, file)).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderArchiveFileRow(printerId, file) {
+  return `
+    <tr>
+      <td>${file.modifiedAt ? escapeHtml(formatDateTime(file.modifiedAt)) : "—"}</td>
+      <td>${formatNullable(file.type)}</td>
+      <td>${formatNullable(file.fileName)}</td>
+      <td><code>${formatNullable(file.relativePath)}</code></td>
+      <td>${formatBytes(file.sizeBytes)}</td>
+      <td><a href="${escapeHtml(cameraArchiveFileUrl(printerId, file.id))}" target="_blank" rel="noreferrer">Open</a></td>
+    </tr>
+  `;
+}
+
+function formatBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "—";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function datetimeLocalValue(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 16);
+}
+
 function formatRatio(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -482,7 +583,7 @@ function renderCameraEvent(event) {
   `;
 }
 
-export function renderCameraPage(printerId, status, settings, events, sessions, samples) {
+export function renderCameraPage(printerId, status, settings, events, sessions, samples, archiveFiles, archiveRange) {
   return `
     <div class="view printer-camera-view">
       <div class="section-header">
@@ -507,6 +608,10 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
 
       <section>
         ${renderCameraAnalysisCard(printerId, sessions, samples)}
+      </section>
+
+      <section>
+        ${renderCameraArchiveCard(printerId, archiveFiles, archiveRange)}
       </section>
     </div>
   `;

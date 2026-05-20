@@ -375,6 +375,24 @@ export async function captureCameraAnalysisSample(printerId, sessionId) {
   });
 }
 
+export async function getCameraArchiveFiles(printerId, from, to) {
+  const params = new URLSearchParams();
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
+
+  const query = params.toString();
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/archive${query ? `?${query}` : ""}`);
+  return Array.isArray(data.files) ? data.files : [];
+}
+
+export function cameraArchiveFileUrl(printerId, fileId) {
+  return `/printers/${encodeURIComponent(printerId)}/camera/archive/${encodeURIComponent(fileId)}?t=${Date.now()}`;
+}
+
 export function cameraSnapshotUrl(printerId) {
   return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
 }

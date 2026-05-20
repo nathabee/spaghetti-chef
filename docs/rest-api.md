@@ -135,6 +135,8 @@ PUT  /printers/{printerId}/camera/settings
 POST /printers/{printerId}/camera/snapshot
 GET  /printers/{printerId}/camera/snapshot
 GET  /printers/{printerId}/camera/events
+GET  /printers/{printerId}/camera/archive?from={isoInstant}&to={isoInstant}
+GET  /printers/{printerId}/camera/archive/{fileId}
 ```
 
 Supported `sourceType` values:
@@ -229,6 +231,26 @@ Capture response example:
 ```
 
 If capture fails, the response and camera events include the failure detail.
+
+Archive listing response example:
+
+```json
+{
+  "files": [
+    {
+      "id": "YXJjaGl2ZS8yMDI2LTA1LTIwVDExLTMxLTI1Wi5qcGc",
+      "type": "archive",
+      "fileName": "2026-05-20T11-31-25Z.jpg",
+      "relativePath": "archive/2026-05-20T11-31-25Z.jpg",
+      "contentType": "image/jpeg",
+      "sizeBytes": 18234,
+      "modifiedAt": "2026-05-20T11:31:25Z"
+    }
+  ]
+}
+```
+
+The archive endpoint only lists files under the selected printer camera directory. Use the returned `id` with `/camera/archive/{fileId}` to open an image without exposing raw absolute paths.
 
 ---
 
@@ -514,6 +536,8 @@ PUT    /printers/{printerId}/camera/settings
 POST   /printers/{printerId}/camera/snapshot
 GET    /printers/{printerId}/camera/snapshot
 GET    /printers/{printerId}/camera/events
+GET    /printers/{printerId}/camera/archive
+GET    /printers/{printerId}/camera/archive/{fileId}
 POST   /printers/{printerId}/camera/analysis-sessions
 GET    /printers/{printerId}/camera/analysis-sessions
 GET    /printers/{printerId}/camera/analysis-sessions/{sessionId}

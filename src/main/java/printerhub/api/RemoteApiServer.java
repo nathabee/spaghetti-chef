@@ -1562,6 +1562,18 @@ public final class RemoteApiServer {
             return;
         }
 
+        if ("archive".equals(cameraResource)) {
+            if (parts.length == 3) {
+                cameraApiHandler.handleArchive(exchange, printerId);
+                return;
+            }
+
+            if (parts.length == 4) {
+                cameraApiHandler.handleArchiveFile(exchange, printerId, parts[3]);
+                return;
+            }
+        }
+
         if ("analysis-sessions".equals(cameraResource)) {
             if (parts.length == 3) {
                 cameraApiHandler.handleAnalysisSessions(exchange, printerId);

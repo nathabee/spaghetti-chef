@@ -2,11 +2,14 @@ package printerhub.api;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
+import printerhub.camera.CameraArchiveFile;
+import printerhub.camera.CameraArchiveService;
 import printerhub.camera.CameraCaptureResult;
 import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSourceType;
 import printerhub.camera.CameraStatus;
+import printerhub.camera.ResolvedCameraArchiveFile;
 import printerhub.persistence.CameraAnalysisSample;
 import printerhub.persistence.CameraAnalysisSession;
 import printerhub.persistence.CameraEvent;
@@ -34,6 +37,7 @@ public final class CameraApiHandler {
     private final CameraEventStore eventStore;
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
     private final CameraAnalysisSessionService analysisSessionService;
+    private final CameraArchiveService archiveService;
 
     public CameraApiHandler(
             CameraCaptureService captureService,
@@ -46,6 +50,7 @@ public final class CameraApiHandler {
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.analysisSessionService = Objects.requireNonNull(analysisSessionService, "analysisSessionService");
+        this.archiveService = new CameraArchiveService(this.settingsService);
     }
 
     public void handleStatus(HttpExchange exchange, String printerId) throws IOException {
@@ -234,6 +239,55 @@ public final class CameraApiHandler {
             sendError(exchange, 404, "camera_analysis_session_not_found", exception.getMessage());
         } catch (RuntimeException exception) {
             sendError(exchange, 500, "camera_analysis_samples_failed", exception.getMessage());
+        }
+    }
+
+    public void handleArchive(HttpExchange exchange, String printerId) throws IOException {
+        if (!isMethod(exchange, "GET")) {
+            sendMethodNotAllowed(exchange, "GET");
+            return;
+        }
+
+        try {
+            Optional<Instant> from = queryParameter(exchange, "from").map(CameraApiHandler::parseInstant);
+            Optional<Instant> to = queryParameter(exchange, "to").map(CameraApiHandler::parseInstant);
+
+            sendJson(exchange, 200, archiveFilesJson(archiveService.list(printerId, from, to)));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_archive_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_archive_failed", exception.getMessage());
+        }
+    }
+
+    public void handleArchiveFile(HttpExchange exchange, String printerId, String fileId) throws IOException {
+        if (!isMethod(exchange, "GET")) {
+            sendMethodNotAllowed(exchange, "GET");
+            return;
+        }
+
+        try {
+            Optional<ResolvedCameraArchiveFile> archiveFile = archiveService.resolve(printerId, fileId);
+
+            if (archiveFile.isEmpty()) {
+                sendError(exchange, 404, "camera_archive_file_not_found", "Camera archive file was not found");
+                return;
+            }
+
+            byte[] bytes = Files.readAllBytes(archiveFile.get().path());
+            Headers headers = exchange.getResponseHeaders();
+            headers.set("Content-Type", archiveFile.get().contentType());
+            headers.set("Cache-Control", "no-store");
+            headers.set("Last-Modified", archiveFile.get().modifiedAt().toString());
+            exchange.sendResponseHeaders(200, bytes.length);
+
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(bytes);
+            }
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_archive_file_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_archive_file_failed", exception.getMessage());
         }
     }
 
@@ -441,6 +495,28 @@ public final class CameraApiHandler {
         return builder.toString();
     }
 
+    private static String archiveFilesJson(List<CameraArchiveFile> files) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\"files\":[");
+        for (int index = 0; index < files.size(); index++) {
+            CameraArchiveFile file = files.get(index);
+            if (index > 0) {
+                builder.append(",");
+            }
+            builder.append("{")
+                    .append(jsonField("id", file.id())).append(",")
+                    .append(jsonField("type", file.type())).append(",")
+                    .append(jsonField("fileName", file.fileName())).append(",")
+                    .append(jsonField("relativePath", file.relativePath())).append(",")
+                    .append(jsonField("contentType", file.contentType())).append(",")
+                    .append(jsonField("sizeBytes", file.sizeBytes())).append(",")
+                    .append(jsonField("modifiedAt", file.modifiedAt().toString()))
+                    .append("}");
+        }
+        builder.append("]}");
+        return builder.toString();
+    }
+
     private static String sampleJson(CameraAnalysisSample sample) {
         return "{"
                 + jsonField("id", sample.id().orElse(null)) + ","
@@ -548,6 +624,33 @@ public final class CameraApiHandler {
                 return Optional.empty();
             }
         });
+    }
+
+    private static Optional<String> queryParameter(HttpExchange exchange, String name) {
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isBlank()) {
+            return Optional.empty();
+        }
+
+        String marker = name + "=";
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            if (pair.startsWith(marker)) {
+                return Optional.of(java.net.URLDecoder.decode(
+                        pair.substring(marker.length()),
+                        StandardCharsets.UTF_8));
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static Instant parseInstant(String value) {
+        try {
+            return Instant.parse(value);
+        } catch (java.time.format.DateTimeParseException exception) {
+            throw new IllegalArgumentException("invalid timestamp: " + value, exception);
+        }
     }
 
     private static Optional<String> readRawField(String json, String fieldName) {

@@ -1059,6 +1059,54 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void cameraArchiveListsAndServesCapturedFiles() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-archive-storage");
+
+        TestContext context = createContext("camera-archive.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
+                            """.formatted(cameraStorageDirectory)
+            );
+            assertEquals(200, settingsResponse.statusCode());
+
+            HttpResponse<String> captureResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/snapshot",
+                    null);
+            assertEquals(200, captureResponse.statusCode());
+
+            HttpResponse<String> archiveResponse = context.get("/printers/printer-1/camera/archive");
+
+            assertEquals(200, archiveResponse.statusCode());
+            assertTrue(archiveResponse.body().contains("\"files\":["));
+            assertTrue(archiveResponse.body().contains("\"type\":\"latest\""));
+            assertTrue(archiveResponse.body().contains("\"type\":\"archive\""));
+            assertTrue(archiveResponse.body().contains("\"type\":\"snapshot\""));
+
+            String fileId = extractJsonString(archiveResponse.body(), "id");
+            assertNotNull(fileId);
+
+            HttpResponse<String> fileResponse = context.get("/printers/printer-1/camera/archive/" + fileId);
+
+            assertEquals(200, fileResponse.statusCode());
+            assertTrue(fileResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
+            assertTrue(fileResponse.headers().firstValue("cache-control").orElse("").contains("no-store"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void getCameraStatusIncludesLastCaptureAfterSnapshot() throws Exception {
         Path cameraStorageDirectory = tempDir.resolve("camera-status-storage");
 
