@@ -12,7 +12,7 @@ import {
 } from "../api.js";
 
 import { escapeHtml } from "../utils/format.js";
-import { renderCameraPage } from "../components/camera-card.js";
+import { renderCameraAnalysisCard, renderCameraPage } from "../components/camera-card.js";
 
 export function renderPrinterCameraLoading(printer) {
   if (!printer) {
@@ -68,6 +68,20 @@ export async function renderPrinterCamera(printer) {
       </div>
     `;
   }
+}
+
+export async function renderPrinterCameraAnalysisPanel(printer) {
+  if (!printer) {
+    return "";
+  }
+
+  const sessions = await getCameraAnalysisSessions(printer.id);
+  const selectedSession = sessions.find((session) => session.state === "RUNNING") || sessions[0];
+  const samples = selectedSession
+    ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
+    : [];
+
+  return renderCameraAnalysisCard(printer.id, sessions, samples);
 }
 
 export async function capturePrinterCameraSnapshot(printerId) {

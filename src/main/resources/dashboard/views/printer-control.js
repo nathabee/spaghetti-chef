@@ -46,6 +46,17 @@ export function renderPrinterControl(printer) {
           ]
         )}
       </div>
+
+      <section id="controlCameraAnalysisMount">
+        <article class="section-card">
+          <div class="section-header compact">
+            <div>
+              <div class="kicker">Camera</div>
+              <h3>Loading analysis session</h3>
+            </div>
+          </div>
+        </article>
+      </section>
     </section>
   `;
 }

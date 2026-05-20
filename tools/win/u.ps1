@@ -8,13 +8,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$ScriptVersion = 'u.ps1 runtime-env-v2'
+$ScriptVersion = 'u.ps1 runtime-env-v3'
 Write-Host "Running $ScriptVersion"
 
 function Fail {
     param([string]$Message)
     Write-Error "[$ScriptVersion] $Message"
     exit 1
+}
+
+function Write-UpdateLog {
+    param(
+        [string]$Path,
+        [string]$Message
+    )
+
+    $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    "[$stamp] $Message" | Add-Content -LiteralPath $Path
 }
 
 function Read-RunEnv {
@@ -94,7 +104,6 @@ function Get-JavaMajorVersion {
     return $null
 }
 
-
 function Get-ConfiguredDatabaseFile {
     param(
         [hashtable]$EnvMap,
@@ -146,6 +155,145 @@ function Assert-PersistentRuntimePaths {
     Write-Host "Persistent database file: $dbFullPath"
 }
 
+function Assert-ExtractedWindowsAppPackage {
+    param([string]$SourceDir)
+
+    $requiredFiles = @(
+        'printerhub.bat',
+        'printer-hub.jar'
+    )
+
+    foreach ($fileName in $requiredFiles) {
+        $path = Join-Path $SourceDir $fileName
+        if (-not (Test-Path -LiteralPath $path)) {
+            Fail "Extracted Windows package does not contain required file: $fileName"
+        }
+    }
+
+    $unexpectedPowerShellScripts = Get-ChildItem -LiteralPath $SourceDir -Recurse -File -Filter '*.ps1' -ErrorAction SilentlyContinue
+    if ($unexpectedPowerShellScripts.Count -gt 0) {
+        Write-Host "Unexpected PowerShell scripts found in Windows app package:"
+        $unexpectedPowerShellScripts | Select-Object FullName | Format-Table -AutoSize
+        Fail "Windows app package must not contain PowerShell helper scripts. Put scripts in the admin package instead."
+    }
+
+    $unexpectedCameraHelpers = Get-ChildItem -LiteralPath $SourceDir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -like 'camera-capture-*'
+        }
+
+    if ($unexpectedCameraHelpers.Count -gt 0) {
+        Write-Host "Unexpected camera helper files found in Windows app package:"
+        $unexpectedCameraHelpers | Select-Object FullName | Format-Table -AutoSize
+        Fail "Windows app package must not contain camera helper scripts. Put them under admin package camera/."
+    }
+}
+
+function Copy-LightweightDataBackup {
+    param(
+        [string]$DataDir,
+        [string]$BackupDir
+    )
+
+    if (-not (Test-Path -LiteralPath $DataDir)) {
+        return
+    }
+
+    Write-Host "Creating lightweight data backup: $BackupDir"
+    New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+
+    Get-ChildItem -LiteralPath $DataDir -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $BackupDir -Force
+    }
+}
+
+function Copy-AppBackup {
+    param(
+        [string]$AppDir,
+        [string]$BackupDir
+    )
+
+    if (-not (Test-Path -LiteralPath $AppDir)) {
+        Write-Host "No existing app directory found. Fresh app directory will be created."
+        return
+    }
+
+    Write-Host "Creating app backup copy: $BackupDir"
+    Copy-Item -LiteralPath $AppDir -Destination $BackupDir -Recurse -Force
+}
+
+function Remove-AppOwnedItems {
+    param([string]$AppDir)
+
+    New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
+
+    $appOwnedItems = @(
+        'printer-hub.jar',
+        'printerhub.bat',
+        'printerhub-task.cmd',
+        'META-INF',
+        'dashboard',
+        'camera',
+        'INSTALL.md',
+        'QUICKSTART.md',
+        'README.md'
+    )
+
+    foreach ($itemName in $appOwnedItems) {
+        $target = Join-Path $AppDir $itemName
+
+        if (Test-Path -LiteralPath $target) {
+            try {
+                Remove-Item -LiteralPath $target -Recurse -Force
+                Write-Host "Removed old app-owned item: $target"
+            }
+            catch {
+                Fail "Could not remove old app-owned item '$target': $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Copy-AppFiles {
+    param(
+        [string]$SourceDir,
+        [string]$AppDir
+    )
+
+    New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
+
+    Write-Host "Copying new app files into: $AppDir"
+    Copy-Item -Path (Join-Path $SourceDir '*') -Destination $AppDir -Recurse -Force
+}
+
+function Assert-InstalledJarMatchesSource {
+    param(
+        [string]$SourceDir,
+        [string]$AppDir
+    )
+
+    $sourceJar = Join-Path $SourceDir 'printer-hub.jar'
+    $targetJar = Join-Path $AppDir 'printer-hub.jar'
+
+    if (-not (Test-Path -LiteralPath $sourceJar)) {
+        Fail "Source package does not contain printer-hub.jar: $sourceJar"
+    }
+
+    if (-not (Test-Path -LiteralPath $targetJar)) {
+        Fail "Installed app does not contain printer-hub.jar after copy: $targetJar"
+    }
+
+    $sourceJarHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceJar).Hash
+    $targetJarHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $targetJar).Hash
+
+    Write-Host "Source JAR SHA256: $sourceJarHash"
+    Write-Host "Target JAR SHA256: $targetJarHash"
+
+    if ($sourceJarHash -ne $targetJarHash) {
+        Fail "Installed JAR hash does not match extracted package. source=$sourceJarHash target=$targetJarHash"
+    }
+}
+
 $root = 'C:\printerhub'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
@@ -154,6 +302,12 @@ $logDir = "$root\log"
 $dataDir = "$root\data"
 $runEnvPath = "$root\data\run.env"
 $updateLog = Join-Path $logDir 'update.log'
+
+foreach ($dir in @($logDir, $tmpDir, $relDir, $dataDir)) {
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
+}
 
 $envMap = Read-RunEnv -Path $runEnvPath
 $javaCommand = Get-JavaCommand -EnvMap $envMap
@@ -167,14 +321,7 @@ if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
 }
 
-foreach ($dir in @($logDir, $tmpDir, $relDir, $dataDir)) {
-    if (-not (Test-Path -LiteralPath $dir)) {
-        New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    }
-}
-
 Assert-PersistentRuntimePaths -DatabaseFile $databaseFile -AppDir $appDir -DataDir $dataDir
-
 
 if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\s.ps1')) {
     Fail "Stop script not found: C:\printerhub\bin\s.ps1"
@@ -187,11 +334,11 @@ $assetName = "printer-hub-$Version-windows.zip"
 $tagName = "v$Version"
 $zipPath = Join-Path $relDir $assetName
 $extractDir = Join-Path $tmpDir ("extract-" + $Version)
-$backupDir = Join-Path $tmpDir ("app-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$appBackupDir = Join-Path $tmpDir ("app-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$dataBackupDir = Join-Path $tmpDir ("data-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 $downloadUrl = "https://github.com/$Owner/$Repo/releases/download/$tagName/$assetName"
 
-$stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-"[$stamp] update start version=$Version tag=$tagName url=$downloadUrl java=$javaCommand" | Add-Content -LiteralPath $updateLog
+Write-UpdateLog -Path $updateLog -Message "update start version=$Version tag=$tagName url=$downloadUrl java=$javaCommand"
 
 Write-Host "Using run.env: $runEnvPath"
 Write-Host "Detected Java command: $javaCommand"
@@ -200,17 +347,7 @@ Write-Host "Downloading $downloadUrl"
 
 Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
 
-$dataBackupDir = Join-Path $tmpDir ("data-backup-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-
-if (Test-Path -LiteralPath $dataDir) {
-    Write-Host "Creating lightweight data backup: $dataBackupDir"
-    New-Item -ItemType Directory -Force -Path $dataBackupDir | Out-Null
-
-    Get-ChildItem -LiteralPath $dataDir -File | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $dataBackupDir -Force
-    }
-}
-
+Copy-LightweightDataBackup -DataDir $dataDir -BackupDir $dataBackupDir
 
 Write-Host "Stopping current PrinterHub"
 & 'C:\printerhub\bin\s.ps1'
@@ -231,42 +368,13 @@ else {
     $sourceDir = $extractDir
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $sourceDir 'printerhub.bat'))) {
-    Fail "Extracted package does not contain printerhub.bat"
-}
-if (-not (Test-Path -LiteralPath (Join-Path $sourceDir 'printer-hub.jar'))) {
-    Fail "Extracted package does not contain printer-hub.jar"
-}
+Write-Host "Extracted source directory: $sourceDir"
+Assert-ExtractedWindowsAppPackage -SourceDir $sourceDir
 
-for ($i = 0; $i -lt 15; $i++) {
-    try {
-        if (Test-Path -LiteralPath $appDir) {
-            Move-Item -LiteralPath $appDir -Destination $backupDir -Force
-        }
-        break
-    }
-    catch {
-        if ($i -eq 14) {
-            Write-Warning "App directory rename is still locked after stop: $($_.Exception.Message)"
-            Write-Warning "Attempting in-place replacement of package files."
-        }
-        Start-Sleep -Seconds 2
-    }
-}
-
-New-Item -ItemType Directory -Force -Path $appDir | Out-Null
-foreach ($itemName in @('printer-hub.jar', 'printerhub.bat', 'printerhub-task.cmd', 'dashboard')) {
-    $target = Join-Path $appDir $itemName
-    if (Test-Path -LiteralPath $target) {
-        try {
-            Remove-Item -LiteralPath $target -Recurse -Force
-        }
-        catch {
-            Write-Warning "Could not remove '$target' before copy: $($_.Exception.Message)"
-        }
-    }
-}
-Copy-Item -Path (Join-Path $sourceDir '*') -Destination $appDir -Recurse -Force
+Copy-AppBackup -AppDir $appDir -BackupDir $appBackupDir
+Remove-AppOwnedItems -AppDir $appDir
+Copy-AppFiles -SourceDir $sourceDir -AppDir $appDir
+Assert-InstalledJarMatchesSource -SourceDir $sourceDir -AppDir $appDir
 
 Write-Host "App directory content after copy:"
 Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
@@ -274,5 +382,5 @@ Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
 Write-Host "Starting updated PrinterHub"
 & 'C:\printerhub\bin\r.ps1'
 
-"[$stamp] update success version=$Version tag=$tagName asset=$assetName" | Add-Content -LiteralPath $updateLog
+Write-UpdateLog -Path $updateLog -Message "update success version=$Version tag=$tagName asset=$assetName"
 Write-Host "Update complete for version $Version"

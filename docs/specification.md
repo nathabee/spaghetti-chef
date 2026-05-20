@@ -1,106 +1,59 @@
 # PrinterHub Specification
 
-This document describes the current PrinterHub solution.
+This document describes the current technical design of PrinterHub.
 
-It is intentionally limited to what exists now. It does not describe roadmap work or planned future features.
+For operator instructions, see [dashboard.md](dashboard.md). For endpoint details, see [rest-api.md](rest-api.md).
 
 ---
 
 ## Runtime Summary
 
-PrinterHub is a local Java runtime for monitoring and controlling Marlin-compatible 3D printers over serial communication.
+PrinterHub is a local Java runtime for monitoring and controlling Marlin-compatible 3D printers.
 
-The runtime provides:
+It provides:
 
 * embedded REST API
 * embedded dashboard
 * SQLite persistence
 * background printer monitoring
 * asynchronous job execution
-* controlled printer commands and job workflows
-* simulated printer ports for development and tests
+* controlled serial command workflows
+* print-file and SD-card upload management
+* camera snapshot capture
+* camera analysis sessions
+* camera safety decision events
+* local role/security settings
+* operator audit events
 
-The real-printer development reference is a Creality Ender-3 V2 Neo.
+The real-printer development reference is a Creality Ender-series Marlin workflow.
 
 ---
 
-## Start Command
-
-Run verification:
-
-```bash
-mvn clean verify
-```
-
-Start the local runtime:
-
-```bash
-mvn exec:java \
-  -Dprinterhub.databaseFile="printerhub.db" \
-  -Dprinterhub.api.port=18080 \
-  -Dexec.mainClass="printerhub.Main"
-```
-
-Open the dashboard:
-
-```text
-http://localhost:18080/dashboard
-```
-
-Runtime properties:
+## Runtime Properties
 
 | Property | Default | Purpose |
 | --- | --- | --- |
 | `printerhub.api.port` | `8080` | REST API and dashboard port |
 | `printerhub.databaseFile` | `printerhub.db` | SQLite database file |
-| `printerhub.monitoring.intervalSeconds` | `5` | monitoring poll interval |
+| `printerhub.monitoring.intervalSeconds` | `5` | printer monitoring interval |
 
----
+Camera storage is not a startup property. It is a persisted per-printer camera setting.
 
-## High-Level Architecture
+The default camera storage setting is:
 
-```mermaid
-flowchart TB
-    main["Main"]
-    runtime["PrinterHubRuntime"]
+```text
+camera
+```
 
-    api["RemoteApiServer<br/>HTTP API + Dashboard"]
-    registry["PrinterRegistry<br/>configured runtime nodes"]
-    cache["PrinterRuntimeStateCache<br/>latest printer snapshots"]
-    monitor["PrinterMonitoringScheduler<br/>background polling"]
-    jobs["AsyncPrintJobExecutor<br/>background job workers"]
-    jobExec["PrintJobExecutionService<br/>workflow execution"]
-    commands["PrinterCommandService<br/>manual command API"]
-    persistence["SQLite persistence<br/>configuration, rules, snapshots, events, jobs, steps"]
-    ports["PrinterPort<br/>SerialConnection or SimulatedPrinterPort"]
-    dashboard["Dashboard resources<br/>HTML/CSS/JS modules"]
+Relative camera storage paths resolve from the configured database directory. The capture service appends the safe printer id.
 
-    main --> runtime
-    runtime --> api
-    runtime --> registry
-    runtime --> cache
-    runtime --> monitor
+Example:
 
-    api --> dashboard
-    api --> commands
-    api --> jobs
-    api --> persistence
-    api --> cache
-    api --> registry
-
-    monitor --> registry
-    monitor --> ports
-    monitor --> cache
-    monitor --> persistence
-
-    jobs --> jobExec
-    jobExec --> registry
-    jobExec --> ports
-    jobExec --> persistence
-    jobExec --> monitor
-
-    commands --> ports
-    commands --> persistence
+```text
+database:         C:\printerhub\data\printerhub.db
+camera setting:   camera
+printer id:       p1
+resolved folder:  C:\printerhub\data\camera\p1
 ```
 
 ---
@@ -111,105 +64,105 @@ flowchart TB
 sequenceDiagram
     participant Main
     participant Runtime as PrinterHubRuntime
-    participant DB as SQLite
+    participant DB as DatabaseInitializer
     participant Registry as PrinterRegistry
     participant Monitor as PrinterMonitoringScheduler
     participant API as RemoteApiServer
 
     Main->>Main: read system properties
-    Main->>Runtime: build runtime services
-    Main->>Runtime: start()
+    Main->>Runtime: create runtime services
     Runtime->>DB: initialize schema
-    Runtime->>DB: load monitoring rules
-    Runtime->>Monitor: update monitoring rules
-    Runtime->>DB: load configured printers
-    Runtime->>Registry: register printer nodes
-    Runtime->>Registry: initialize
-    Runtime->>Monitor: start monitoring
-    Runtime->>API: start HTTP server
+    Runtime->>DB: load settings and configured printers
+    Runtime->>Registry: register runtime nodes
+    Runtime->>Monitor: start printer monitoring
+    Runtime->>API: start HTTP server and dashboard
 ```
 
-Shutdown calls:
+Shutdown closes:
 
-```text
-RemoteApiServer.stop()
-PrinterMonitoringScheduler.stop()
-PrinterRegistry.close()
-AsyncPrintJobExecutor.close()
+* API server
+* background job executor
+* monitoring scheduler
+* printer registry/runtime nodes
+
+---
+
+## High-Level Architecture
+
+```mermaid
+flowchart TB
+    Main["Main"]
+    Runtime["PrinterHubRuntime"]
+    API["RemoteApiServer"]
+    Dashboard["Dashboard resources"]
+    Registry["PrinterRegistry"]
+    StateCache["PrinterRuntimeStateCache"]
+    Monitor["PrinterMonitoringScheduler"]
+    Jobs["AsyncPrintJobExecutor"]
+    JobExec["PrintJobExecutionService"]
+    Commands["PrinterCommandService"]
+    SD["SdCardUploadService"]
+    CameraAPI["CameraApiHandler"]
+    CameraCapture["CameraCaptureService"]
+    CameraAnalysis["CameraAnalysisSessionService"]
+    CameraSafety["CameraSafetyDecisionService"]
+    Persistence["SQLite stores"]
+    Ports["PrinterPort implementations"]
+
+    Main --> Runtime
+    Runtime --> API
+    Runtime --> Registry
+    Runtime --> StateCache
+    Runtime --> Monitor
+    Runtime --> Jobs
+
+    API --> Dashboard
+    API --> Commands
+    API --> Jobs
+    API --> SD
+    API --> CameraAPI
+    API --> Persistence
+
+    Monitor --> Registry
+    Monitor --> Ports
+    Monitor --> StateCache
+    Monitor --> Persistence
+
+    Jobs --> JobExec
+    JobExec --> Registry
+    JobExec --> Ports
+    JobExec --> Persistence
+
+    CameraAPI --> CameraCapture
+    CameraAPI --> CameraAnalysis
+    CameraAPI --> Persistence
+    CameraCapture --> Persistence
+    CameraAnalysis --> CameraCapture
+    CameraAnalysis --> CameraSafety
+    CameraSafety --> Jobs
 ```
 
 ---
 
-## Backend
+## Logging
 
-The backend is a Java application using:
+Runtime logs should use `PrinterHubLog` for new code.
 
-* Java `HttpServer` for the REST API and dashboard resources
-* SQLite through JDBC
-* jSerialComm for real serial ports
-* in-process simulated printer ports for tests and local development
-* Maven for build and test execution
-
-The API server uses a fixed request thread pool:
+Log format:
 
 ```text
-DEFAULT_API_THREAD_POOL_SIZE = 8
+2026-05-20T08:12:24.606088160Z [PrinterHub] INFO Default camera storage base: /tmp/example/camera
 ```
 
-The dashboard is served from:
+Current code still contains older direct `System.out`/`System.err` calls in some serial, job, and monitoring areas. New work should prefer `PrinterHubLog`.
 
-```text
-/dashboard
-```
-
-The main API areas are:
-
-```text
-GET    /health
-GET    /printers
-POST   /printers
-GET    /printers/{id}
-PUT    /printers/{id}
-DELETE /printers/{id}
-POST   /printers/{id}/enable
-POST   /printers/{id}/disable
-GET    /printers/{id}/status
-GET    /printers/{id}/events
-POST   /printers/{id}/commands
-GET    /printers/{id}/sd-card/files
-
-GET    /print-files
-POST   /print-files
-GET    /print-files/{id}
-
-GET    /jobs
-POST   /jobs
-GET    /jobs/{id}
-DELETE /jobs/{id}
-POST   /jobs/{id}/start
-POST   /jobs/{id}/cancel
-GET    /jobs/{id}/events
-GET    /jobs/{id}/execution-steps
-
-GET    /settings/monitoring
-PUT    /settings/monitoring
-```
+Fixed message vocabulary and event names belong in `OperationMessages`.
 
 ---
 
 ## Persistence
 
-PrinterHub persists local runtime data in SQLite.
-
-Persisted data includes:
-
-* printer configuration
-* monitoring rules
-* printer snapshots
-* printer events
-* print-file metadata
-* print jobs
-* print job execution steps
+PrinterHub uses SQLite.
 
 The database file is selected by:
 
@@ -217,443 +170,258 @@ The database file is selected by:
 -Dprinterhub.databaseFile=<file>
 ```
 
-If no property is provided, the default file is:
+Persisted data includes:
 
-```text
-printerhub.db
-```
+* printer configuration
+* monitoring rules
+* printer snapshots
+* printer events
+* camera settings
+* camera events
+* camera snapshot metadata
+* camera analysis sessions
+* camera analysis samples
+* print-file settings
+* print-file metadata
+* printer-side SD file registry
+* print jobs
+* print job execution steps
+* role profiles
+* security settings
+* operator audit events
+* serial transfer settings
 
----
-
-## Threading Model
-
-PrinterHub uses separate thread pools for separate responsibilities.
-
-```mermaid
-flowchart TB
-    apiPool["API thread pool<br/>default 8"]
-    monitoringPool["Monitoring scheduler pool<br/>runtime-sized, lazy default 8"]
-    jobPool["Job executor pool<br/>default 8"]
-
-    apiReq["HTTP requests"]
-    monitorTasks["Scheduled monitoring tasks"]
-    jobTasks["Background job tasks"]
-
-    apiReq --> apiPool
-    monitorTasks --> monitoringPool
-    jobTasks --> jobPool
-
-    apiPool --> apiWork["short API work<br/>CRUD, reads, enqueue job"]
-    monitoringPool --> pollWork["poll printers with M105"]
-    jobPool --> jobWork["execute controlled workflows"]
-```
-
-Default limits:
-
-```text
-API request thread pool: 8
-Job executor pool:      8
-Monitoring lazy pool:   8
-Monitoring start pool:  max(1, configuredPrinterCount + 4)
-```
-
-Important behavior:
-
-* API requests do not execute long jobs directly.
-* `POST /jobs/{id}/start` queues a background job and returns quickly.
-* The background job executor performs the long-running workflow.
-* Each printer can have only one active job at a time.
-* Monitoring is stopped for a printer while a job is executing on that printer, then restarted afterward if the printer is still enabled.
+Schema initialization and additive migrations are handled by `DatabaseInitializer`.
 
 ---
 
-## Printer Monitoring
+## Printer Runtime Model
 
-Enabled printers are monitored by `PrinterMonitoringScheduler`.
+Configured printers are persisted and loaded into `PrinterRegistry`.
 
-The scheduler creates a repeated `PrinterMonitoringTask` for each enabled printer.
+Runtime nodes use:
 
-```mermaid
-sequenceDiagram
-    participant Scheduler as MonitoringScheduler
-    participant Task as MonitoringTask
-    participant Port as PrinterPort
-    participant Cache as RuntimeStateCache
-    participant DB as SQLite
+* `SerialConnection` / jSerialComm for real serial ports
+* `SimulatedPrinterPort` for tests and local development
 
-    Scheduler->>Task: scheduleWithFixedDelay
-    Task->>Cache: set CONNECTING
-    Task->>Port: connect()
-    Task->>Port: sendCommand("M105")
-    Port-->>Task: printer response
-    Task->>Task: classify state
-    Task->>Cache: update latest snapshot
-    Task->>DB: persist snapshot
-    Task->>DB: persist event when policy allows
-```
-
-Monitoring uses the configured polling interval.
-
-The default status command is:
-
-```text
-M105
-```
-
-The dashboard reads the latest cached state. Normal dashboard reads do not poll printers directly.
+Printer state is cached in `PrinterRuntimeStateCache` and updated by monitoring.
 
 ---
 
-## Printer State Machine
+## Monitoring
 
-The observable printer state is stored in `PrinterRuntimeStateCache` as the latest `PrinterSnapshot`.
+Monitoring is handled by:
 
-```mermaid
-flowchart TB
-    A["Configured printer"] --> B{"Enabled?"}
+* `PrinterMonitoringScheduler`
+* `PrinterMonitoringTask`
+* `MonitoringEventPolicy`
 
-    B -- "No" --> C["DISCONNECTED"]
-    B -- "Yes" --> D["CONNECTING"]
+The scheduler polls enabled printers and records:
 
-    D --> E{"Poll result"}
+* latest printer snapshot
+* state changes
+* temperature changes
+* errors
+* disconnect/timeout events
 
-    E -- "timeout / disconnect / exception" --> F["ERROR"]
-    E -- "error / kill / halted response" --> F
-    E -- "busy / printing response" --> G["PRINTING"]
-    E -- "hotend above threshold" --> H["HEATING"]
-    E -- "ok / T: response" --> I["IDLE"]
-    E -- "unclassifiable response" --> J["UNKNOWN"]
-
-    F --> D
-    G --> D
-    H --> D
-    I --> D
-    J --> D
-```
-
-States:
-
-```text
-DISCONNECTED
-CONNECTING
-IDLE
-HEATING
-PRINTING
-ERROR
-UNKNOWN
-```
-
-Response classification:
-
-```text
-contains "error", "kill", or "halted" -> ERROR
-contains "busy" or "printing"         -> PRINTING
-hotend above heating threshold        -> HEATING
-contains "ok" or "t:"                 -> IDLE
-otherwise                             -> UNKNOWN
-```
+Event deduplication and persistence behavior are controlled by monitoring settings.
 
 ---
 
-## Serial Access
+## Jobs
 
-Printer communication goes through the `PrinterPort` interface.
+Jobs are persisted domain objects.
 
-Implementations:
+Supported job behavior includes:
 
-```text
-SerialConnection        real serial port
-SimulatedPrinterPort    simulated printer behavior
-```
+* create
+* start asynchronously
+* pause
+* resume
+* cancel
+* restart from terminal print-file job
+* delete
+* inspect events
+* inspect execution steps
 
-`SerialConnection` methods are synchronized:
+`AsyncPrintJobExecutor` keeps API requests short by running job execution in the background.
 
-```text
-connect()
-sendCommand(command)
-disconnect()
-isConnected()
-```
-
-This protects one `SerialConnection` instance from concurrent access.
-
-Manual command execution also synchronizes on the printer port:
-
-```text
-synchronized (node.printerPort()) {
-    connect
-    send command
-    disconnect
-}
-```
-
-Job execution marks the printer node as busy with:
-
-```text
-PrinterRuntimeNode.beginJobExecution(jobId)
-PrinterRuntimeNode.endJobExecution()
-```
-
-This prevents two jobs from executing on the same printer at the same time.
+`PrintJobExecutionService` owns controlled workflow execution and persists structured execution steps.
 
 ---
 
-## Asynchronous Job Execution
+## Print Files And SD Upload
 
-Job start is asynchronous.
+Host-side print files are represented separately from printer-side SD file targets.
 
-```mermaid
-sequenceDiagram
-    participant UI as Dashboard/API client
-    participant API as RemoteApiServer
-    participant Async as AsyncPrintJobExecutor
-    participant Jobs as PrintJobService
-    participant Worker as Job worker thread
-    participant Exec as PrintJobExecutionService
-    participant Port as PrinterPort
-    participant DB as SQLite
+Core services:
 
-    UI->>API: POST /jobs/{id}/start
-    API->>Async: start(jobId)
-    Async->>Jobs: load job
-    Async->>Async: validate assigned state and printer readiness
-    Async->>Jobs: mark RUNNING
-    Async->>DB: record JOB_EXECUTION_QUEUED
-    Async->>Worker: submit execution task
-    API-->>UI: 200, job RUNNING, outcome QUEUED
+* `PrintFileService`
+* `PrinterSdFileService`
+* `SdCardService`
+* `SdCardUploadService`
 
-    Worker->>Exec: executeStartedJob(jobId)
-    Exec->>Port: connect()
-    Exec->>Port: send workflow commands
-    Port-->>Exec: responses
-    Exec->>DB: persist execution steps and events
-    Exec->>Jobs: mark COMPLETED or FAILED
-    Exec->>Port: disconnect()
-```
-
-Job executor default:
-
-```text
-DEFAULT_JOB_EXECUTOR_POOL_SIZE = 8
-```
-
-Job states:
-
-```text
-CREATED
-QUEUED
-ASSIGNED
-RUNNING
-COMPLETED
-FAILED
-CANCELLED
-```
-
-Current start flow:
-
-```text
-ASSIGNED -> RUNNING -> COMPLETED
-ASSIGNED -> RUNNING -> FAILED
-ASSIGNED -> FAILED when rejected before background submission
-ASSIGNED/RUNNING -> CANCELLED when cancelled through API
-```
-
-The `QUEUED` enum exists, but the current start flow marks the job `RUNNING` before submitting it to the background executor and records the queue moment as a `JOB_EXECUTION_QUEUED` event.
+SD upload includes adaptive transfer behavior, recovery settings, progress status, and close-upload recovery.
 
 ---
 
-## Job Execution State Machine
+## Camera Design
 
-```mermaid
-flowchart TB
-    A["ASSIGNED"] --> B{"Start requested"}
-    B --> C{"Validation passes?"}
-    C -- "No" --> F["FAILED"]
-    C -- "Yes" --> D["RUNNING"]
-    D --> E{"Workflow result"}
-    E -- "success" --> G["COMPLETED"]
-    E -- "failure / exception" --> F
-    A --> H["CANCELLED"]
-    D --> H
-```
+Camera implementation is behind the `CameraDevice` abstraction.
 
-Execution events include:
+Current source types:
 
 ```text
-JOB_CREATED
-JOB_ASSIGNED
-JOB_STARTED
-JOB_EXECUTION_QUEUED
-JOB_EXECUTION_STARTED
-JOB_EXECUTION_IN_PROGRESS
-JOB_EXECUTION_SUCCEEDED
-JOB_EXECUTION_FAILED
-JOB_COMPLETED
-JOB_FAILED
-JOB_CANCELLED
+disabled
+simulated
+snapshot-folder
+ffmpeg
 ```
 
-Execution diagnostics are persisted as workflow steps.
-
-Each execution step can store:
-
-* job id
-* step index
-* step name
-* wire command
-* response
-* outcome
-* success flag
-* failure reason
-* failure detail
-
----
-
-## Controlled Job Actions
-
-Current controlled job types:
-
-```text
-READ_TEMPERATURE
-READ_POSITION
-READ_FIRMWARE_INFO
-HOME_AXES
-SET_NOZZLE_TEMPERATURE
-SET_BED_TEMPERATURE
-SET_FAN_SPEED
-TURN_FAN_OFF
-PRINT_FILE
-```
-
-The job workflow layer maps semantic job types to wire commands.
+`FfmpegCameraDevice` is the first real webcam backend. It runs ffmpeg as a command process and captures one frame per request.
 
 Examples:
 
 ```text
-READ_FIRMWARE_INFO -> M115
-READ_TEMPERATURE   -> M105
-READ_POSITION      -> M114
-HOME_AXES          -> M114, then G28
-PRINT_FILE         -> represented/prepared metadata step, no G-code sent
+Windows dshow: sourceValue=video=PC-LM1E Camera, inputFormat=dshow
+Linux v4l2:    sourceValue=/dev/video0, inputFormat=v4l2
 ```
 
-Responses are classified into success or failure by the job response classifier.
+Snapshot storage:
 
-For long-running commands such as `G28`, the serial read timeout is longer than normal commands. Busy responses such as `echo:busy: processing` are treated as in-progress information, not as final success by themselves.
+```text
+<resolved camera base>/<safe printer id>/
+  latest.jpg
+  previous.jpg
+  archive/
+  snapshots/
+```
+
+Only metadata and paths are stored in SQLite. Image bytes stay on disk.
 
 ---
 
-## Dashboard Solution
-
-The dashboard is served by the backend from:
-
-```text
-/dashboard
-```
-
-Current frontend files:
-
-```text
-src/main/resources/dashboard/
-├── index.html
-├── dashboard.css
-├── dashboard.js
-├── api.js
-├── state.js
-├── components/
-└── views/
-```
-
-`dashboard.js` is the entrypoint.
-
-`api.js` uses relative URLs such as:
-
-```text
-/printers
-/jobs
-/settings/monitoring
-```
-
-Because of this, the dashboard follows the API port that served it.
-
-Dashboard navigation:
-
-```text
-PrinterHub
-├── Farm Home
-├── Printers
-├── Jobs
-├── History
-└── Settings
-
-Selected Printer
-├── Home
-├── Print
-├── SD Card
-├── Prepare
-├── Control
-├── Info
-└── History
-```
-
-Dashboard refresh behavior:
-
-```mermaid
-flowchart TB
-    manual["Manual Refresh Now"] --> all["Fetch printers, jobs, monitoring rules<br/>rerender current page"]
-    auto["Automatic background refresh"] --> live["Fetch printers only<br/>update live printer fields"]
-    action["Action-based refresh"] --> scoped["Refresh data needed by that action"]
-
-    live --> keep["Keep forms, expanded diagnostics,<br/>selected view, and loaded history"]
-```
-
-Automatic refresh does not rerender the whole dashboard. It updates live printer fields only:
-
-* state
-* temperatures
-* last response
-* error message
-* updated timestamp
-
----
-
-## Dashboard/API Data Flow
+## Camera Capture Flow
 
 ```mermaid
 sequenceDiagram
-    participant Dashboard
-    participant API as RemoteApiServer
-    participant Cache as RuntimeStateCache
-    participant DB as SQLite
-    participant Jobs as AsyncPrintJobExecutor
+    participant API as CameraApiHandler
+    participant Capture as CameraCaptureService
+    participant Device as CameraDevice
+    participant Store as SQLite stores
+    participant Files as Filesystem
 
-    Dashboard->>API: GET /printers
-    API->>Cache: read latest printer states
-    API-->>Dashboard: printer list and current states
-
-    Dashboard->>API: POST /jobs/{id}/start
-    API->>Jobs: queue job
-    API-->>Dashboard: job RUNNING, outcome QUEUED
-
-    Dashboard->>API: GET /jobs/{id}/events
-    API->>DB: load persisted events
-    API-->>Dashboard: events
-
-    Dashboard->>API: GET /jobs/{id}/execution-steps
-    API->>DB: load persisted steps
-    API-->>Dashboard: execution diagnostics
+    API->>Capture: capture(printerId)
+    Capture->>Store: load camera settings
+    Capture->>Device: create source-specific device
+    Capture->>Device: captureFrame()
+    Device-->>Capture: CameraFrame
+    Capture->>Files: write snapshot/archive/latest/previous
+    Capture->>Store: save snapshot metadata
+    Capture->>Store: record camera event
 ```
 
 ---
 
-## Current Boundaries
+## Camera Analysis Sessions
 
-PrinterHub currently does not perform slicing, model conversion, or G-code editing.
+A camera analysis session is independent from print jobs.
 
-Current jobs are controlled command/workflow jobs and represented file-backed `PRINT_FILE` jobs.
+It records a visual-analysis timeline for one printer:
 
-The dashboard can register existing host-side `.gcode` paths, upload `.gcode` files into the configured print-file storage directory, select print files for `PRINT_FILE` jobs, and show the file content read-only from a job card. The runtime does not transfer or stream those files to a printer in this version.
+```text
+CameraAnalysisSession
+  id
+  printerId
+  state
+  startedAt
+  stoppedAt
+  createdAt
+  updatedAt
+  message
+```
 
-All persistence is local SQLite.
+Each sample stores analysis data:
 
-The current runtime is local-first; there is no central server/farm federation in the implementation described here.
+```text
+CameraAnalysisSample
+  capturedAt
+  analyzedAt
+  latestSnapshotPath
+  previousSnapshotPath
+  deltaSnapshotPath
+  deltaScore
+  changedPixelRatio
+  averagePixelDelta
+  confidence
+  suspected
+  reasonCodes
+  message
+```
+
+Useful future graph series:
+
+* X axis: `capturedAt`
+* Y series: `confidence`
+* Y series: `deltaScore`
+* Y series: `changedPixelRatio`
+* Y series: `averagePixelDelta`
+* point state: `suspected`
+
+---
+
+## Camera Safety Decision Layer
+
+Safety decision logic is separate from raw camera capture.
+
+It can:
+
+* persist suspected spaghetti events
+* confirm repeated high-confidence detections
+* optionally pause an active SD print through controlled job flow
+* record safety action success/failure/skipped
+
+Safety actions are disabled by default.
+
+The camera code must not access serial communication directly.
+
+---
+
+## Security And Audit
+
+Security settings are local.
+
+The dashboard/API support:
+
+* security enabled/disabled
+* default role
+* dangerous action confirmation
+* role profiles
+* operator audit events
+
+State-changing API requests are audited where supported.
+
+---
+
+## Dashboard
+
+Dashboard resources are static files served from:
+
+```text
+src/main/resources/dashboard
+```
+
+The browser UI uses JavaScript modules and relative API requests. It should not hardcode `localhost`, `8080`, or OS-specific paths.
+
+---
+
+## Main Technical Debt
+
+Known cleanup targets:
+
+* split `RemoteApiServer` into route handlers by domain
+* finish moving direct console output to `PrinterHubLog`
+* keep constants in `RuntimeDefaults` and `OperationMessages`
+* keep orchestration classes free of duplicated message constants
+* expand camera archive browsing API
+* replace early camera analysis table with graph only after values are trusted
