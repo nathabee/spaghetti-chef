@@ -592,10 +592,12 @@ data/camera/
 ```
 
 Storage is a per-printer camera setting persisted in SQLite and editable from
-the selected-printer Camera dashboard view.
+the selected-printer Camera dashboard view. The default setting is `camera`,
+resolved relative to the configured database directory, and the printer id is
+added by the capture service.
 
 ```text
-data/camera
+camera
 ```
 
 ---
@@ -1177,7 +1179,7 @@ Add defaults:
 
 ```java
 DEFAULT_CAMERA_MONITORING_INTERVAL_SECONDS = 10
-DEFAULT_CAMERA_STORAGE_DIRECTORY = "data/camera"
+DEFAULT_CAMERA_STORAGE_DIRECTORY = "camera"
 DEFAULT_CAMERA_ENABLED = false
 ```
 
@@ -1302,7 +1304,7 @@ Example settings JSON:
   "enabled": true,
   "sourceType": "snapshot-folder",
   "sourceValue": "data/camera/p1",
-  "storageDirectory": "data/camera",
+  "storageDirectory": "camera",
   "captureIntervalSeconds": 10,
   "retentionSnapshotCount": 20,
   "analysisEnabled": false,

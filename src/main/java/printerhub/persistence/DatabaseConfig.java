@@ -1,5 +1,7 @@
 package printerhub.persistence;
 
+import java.nio.file.Path;
+
 import printerhub.OperationMessages;
 import printerhub.config.RuntimeDefaults;
 
@@ -26,5 +28,14 @@ public final class DatabaseConfig {
 
     public static String jdbcUrl() {
         return RuntimeDefaults.SQLITE_JDBC_PREFIX + databaseFile();
+    }
+
+    public static Path dataDirectory() {
+        Path databasePath = Path.of(databaseFile()).toAbsolutePath().normalize();
+        Path parent = databasePath.getParent();
+        if (parent == null) {
+            return Path.of(".").toAbsolutePath().normalize();
+        }
+        return parent;
     }
 }

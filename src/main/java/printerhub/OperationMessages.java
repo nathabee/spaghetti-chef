@@ -247,7 +247,7 @@ public final class OperationMessages {
             String command,
             String outputPath,
             int timeoutMs) {
-        return "[PrinterHub] Camera ffmpeg capture starting printerId=" + safeDetail(printerId, "unknown")
+        return "Camera ffmpeg capture starting printerId=" + safeDetail(printerId, "unknown")
                 + " source=" + safeDetail(sourceDescription, "unknown")
                 + " timeoutMs=" + timeoutMs
                 + " output=" + safeDetail(outputPath, "unknown")
@@ -255,13 +255,13 @@ public final class OperationMessages {
     }
 
     public static String cameraFfmpegCaptureSucceeded(String printerId, int byteCount, String outputPath) {
-        return "[PrinterHub] Camera ffmpeg capture succeeded printerId=" + safeDetail(printerId, "unknown")
+        return "Camera ffmpeg capture succeeded printerId=" + safeDetail(printerId, "unknown")
                 + " bytes=" + byteCount
                 + " output=" + safeDetail(outputPath, "unknown");
     }
 
     public static String cameraFfmpegCaptureFailed(String printerId, String detail) {
-        return "[PrinterHub] Camera ffmpeg capture failed printerId=" + safeDetail(printerId, "unknown")
+        return "Camera ffmpeg capture failed printerId=" + safeDetail(printerId, "unknown")
                 + ": " + safeDetail(detail, UNKNOWN_API_ERROR);
     }
 

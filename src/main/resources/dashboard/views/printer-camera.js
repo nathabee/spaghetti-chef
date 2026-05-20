@@ -115,7 +115,7 @@ function cameraSettingsPayload(form) {
     enabled,
     sourceType: enabled ? sourceType : "disabled",
     sourceValue: sourceValueInput?.value?.trim() || "",
-    storageDirectory: storageDirectoryInput?.value?.trim() || "data/camera",
+    storageDirectory: storageDirectoryInput?.value?.trim() || "camera",
     captureIntervalSeconds: positiveInteger(captureIntervalInput?.value, 10),
     retentionSnapshotCount: positiveInteger(retentionInput?.value, 20),
     analysisEnabled,

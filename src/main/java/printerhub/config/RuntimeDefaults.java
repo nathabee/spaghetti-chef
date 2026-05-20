@@ -48,7 +48,7 @@ public final class RuntimeDefaults {
     public static final String DEFAULT_CAMERA_FFMPEG_VIDEO_SIZE = "640x480";
     public static final int DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS = 5000;
     public static final int DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY = 3;
-    public static final String DEFAULT_CAMERA_STORAGE_DIRECTORY = "data/camera";
+    public static final String DEFAULT_CAMERA_STORAGE_DIRECTORY = "camera";
 
 
 
