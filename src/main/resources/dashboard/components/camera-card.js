@@ -244,7 +244,9 @@ export function renderCameraSettingsCard(settings) {
   `;
 }
 
-export function renderCameraSnapshotCard(printerId, status) {
+export function renderCameraSnapshotCard(printerId, status, settings) {
+  const captureIntervalSeconds = positiveInteger(settings?.captureIntervalSeconds, 10);
+
   return `
     <article class="section-card camera-snapshot-card">
       <div class="section-header compact">
@@ -255,6 +257,8 @@ export function renderCameraSnapshotCard(printerId, status) {
         <div class="action-row">
           <button type="button" data-camera-capture="${escapeHtml(printerId)}">Capture now</button>
           <button type="button" class="secondary-button" data-camera-refresh="${escapeHtml(printerId)}">Refresh</button>
+          <button type="button" class="secondary-button" data-camera-sync-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Sync</button>
+          <button type="button" class="secondary-button" data-camera-sync-stop="${escapeHtml(printerId)}">Stop sync</button>
         </div>
       </div>
 
@@ -309,15 +313,20 @@ export function renderCameraEventsCard(events) {
   `;
 }
 
-export function renderCameraAnalysisCard(printerId, sessions, samples) {
+export function renderCameraAnalysisCard(printerId, sessions, samples, captureIntervalSeconds = 10) {
   const safeSessions = Array.isArray(sessions) ? sessions : [];
   const activeSession = safeSessions.find((session) => session.state === "RUNNING");
   const selectedSession = activeSession || safeSessions[0];
   const safeSamples = Array.isArray(samples) ? samples : [];
   const selectedSample = safeSamples[safeSamples.length - 1];
+  const safeCaptureIntervalSeconds = positiveInteger(captureIntervalSeconds, 10);
 
   return `
-    <article class="section-card camera-analysis-card">
+    <article
+      class="section-card camera-analysis-card"
+      data-camera-analysis-printer-id="${escapeHtml(printerId)}"
+      data-camera-analysis-active-session="${escapeHtml(activeSession?.id || "")}"
+      data-camera-capture-interval="${safeCaptureIntervalSeconds}">
       <div class="section-header compact">
         <div>
           <div class="kicker">Analysis session</div>
@@ -325,7 +334,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples) {
         </div>
         <div class="action-row">
           <button type="button" data-camera-analysis-start="${escapeHtml(printerId)}" ${activeSession ? "disabled" : ""}>Start</button>
-          <button type="button" class="secondary-button" data-camera-analysis-sample="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Sample</button>
+          <button type="button" class="secondary-button" data-camera-analysis-sample="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Sample now</button>
           <button type="button" class="secondary-button" data-camera-analysis-stop="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Stop</button>
         </div>
       </div>
@@ -423,6 +432,14 @@ function renderAnalysisSamplesTable(samples) {
   `;
 }
 
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
 function renderAnalysisSampleRow(sample) {
   return `
     <tr class="${sample.suspected ? "analysis-suspected" : "analysis-good"}">
@@ -487,12 +504,12 @@ export function renderCameraArchiveCard(printerId, files, archiveRange = {}) {
         <button type="submit">List files</button>
       </form>
 
-      ${renderArchiveFilesTable(printerId, safeFiles)}
+      ${renderArchiveGallery(printerId, safeFiles)}
     </article>
   `;
 }
 
-function renderArchiveFilesTable(printerId, files) {
+function renderArchiveGallery(printerId, files) {
   if (files.length === 0) {
     return `
       <div class="empty-state">
@@ -502,37 +519,61 @@ function renderArchiveFilesTable(printerId, files) {
     `;
   }
 
+  const previewFiles = files.slice(0, 3);
+
   return `
-    <div class="table-wrap">
-      <table class="data-table camera-archive-table">
-        <thead>
-          <tr>
-            <th>Modified at</th>
-            <th>Type</th>
-            <th>File name</th>
-            <th>Relative path</th>
-            <th>Size</th>
-            <th>Open</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${files.map((file) => renderArchiveFileRow(printerId, file)).join("")}
-        </tbody>
-      </table>
+    <div class="camera-archive-gallery">
+      <div id="cameraArchiveFileList" class="camera-archive-list" tabindex="0">
+        ${files.map((file, index) => renderArchiveFileListItem(printerId, file, index)).join("")}
+      </div>
+      <div class="camera-archive-preview-stack">
+        ${[0, 1, 2].map((slot) => renderArchivePreviewSlot(previewFiles[slot], printerId, slot)).join("")}
+      </div>
     </div>
   `;
 }
 
-function renderArchiveFileRow(printerId, file) {
+function renderArchiveFileListItem(printerId, file, index) {
+  const fileUrl = cameraArchiveFileUrl(printerId, file.id);
+
   return `
-    <tr>
-      <td>${file.modifiedAt ? escapeHtml(formatDateTime(file.modifiedAt)) : "—"}</td>
-      <td>${formatNullable(file.type)}</td>
-      <td>${formatNullable(file.fileName)}</td>
-      <td><code>${formatNullable(file.relativePath)}</code></td>
-      <td>${formatBytes(file.sizeBytes)}</td>
-      <td><a href="${escapeHtml(cameraArchiveFileUrl(printerId, file.id))}" target="_blank" rel="noreferrer">Open</a></td>
-    </tr>
+    <button
+      type="button"
+      class="camera-archive-list-item ${index === 0 ? "selected" : ""}"
+      data-camera-archive-select
+      data-camera-archive-index="${index}"
+      data-camera-archive-url="${escapeHtml(fileUrl)}"
+      data-camera-archive-path="${escapeHtml(file.relativePath || file.fileName || "")}"
+      data-camera-archive-type="${escapeHtml(file.type || "")}"
+      data-camera-archive-time="${escapeHtml(file.modifiedAt || "")}"
+      data-camera-archive-size="${escapeHtml(String(file.sizeBytes ?? ""))}">
+      <span>
+        <strong>${formatNullable(file.fileName)}</strong>
+        <code>${formatNullable(file.relativePath)}</code>
+      </span>
+      <span class="camera-archive-list-meta">
+        ${formatNullable(file.type)} · ${file.modifiedAt ? escapeHtml(formatDateTime(file.modifiedAt)) : "—"} · ${formatBytes(file.sizeBytes)}
+      </span>
+    </button>
+  `;
+}
+
+function renderArchivePreviewSlot(file, printerId, slot) {
+  const label = slot === 0 ? "Selected picture" : `Previous picture ${slot}`;
+  const fileUrl = file ? cameraArchiveFileUrl(printerId, file.id) : "";
+
+  return `
+    <figure class="camera-archive-preview" data-camera-archive-preview-slot="${slot}" ${file ? "" : "hidden"}>
+      <figcaption>
+        <span>${label}</span>
+        <code data-camera-archive-preview-title="${slot}">${file ? formatNullable(file.relativePath) : "—"}</code>
+      </figcaption>
+      <img
+        data-camera-archive-preview-image="${slot}"
+        src="${escapeHtml(fileUrl)}"
+        alt="${file ? `Camera archive file ${escapeHtml(file.relativePath || file.fileName || "")}` : ""}"
+        loading="lazy">
+    </figure>
   `;
 }
 
@@ -598,7 +639,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
 
       <section class="two-column-grid">
         ${renderCameraStatusCard(status)}
-        ${renderCameraSnapshotCard(printerId, status)}
+        ${renderCameraSnapshotCard(printerId, status, settings)}
       </section>
 
       <section class="two-column-grid">
@@ -607,7 +648,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
       </section>
 
       <section>
-        ${renderCameraAnalysisCard(printerId, sessions, samples)}
+        ${renderCameraAnalysisCard(printerId, sessions, samples, settings?.captureIntervalSeconds)}
       </section>
 
       <section>

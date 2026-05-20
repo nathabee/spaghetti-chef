@@ -77,13 +77,16 @@ export async function renderPrinterCameraAnalysisPanel(printer) {
     return "";
   }
 
-  const sessions = await getCameraAnalysisSessions(printer.id);
+  const [settings, sessions] = await Promise.all([
+    getCameraSettings(printer.id),
+    getCameraAnalysisSessions(printer.id)
+  ]);
   const selectedSession = sessions.find((session) => session.state === "RUNNING") || sessions[0];
   const samples = selectedSession
     ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
     : [];
 
-  return renderCameraAnalysisCard(printer.id, sessions, samples);
+  return renderCameraAnalysisCard(printer.id, sessions, samples, settings.captureIntervalSeconds);
 }
 
 export async function capturePrinterCameraSnapshot(printerId) {

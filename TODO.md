@@ -331,6 +331,11 @@ Rules:
 * keep camera code independent from serial communication internals
 * keep image blobs out of SQLite
 
+
++ 
+* true backend camera-job scheduler if you want it to continue without the browser open.
+
+
 Docs to check:
 
 ```text

@@ -35,6 +35,7 @@ public final class CameraArchiveService {
         try (Stream<Path> paths = Files.walk(printerDirectory, 2)) {
             paths
                     .filter(Files::isRegularFile)
+                    .filter(path -> normalizeRelativePath(printerDirectory.relativize(path)).startsWith("archive/"))
                     .forEach(path -> appendFile(printerDirectory, path, from, to, files));
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to list camera archive files", exception);
@@ -52,8 +53,11 @@ public final class CameraArchiveService {
         Path printerDirectory = printerDirectory(printerId);
         Path relativePath = decodeRelativePath(fileId);
         Path resolvedPath = printerDirectory.resolve(relativePath).normalize();
+        String normalizedRelativePath = normalizeRelativePath(relativePath);
 
-        if (!resolvedPath.startsWith(printerDirectory) || !Files.isRegularFile(resolvedPath)) {
+        if (!normalizedRelativePath.startsWith("archive/")
+                || !resolvedPath.startsWith(printerDirectory)
+                || !Files.isRegularFile(resolvedPath)) {
             return Optional.empty();
         }
 
