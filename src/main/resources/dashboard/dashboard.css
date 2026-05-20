@@ -386,6 +386,7 @@ textarea:disabled {
 .page-content {
   display: grid;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 .summary-grid,
@@ -395,6 +396,7 @@ textarea:disabled {
 .metric-grid {
   display: grid;
   gap: 1rem;
+  min-width: 0;
 }
 
 .summary-grid,
@@ -407,7 +409,7 @@ textarea:disabled {
 }
 
 .two-column-grid {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
 }
 
 .three-column-grid {
@@ -427,6 +429,7 @@ textarea:disabled {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  min-width: 0;
 }
 
 .section-card,
@@ -467,6 +470,15 @@ textarea:disabled {
   justify-content: space-between;
   align-items: start;
   gap: 1rem;
+  min-width: 0;
+}
+
+.section-header > *,
+.card-header > *,
+.events-header > *,
+.detail-header > *,
+.job-header > * {
+  min-width: 0;
 }
 
 .section-header h2,
@@ -871,6 +883,10 @@ progress::-moz-progress-bar {
   flex-wrap: wrap;
 }
 
+.action-row {
+  justify-content: flex-end;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1016,6 +1032,8 @@ progress::-moz-progress-bar {
 
 .table-wrap {
   overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .data-table {
@@ -1029,6 +1047,7 @@ progress::-moz-progress-bar {
   border-bottom: 1px solid var(--border-soft);
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 .data-table th {
@@ -1050,6 +1069,38 @@ progress::-moz-progress-bar {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+
+.camera-snapshot-frame,
+.camera-analysis-snapshots {
+  min-width: 0;
+}
+
+.camera-snapshot-frame img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
+}
+
+.camera-analysis-snapshots {
+  display: grid;
+  gap: 0.75rem;
+}
+
+code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .form-grid .form-actions {
@@ -1151,5 +1202,22 @@ progress::-moz-progress-bar {
 
   .topbar h2 {
     font-size: 1.5rem;
+  }
+
+  .section-header,
+  .card-header,
+  .events-header,
+  .detail-header,
+  .job-header {
+    flex-direction: column;
+  }
+
+  .action-row {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .action-row button {
+    flex: 1 1 8rem;
   }
 }
