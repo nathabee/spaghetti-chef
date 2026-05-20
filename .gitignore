@@ -30,3 +30,5 @@ data/
 printerhub-print-files/**
 printerhub-camera/**
 *.jpg
+response.txt
+message.txt

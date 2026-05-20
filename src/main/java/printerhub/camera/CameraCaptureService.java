@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import printerhub.OperationMessages;
+import printerhub.PrinterHubLog;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSnapshotMetadata;
@@ -112,7 +113,7 @@ public final class CameraCaptureService {
 
     public CameraCaptureResult capture(String printerId) {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
-        System.out.println("[PrinterHub] Camera capture requested printerId=" + settings.printerId()
+        PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
                 + " enabled=" + settings.enabled()
                 + " sourceType=" + settings.sourceType().wireValue()
                 + " sourceValue=" + settings.sourceValue().orElse("")
@@ -121,7 +122,7 @@ public final class CameraCaptureService {
                 + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
                 + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
                 + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
-                + " storageDirectory=" + settings.storageDirectory());
+                + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
 
         if (!settings.enabled()) {
             eventStore.record(
@@ -133,7 +134,7 @@ public final class CameraCaptureService {
         }
 
         try (CameraDevice device = createDevice(settings)) {
-            System.out.println("[PrinterHub] Camera capture device printerId=" + settings.printerId()
+            PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
                     + " description=" + device.describe()
                     + " available=" + device.isAvailable());
 
@@ -149,7 +150,7 @@ public final class CameraCaptureService {
             Optional<CameraFrame> frame = device.captureFrame();
 
             if (frame.isEmpty()) {
-                System.err.println("[PrinterHub] Camera capture returned no frame printerId="
+                PrinterHubLog.error("Camera capture returned no frame printerId="
                         + settings.printerId()
                         + " device=" + device.describe());
                 eventStore.record(
@@ -161,7 +162,7 @@ public final class CameraCaptureService {
             }
 
             PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get());
-            System.out.println("[PrinterHub] Camera capture persisted printerId=" + settings.printerId()
+            PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
                     + " latest=" + persistedPaths.latestPath()
                     + " snapshot=" + persistedPaths.snapshotPath());
 
@@ -174,7 +175,7 @@ public final class CameraCaptureService {
 
             return CameraCaptureResult.captured(frame.get());
         } catch (RuntimeException exception) {
-            System.err.println("[PrinterHub] Camera capture failed printerId=" + settings.printerId()
+            PrinterHubLog.error("Camera capture failed printerId=" + settings.printerId()
                     + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
             eventStore.record(
                     settings.printerId(),
@@ -229,7 +230,9 @@ public final class CameraCaptureService {
     }
 
     private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
-        Path printerDirectory = Path.of(settings.storageDirectory()).resolve(safePathSegment(frame.printerId()));
+        Path printerDirectory = CameraStoragePaths
+                .resolveBaseDirectory(settings.storageDirectory())
+                .resolve(safePathSegment(frame.printerId()));
         Path snapshotsDirectory = printerDirectory.resolve("snapshots");
         Path archiveDirectory = printerDirectory.resolve("archive");
 

@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import printerhub.AppVersion;
 import printerhub.OperationMessages;
+import printerhub.PrinterHubLog;
 import printerhub.PrinterSnapshot;
 import printerhub.PrinterState;
 import printerhub.SerialPortGuidance;
@@ -63,6 +64,7 @@ import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSafetyDecisionService;
 import printerhub.camera.CameraSettingsService;
+import printerhub.camera.CameraStoragePaths;
 import printerhub.persistence.CameraAnalysisSampleStore;
 import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
@@ -227,8 +229,8 @@ public final class RemoteApiServer {
         CameraEventStore cameraEventStore = new CameraEventStore();
         CameraSnapshotMetadataStore cameraSnapshotMetadataStore = new CameraSnapshotMetadataStore();
 
-        this.cameraStorageDirectory = Path.of(RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY);
-        System.out.println("[PrinterHub] Default camera storage: "
+        this.cameraStorageDirectory = CameraStoragePaths.defaultBaseDirectory();
+        PrinterHubLog.info("Default camera storage base: "
                 + this.cameraStorageDirectory.toAbsolutePath().normalize());
 
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
@@ -291,7 +293,7 @@ public final class RemoteApiServer {
             server.createContext("/dashboard", exchange -> safeHandle(exchange, this::handleDashboard));
             server.start();
 
-            System.out.println(OperationMessages.apiServerStarted(port));
+            PrinterHubLog.info(OperationMessages.apiServerStarted(port));
         } catch (IOException exception) {
             throw new IllegalStateException(OperationMessages.failedToStartApiServer(port), exception);
         }
@@ -302,7 +304,7 @@ public final class RemoteApiServer {
             server.stop(0);
             server = null;
             asyncPrintJobExecutor.close();
-            System.out.println(OperationMessages.apiServerStopped());
+            PrinterHubLog.info(OperationMessages.apiServerStopped());
         }
     }
 
@@ -348,10 +350,10 @@ public final class RemoteApiServer {
                 return;
             }
 
-            System.err.println(OperationMessages.apiOperationFailed(message));
+            PrinterHubLog.error(OperationMessages.apiOperationFailed(message));
             sendJson(exchange, 500, errorJson(message));
         } catch (Exception exception) {
-            System.err.println(OperationMessages.unexpectedApiError(safeMessage(exception)));
+            PrinterHubLog.error(OperationMessages.unexpectedApiError(safeMessage(exception)));
             sendJson(exchange, 500, errorJson(OperationMessages.INTERNAL_SERVER_ERROR));
         }
     }
@@ -1430,7 +1432,7 @@ public final class RemoteApiServer {
                     monitoringScheduler.startMonitoring(oldNode);
                     restored = true;
                 } catch (Exception rollbackException) {
-                    System.err.println(OperationMessages.failedToRestorePrinterAfterPut(
+                    PrinterHubLog.error(OperationMessages.failedToRestorePrinterAfterPut(
                             printerId,
                             safeMessage(rollbackException)));
                 }
@@ -1475,7 +1477,7 @@ public final class RemoteApiServer {
                     printerRegistry.register(existingNode);
                     monitoringScheduler.startMonitoring(existingNode);
                 } catch (Exception rollbackException) {
-                    System.err.println(OperationMessages.failedToRestorePrinterAfterDelete(
+                    PrinterHubLog.error(OperationMessages.failedToRestorePrinterAfterDelete(
                             printerId,
                             safeMessage(rollbackException)));
                 }
@@ -2730,7 +2732,7 @@ public final class RemoteApiServer {
             printerRegistry.remove(printerId);
             stateCache.remove(printerId);
         } catch (Exception exception) {
-            System.err.println(OperationMessages.failedToRollbackPrinterRegistration(
+            PrinterHubLog.error(OperationMessages.failedToRollbackPrinterRegistration(
                     printerId,
                     safeMessage(exception)));
         }

@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${PH_HOST:-printerhub-win}"
+USER_NAME="${PH_USER:-admin}"
+REMOTE_DIR="C:/printerhub/tmp"
+REMOTE_PS1="${REMOTE_DIR}/printerhub-diagnostic.ps1"
+REMOTE_RESPONSE="${REMOTE_DIR}/response.txt"
+LOCAL_RESPONSE="./response.txt"
+
+SSH_TARGET="${USER_NAME}@${HOST}"
+
+echo "remote: ${SSH_TARGET}"
+echo "remote dir: ${REMOTE_DIR}"
+
+TMP_PS1="$(mktemp)"
+trap 'rm -f "${TMP_PS1}"' EXIT
+
+cat > "${TMP_PS1}" <<'POWERSHELL'
+$Out = "C:\printerhub\tmp\response.txt"
+New-Item -ItemType Directory -Force -Path "C:\printerhub\tmp" | Out-Null
+
+"=== PrinterHub diagnostic $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" | Set-Content -Path $Out
+
+"`n=== Current user ===" | Add-Content -Path $Out
+try {
+    whoami | Out-String | Add-Content -Path $Out
+}
+catch {
+    "ERROR reading current user: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Task Scheduler status ===" | Add-Content -Path $Out
+try {
+    Get-ScheduledTask -TaskName "PrinterHub" |
+        Select-Object TaskName, State, TaskPath,
+            @{Name="UserId";Expression={$_.Principal.UserId}},
+            @{Name="LogonType";Expression={$_.Principal.LogonType}},
+            @{Name="RunLevel";Expression={$_.Principal.RunLevel}} |
+        Format-List |
+        Out-String |
+        Add-Content -Path $Out
+}
+catch {
+    "ERROR reading scheduled task: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Task Scheduler last run info ===" | Add-Content -Path $Out
+try {
+    Get-ScheduledTaskInfo -TaskName "PrinterHub" |
+        Format-List |
+        Out-String |
+        Add-Content -Path $Out
+}
+catch {
+    "ERROR reading task info: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Java processes via Get-Process ===" | Add-Content -Path $Out
+try {
+    Get-Process java,javaw -ErrorAction SilentlyContinue |
+        Select-Object Id, ProcessName, Path, StartTime |
+        Format-List |
+        Out-String |
+        Add-Content -Path $Out
+}
+catch {
+    "ERROR reading java processes: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Java processes via tasklist ===" | Add-Content -Path $Out
+try {
+    tasklist /FI "IMAGENAME eq java.exe" /V | Out-String | Add-Content -Path $Out
+    tasklist /FI "IMAGENAME eq javaw.exe" /V | Out-String | Add-Content -Path $Out
+}
+catch {
+    "ERROR running tasklist: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Port 18080 usage ===" | Add-Content -Path $Out
+try {
+    netstat -ano | Select-String ":18080" | Out-String | Add-Content -Path $Out
+}
+catch {
+    "ERROR running netstat: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== PrinterHub folders ===" | Add-Content -Path $Out
+foreach ($Path in @("C:\printerhub", "C:\printerhub\app", "C:\printerhub\data", "C:\printerhub\log", "C:\printerhub\tmp", "C:\printerhub\bin")) {
+    "`n--- $Path ---" | Add-Content -Path $Out
+    if (Test-Path -LiteralPath $Path) {
+        Get-Item -LiteralPath $Path |
+            Select-Object FullName, Attributes, CreationTime, LastWriteTime |
+            Format-List |
+            Out-String |
+            Add-Content -Path $Out
+    }
+    else {
+        "MISSING" | Add-Content -Path $Out
+    }
+}
+
+"`n=== App directory content ===" | Add-Content -Path $Out
+try {
+    Get-ChildItem -LiteralPath "C:\printerhub\app" -Force |
+        Select-Object Name, Length, LastWriteTime, Attributes |
+        Format-Table -AutoSize |
+        Out-String |
+        Add-Content -Path $Out
+}
+catch {
+    "ERROR listing app directory: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== JAR hash ===" | Add-Content -Path $Out
+try {
+    if (Test-Path -LiteralPath "C:\printerhub\app\printer-hub.jar") {
+        Get-FileHash -Algorithm SHA256 -LiteralPath "C:\printerhub\app\printer-hub.jar" |
+            Format-List |
+            Out-String |
+            Add-Content -Path $Out
+    }
+    else {
+        "C:\printerhub\app\printer-hub.jar missing" | Add-Content -Path $Out
+    }
+}
+catch {
+    "ERROR hashing JAR: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== Recent log files ===" | Add-Content -Path $Out
+try {
+    Get-ChildItem -LiteralPath "C:\printerhub\log" -Force -ErrorAction SilentlyContinue |
+        Select-Object Name, Length, LastWriteTime |
+        Format-Table -AutoSize |
+        Out-String |
+        Add-Content -Path $Out
+}
+catch {
+    "ERROR listing logs: $($_.Exception.Message)" | Add-Content -Path $Out
+}
+
+"`n=== End diagnostic ===" | Add-Content -Path $Out
+Write-Host "Wrote $Out"
+POWERSHELL
+
+echo "creating remote tmp directory..."
+ssh "${SSH_TARGET}" \
+  "powershell -NoProfile -ExecutionPolicy Bypass -Command \"New-Item -ItemType Directory -Force -Path '${REMOTE_DIR}' | Out-Null\""
+
+echo "uploading diagnostic script..."
+scp "${TMP_PS1}" "${SSH_TARGET}:${REMOTE_PS1}"
+
+echo "running diagnostic script..."
+ssh "${SSH_TARGET}" \
+  "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& 'C:\\printerhub\\tmp\\printerhub-diagnostic.ps1'\""
+
+echo "downloading response..."
+scp "${SSH_TARGET}:${REMOTE_RESPONSE}" "${LOCAL_RESPONSE}"
+
+echo "diagnostic written to ${LOCAL_RESPONSE}"

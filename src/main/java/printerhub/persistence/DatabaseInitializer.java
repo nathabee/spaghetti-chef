@@ -1,6 +1,7 @@
 package printerhub.persistence;
 
 import printerhub.OperationMessages;
+import printerhub.PrinterHubLog;
 import printerhub.config.RuntimeDefaults;
 import printerhub.security.RoleProfile;
 
@@ -113,7 +114,7 @@ public final class DatabaseInitializer {
 
             ensureBuiltInRoleProfiles(connection);
 
-            System.out.println(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
+            PrinterHubLog.info(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
         } catch (SQLException exception) {
             throw new IllegalStateException(OperationMessages.FAILED_TO_INITIALIZE_DATABASE_SCHEMA, exception);
         }
@@ -408,7 +409,7 @@ public final class DatabaseInitializer {
                     ffmpeg_video_size TEXT DEFAULT '640x480',
                     ffmpeg_timeout_ms INTEGER NOT NULL DEFAULT 5000,
                     ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
-                    storage_directory TEXT NOT NULL DEFAULT 'data/camera',
+                    storage_directory TEXT NOT NULL DEFAULT 'camera',
                     updated_at TEXT NOT NULL
                 );
                 """;

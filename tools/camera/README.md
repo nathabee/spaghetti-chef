@@ -45,7 +45,7 @@ video=Integrated Camera
 PrinterHub writes captured snapshots under its camera storage directory. The
 camera folder name matches the PrinterHub printer id.
 
-Linux default:
+Linux example when the database is `./data/printerhub.db`:
 
 ```text
 ./data/camera/<printerId>/
@@ -55,7 +55,7 @@ Linux default:
   snapshots/
 ```
 
-Windows default:
+Windows example when the database is `C:\printerhub\data\printerhub.db`:
 
 ```text
 C:\printerhub\data\camera\<printerId>\
@@ -66,9 +66,9 @@ C:\printerhub\data\camera\<printerId>\
 ```
 
 Missing directories are created automatically. The storage directory is a
-per-printer camera setting in the dashboard Camera view. Use
-`C:\printerhub\data\camera` on the Windows service install when you want the
-dashboard backend to write to the same location as the diagnostic scripts.
+per-printer camera setting in the dashboard Camera view. The default setting is
+`camera`, resolved relative to the configured database directory. You can also
+enter an absolute path such as `C:\printerhub\data\camera`.
 
 When using the dashboard `snapshot-folder` backend, point `Source value` at a
 folder containing incoming camera images, not at PrinterHub's own output folder.

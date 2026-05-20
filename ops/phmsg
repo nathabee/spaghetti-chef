@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${PH_HOST:-printerhub-win}"
+USER_NAME="${PH_USER:-admin}"
+
+LOCAL_MESSAGE_FILE="./message.txt"
+LOCAL_RESPONSE_FILE="./response.txt"
+
+REMOTE_DIR="${1:-C:/printerhub/tmp}"
+REMOTE_MESSAGE_FILE="${REMOTE_DIR}/message.txt"
+REMOTE_RESPONSE_FILE="${REMOTE_DIR}/response.txt"
+
+SSH_TARGET="${USER_NAME}@${HOST}"
+
+echo "remote: ${SSH_TARGET}"
+echo "remote dir: ${REMOTE_DIR}"
+
+# Ensure remote tmp directory exists.
+ssh "${SSH_TARGET}" \
+  "powershell -NoProfile -ExecutionPolicy Bypass -Command \"New-Item -ItemType Directory -Force -Path '${REMOTE_DIR}' | Out-Null\""
+
+# Send message.txt if it exists.
+if [ -f "${LOCAL_MESSAGE_FILE}" ]; then
+  scp "${LOCAL_MESSAGE_FILE}" "${SSH_TARGET}:${REMOTE_MESSAGE_FILE}"
+  echo "sent ${LOCAL_MESSAGE_FILE} to ${SSH_TARGET}:${REMOTE_MESSAGE_FILE}"
+else
+  echo "local message file does not exist: ${LOCAL_MESSAGE_FILE}"
+fi
+
+# Check whether remote response.txt exists.
+REMOTE_RESPONSE_EXISTS="$(
+  ssh "${SSH_TARGET}" \
+    "powershell -NoProfile -ExecutionPolicy Bypass -Command \"if (Test-Path -LiteralPath '${REMOTE_RESPONSE_FILE}') { Write-Output 'yes' } else { Write-Output 'no' }\""
+)"
+
+if [ "${REMOTE_RESPONSE_EXISTS}" = "yes" ]; then
+  scp "${SSH_TARGET}:${REMOTE_RESPONSE_FILE}" "${LOCAL_RESPONSE_FILE}"
+  echo "received ${SSH_TARGET}:${REMOTE_RESPONSE_FILE} as ${LOCAL_RESPONSE_FILE}"
+else
+  echo "no remote response file: ${REMOTE_RESPONSE_FILE}"
+fi

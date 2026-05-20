@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import printerhub.OperationMessages;
+import printerhub.PrinterHubLog;
 
 public final class FfmpegCameraDevice implements CameraDevice {
 
@@ -54,7 +55,7 @@ public final class FfmpegCameraDevice implements CameraDevice {
             processOutputFile = Files.createTempFile("printerhub-camera-ffmpeg-", ".log");
             List<String> command = captureCommand(tempFile);
 
-            System.out.println(OperationMessages.cameraFfmpegCaptureStarting(
+            PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureStarting(
                     printerId,
                     describe(),
                     redactedCommand(command),
@@ -71,7 +72,7 @@ public final class FfmpegCameraDevice implements CameraDevice {
                 String detail = OperationMessages.cameraFfmpegTimedOut(
                         timeoutMs,
                         readProcessOutput(processOutputFile));
-                System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+                PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
                 throw new IllegalStateException(detail);
             }
 
@@ -80,24 +81,24 @@ public final class FfmpegCameraDevice implements CameraDevice {
                 String detail = OperationMessages.cameraFfmpegExited(
                         process.exitValue(),
                         processOutput);
-                System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+                PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
                 throw new IllegalStateException(detail);
             }
 
             if (!Files.isRegularFile(tempFile)) {
                 String detail = OperationMessages.cameraFfmpegOutputMissing(tempFile.toString(), processOutput);
-                System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+                PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
                 throw new IllegalStateException(detail);
             }
 
             if (Files.size(tempFile) == 0) {
                 String detail = OperationMessages.cameraFfmpegOutputEmpty(tempFile.toString(), processOutput);
-                System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+                PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
                 throw new IllegalStateException(detail);
             }
 
             byte[] bytes = Files.readAllBytes(tempFile);
-            System.out.println(OperationMessages.cameraFfmpegCaptureSucceeded(
+            PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureSucceeded(
                     printerId,
                     bytes.length,
                     tempFile.toString()));
@@ -111,12 +112,12 @@ public final class FfmpegCameraDevice implements CameraDevice {
                     describe()));
         } catch (IOException exception) {
             String detail = OperationMessages.cameraFfmpegIoFailed(exception.getMessage());
-            System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+            PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
             throw new IllegalStateException(detail, exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             String detail = OperationMessages.cameraFfmpegInterrupted();
-            System.err.println(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
+            PrinterHubLog.error(OperationMessages.cameraFfmpegCaptureFailed(printerId, detail));
             throw new IllegalStateException(detail, exception);
         } finally {
             if (tempFile != null) {
