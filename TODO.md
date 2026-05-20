@@ -130,7 +130,7 @@ Possible endpoints:
 
 ```text
 GET /printers/{printerId}/camera/archive?from={isoInstant}&to={isoInstant}
-GET /printers/{printerId}/camera/files/{fileId}
+GET /printers/{printerId}/camera/archive/{fileId}
 ```
 
 Important constraints:

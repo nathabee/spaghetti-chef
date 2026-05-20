@@ -58,6 +58,7 @@ import { renderSettingsPage } from "./views/settings.js";
 import {
   capturePrinterCameraSnapshot,
   capturePrinterCameraAnalysisSample,
+  cameraArchiveRangeFromForm,
   renderPrinterCamera,
   renderPrinterCameraAnalysisPanel,
   renderPrinterCameraLoading,
@@ -730,6 +731,14 @@ function bindPageListeners() {
       await handleSaveCameraSettings(cameraSettingsForm);
       await loadPrinterCameraIntoPage(getSelectedPrinter());
       renderGlobalMessage();
+    });
+  }
+
+  const cameraArchiveForm = document.getElementById("cameraArchiveForm");
+  if (cameraArchiveForm) {
+    cameraArchiveForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), cameraArchiveRangeFromForm(cameraArchiveForm));
     });
   }
 
@@ -2117,7 +2126,7 @@ function ensurePermission(permission) {
 }
 
 
-async function loadPrinterCameraIntoPage(printer) {
+async function loadPrinterCameraIntoPage(printer, archiveRange) {
   if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA) {
     return;
   }
@@ -2125,7 +2134,7 @@ async function loadPrinterCameraIntoPage(printer) {
   const expectedPrinterId = printer.id;
 
   try {
-    const html = await renderPrinterCamera(printer);
+    const html = await renderPrinterCamera(printer, archiveRange);
 
     if (
       state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA
