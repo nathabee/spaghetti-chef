@@ -2852,6 +2852,10 @@ CameraCaptureService.java  -> orchestration only, no duplicated event constants
 
 - check docs updated: README.md, docs/roadmap.md, docs/dashboard.md, docs/specification.md, docs/rest-api.md
 
+- true backend camera-job scheduler if you want it to continue without the browser open.
+
+
+
 
 
 ## 0.5.x Upload and Simulation Hardening 

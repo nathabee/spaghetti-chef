@@ -1089,9 +1089,11 @@ class RemoteApiServerTest {
 
             assertEquals(200, archiveResponse.statusCode());
             assertTrue(archiveResponse.body().contains("\"files\":["));
-            assertTrue(archiveResponse.body().contains("\"type\":\"latest\""));
             assertTrue(archiveResponse.body().contains("\"type\":\"archive\""));
-            assertTrue(archiveResponse.body().contains("\"type\":\"snapshot\""));
+            assertFalse(archiveResponse.body().contains("\"type\":\"latest\""));
+            assertFalse(archiveResponse.body().contains("\"type\":\"snapshot\""));
+            assertFalse(archiveResponse.body().contains("\"type\":\"delta\""));
+            assertFalse(archiveResponse.body().contains("\"type\":\"previous\""));
 
             String fileId = extractJsonString(archiveResponse.body(), "id");
             assertNotNull(fileId);

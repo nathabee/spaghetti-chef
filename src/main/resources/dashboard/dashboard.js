@@ -120,7 +120,10 @@ let printerRefreshInterval = null;
 let pendingPrinterFormFill = null;
 const uploadStatusPollers = new Map();
 const jobStatusPollers = new Map();
+const cameraSnapshotSyncPollers = new Map();
+const cameraAnalysisSamplePollers = new Map();
 const JOB_STATUS_POLLING_INTERVAL_MS = 2500;
+let cameraArchiveScrollSelectionTimer = null;
 
 async function boot() {
   bindGlobalListeners();
@@ -437,6 +440,7 @@ function bindGlobalListeners() {
     const navButton = event.target.closest("[data-nav-target]");
     if (navButton) {
       stopManualUploadStatusSynchronizations();
+      stopCameraDashboardSyncTimers();
       setPrimaryView(navButton.dataset.navTarget);
       renderApp();
       return;
@@ -445,6 +449,7 @@ function bindGlobalListeners() {
     const printerNavButton = event.target.closest("[data-printer-nav-target]");
     if (printerNavButton) {
       stopManualUploadStatusSynchronizations();
+      stopCameraDashboardSyncTimers();
       setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
       setPrinterView(printerNavButton.dataset.printerNavTarget);
       renderApp();
@@ -454,6 +459,7 @@ function bindGlobalListeners() {
     const selectPrinterButton = event.target.closest("[data-select-printer]");
     if (selectPrinterButton) {
       stopManualUploadStatusSynchronizations();
+      stopCameraDashboardSyncTimers();
       setSelectedPrinter(selectPrinterButton.dataset.selectPrinter);
       setPrimaryView(PRIMARY_VIEW_IDS.PRINTERS);
       setPrinterView(PRINTER_VIEW_IDS.HOME);
@@ -492,6 +498,29 @@ function bindGlobalListeners() {
     const cameraRefreshButton = event.target.closest("[data-camera-refresh]");
     if (cameraRefreshButton) {
       await loadPrinterCameraIntoPage(getSelectedPrinter());
+      return;
+    }
+
+    const cameraSyncStartButton = event.target.closest("[data-camera-sync-start]");
+    if (cameraSyncStartButton) {
+      startCameraSnapshotSync(
+        cameraSyncStartButton.dataset.cameraSyncStart,
+        cameraSyncStartButton.dataset.cameraCaptureInterval
+      );
+      renderCameraSyncButtonState();
+      return;
+    }
+
+    const cameraSyncStopButton = event.target.closest("[data-camera-sync-stop]");
+    if (cameraSyncStopButton) {
+      stopCameraSnapshotSync(cameraSyncStopButton.dataset.cameraSyncStop);
+      renderCameraSyncButtonState();
+      return;
+    }
+
+    const cameraArchiveSelectButton = event.target.closest("[data-camera-archive-select]");
+    if (cameraArchiveSelectButton) {
+      selectCameraArchiveFile(cameraArchiveSelectButton);
       return;
     }
 
@@ -741,6 +770,22 @@ function bindPageListeners() {
       await loadPrinterCameraIntoPage(getSelectedPrinter(), cameraArchiveRangeFromForm(cameraArchiveForm));
     });
   }
+
+  const cameraArchiveFileList = document.getElementById("cameraArchiveFileList");
+  if (cameraArchiveFileList) {
+    cameraArchiveFileList.addEventListener("scroll", () => {
+      window.clearTimeout(cameraArchiveScrollSelectionTimer);
+      cameraArchiveScrollSelectionTimer = window.setTimeout(() => {
+        const firstVisible = firstVisibleCameraArchiveItem(cameraArchiveFileList);
+        if (firstVisible) {
+          selectCameraArchiveFile(firstVisible);
+        }
+      }, 2000);
+    }, { passive: true });
+  }
+
+  bindCameraAnalysisAutoSampling();
+  renderCameraSyncButtonState();
 
   const jobForm = document.getElementById("jobForm");
   if (jobForm) {
@@ -1302,6 +1347,155 @@ function stopManualUploadStatusSynchronizations() {
   }
 
   state.uploadStatusSynchronization.clear();
+}
+
+function startCameraSnapshotSync(printerId, intervalSeconds) {
+  if (!printerId) {
+    return;
+  }
+
+  stopCameraSnapshotSync(printerId);
+
+  let running = false;
+  const intervalMs = intervalMilliseconds(intervalSeconds);
+
+  const tick = async () => {
+    if (running) {
+      return;
+    }
+
+    running = true;
+    try {
+      await handleCameraCapture(printerId);
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      renderGlobalMessage();
+    } catch (error) {
+      setMessage(`Camera sync failed for ${printerId}: ${error.message}`);
+      stopCameraSnapshotSync(printerId);
+      renderGlobalMessage();
+    } finally {
+      running = false;
+    }
+  };
+
+  cameraSnapshotSyncPollers.set(printerId, window.setInterval(tick, intervalMs));
+  tick();
+  setMessage(`Camera snapshot sync started for ${printerId}.`);
+}
+
+function stopCameraSnapshotSync(printerId) {
+  const intervalId = cameraSnapshotSyncPollers.get(printerId);
+  if (!intervalId) {
+    return;
+  }
+
+  window.clearInterval(intervalId);
+  cameraSnapshotSyncPollers.delete(printerId);
+  setMessage(`Camera snapshot sync stopped for ${printerId}.`);
+}
+
+function bindCameraAnalysisAutoSampling() {
+  const activeCards = Array.from(document.querySelectorAll("[data-camera-analysis-active-session]"));
+  const activePrinterIds = new Set();
+
+  activeCards.forEach((card) => {
+    const printerId = card.dataset.cameraAnalysisPrinterId;
+    const sessionId = card.dataset.cameraAnalysisActiveSession;
+
+    if (!printerId) {
+      return;
+    }
+
+    if (!sessionId) {
+      stopCameraAnalysisAutoSampling(printerId);
+      return;
+    }
+
+    activePrinterIds.add(printerId);
+    startCameraAnalysisAutoSampling(printerId, sessionId, card.dataset.cameraCaptureInterval);
+  });
+
+  for (const printerId of Array.from(cameraAnalysisSamplePollers.keys())) {
+    if (!activePrinterIds.has(printerId)) {
+      stopCameraAnalysisAutoSampling(printerId);
+    }
+  }
+}
+
+function startCameraAnalysisAutoSampling(printerId, sessionId, intervalSeconds) {
+  const existing = cameraAnalysisSamplePollers.get(printerId);
+  if (existing?.sessionId === sessionId && existing?.intervalSeconds === String(intervalSeconds || "")) {
+    return;
+  }
+
+  stopCameraAnalysisAutoSampling(printerId);
+
+  let running = false;
+  const intervalMs = intervalMilliseconds(intervalSeconds);
+
+  const tick = async () => {
+    if (running) {
+      return;
+    }
+
+    running = true;
+    try {
+      await capturePrinterCameraAnalysisSample(printerId, sessionId);
+      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
+    } catch (error) {
+      stopCameraAnalysisAutoSampling(printerId);
+      setMessage(`Camera analysis auto-sample stopped for ${printerId}: ${error.message}`);
+      renderGlobalMessage();
+    } finally {
+      running = false;
+    }
+  };
+
+  cameraAnalysisSamplePollers.set(printerId, {
+    intervalId: window.setInterval(tick, intervalMs),
+    intervalSeconds: String(intervalSeconds || ""),
+    sessionId
+  });
+}
+
+function stopCameraAnalysisAutoSampling(printerId) {
+  const poller = cameraAnalysisSamplePollers.get(printerId);
+  if (!poller) {
+    return;
+  }
+
+  window.clearInterval(poller.intervalId);
+  cameraAnalysisSamplePollers.delete(printerId);
+}
+
+function stopCameraDashboardSyncTimers() {
+  for (const printerId of Array.from(cameraSnapshotSyncPollers.keys())) {
+    stopCameraSnapshotSync(printerId);
+  }
+
+  for (const printerId of Array.from(cameraAnalysisSamplePollers.keys())) {
+    stopCameraAnalysisAutoSampling(printerId);
+  }
+}
+
+function renderCameraSyncButtonState() {
+  document.querySelectorAll("[data-camera-sync-start]").forEach((button) => {
+    const active = cameraSnapshotSyncPollers.has(button.dataset.cameraSyncStart);
+    button.disabled = active;
+    button.textContent = active ? "Syncing" : "Sync";
+  });
+
+  document.querySelectorAll("[data-camera-sync-stop]").forEach((button) => {
+    button.disabled = !cameraSnapshotSyncPollers.has(button.dataset.cameraSyncStop);
+  });
+}
+
+function intervalMilliseconds(intervalSeconds) {
+  const parsed = Number.parseInt(intervalSeconds, 10);
+  const seconds = Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+
+  return Math.max(seconds, 2) * 1000;
 }
 
 function stopJobSynchronizations() {
@@ -2123,6 +2317,62 @@ function ensurePermission(permission) {
 
   setMessage(permissionDeniedLabel(permission));
   return false;
+}
+
+function firstVisibleCameraArchiveItem(listElement) {
+  const items = Array.from(listElement.querySelectorAll("[data-camera-archive-select]"));
+  const listTop = listElement.getBoundingClientRect().top;
+
+  return items.find((item) => item.getBoundingClientRect().bottom >= listTop) || items[0] || null;
+}
+
+function selectCameraArchiveFile(selectedButton) {
+  const listElement = selectedButton.closest("#cameraArchiveFileList");
+  if (!listElement) {
+    return;
+  }
+
+  const items = Array.from(listElement.querySelectorAll("[data-camera-archive-select]"));
+  const selectedIndex = Number.parseInt(selectedButton.dataset.cameraArchiveIndex, 10);
+
+  if (!Number.isFinite(selectedIndex)) {
+    return;
+  }
+
+  items.forEach((item) => {
+    item.classList.toggle("selected", item === selectedButton);
+  });
+
+  updateCameraArchivePreview(items.slice(selectedIndex, selectedIndex + 3));
+}
+
+function updateCameraArchivePreview(items) {
+  [0, 1, 2].forEach((slot) => {
+    const item = items[slot];
+    const preview = document.querySelector(`[data-camera-archive-preview-slot="${slot}"]`);
+    const image = document.querySelector(`[data-camera-archive-preview-image="${slot}"]`);
+    const title = document.querySelector(`[data-camera-archive-preview-title="${slot}"]`);
+
+    if (!preview || !image || !title) {
+      return;
+    }
+
+    if (!item) {
+      preview.hidden = true;
+      image.removeAttribute("src");
+      title.textContent = "—";
+      return;
+    }
+
+    preview.hidden = false;
+    title.textContent = item.dataset.cameraArchivePath || item.dataset.cameraArchiveUrl || "—";
+
+    const imageUrl = item.dataset.cameraArchiveUrl || "";
+    if (image.getAttribute("src") !== imageUrl) {
+      image.setAttribute("src", imageUrl);
+    }
+    image.setAttribute("alt", `Camera archive file ${item.dataset.cameraArchivePath || ""}`);
+  });
 }
 
 
