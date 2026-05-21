@@ -23,6 +23,7 @@ export const state = {
   activePrimaryView: PRIMARY_VIEW_IDS.FARM_HOME,
   activePrinterView: PRINTER_VIEW_IDS.HOME,
   selectedPrinterId: null,
+  adminCameraPrinterId: null,
   printers: [],
   jobs: [],
   printFiles: [],
@@ -36,6 +37,10 @@ export const state = {
   monitoringOverview: null,
   operatorAuditEvents: [],
   cameraArchiveJobs: [],
+  adminCameraTimeline: [],
+  adminCameraSelectedJobId: null,
+  adminCameraSelectedEntryId: null,
+  adminCameraActionResult: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -57,8 +62,16 @@ export function setPrinters(printers) {
     state.selectedPrinterId = state.printers[0].id;
   }
 
+  if (!state.adminCameraPrinterId && state.printers.length > 0) {
+    state.adminCameraPrinterId = state.selectedPrinterId || state.printers[0].id;
+  }
+
   if (state.selectedPrinterId && !state.printers.some((printer) => printer.id === state.selectedPrinterId)) {
     state.selectedPrinterId = state.printers[0]?.id ?? null;
+  }
+
+  if (state.adminCameraPrinterId && !state.printers.some((printer) => printer.id === state.adminCameraPrinterId)) {
+    state.adminCameraPrinterId = state.selectedPrinterId || state.printers[0]?.id || null;
   }
 }
 
@@ -122,6 +135,34 @@ export function setOperatorAuditEvents(events) {
 
 export function setCameraArchiveJobs(jobs) {
   state.cameraArchiveJobs = Array.isArray(jobs) ? jobs : [];
+}
+
+export function setAdminCameraPrinter(printerId) {
+  if (!printerId) {
+    state.adminCameraPrinterId = null;
+    return;
+  }
+
+  const exists = state.printers.some((printer) => printer.id === printerId);
+  state.adminCameraPrinterId = exists ? printerId : state.adminCameraPrinterId;
+  state.adminCameraTimeline = [];
+  state.adminCameraSelectedJobId = null;
+  state.adminCameraSelectedEntryId = null;
+  state.adminCameraActionResult = null;
+}
+
+export function setAdminCameraTimeline(jobId, timeline) {
+  state.adminCameraSelectedJobId = jobId || null;
+  state.adminCameraTimeline = Array.isArray(timeline) ? timeline : [];
+  state.adminCameraSelectedEntryId = state.adminCameraTimeline[0]?.id ?? null;
+}
+
+export function setAdminCameraSelectedEntry(entryId) {
+  state.adminCameraSelectedEntryId = entryId == null ? null : Number(entryId);
+}
+
+export function setAdminCameraActionResult(result) {
+  state.adminCameraActionResult = result || null;
 }
 
 export function setPrimaryView(viewId) {

@@ -83,6 +83,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -749,11 +751,20 @@ public final class RemoteApiServer {
                 return;
             }
 
-            sendJson(exchange, 200, cameraArchiveJobSummariesJson(cameraArchiveManagementService.listJobs()));
+            String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+            List<CameraArchiveJobSummary> jobs = printerId == null || printerId.isBlank()
+                    ? cameraArchiveManagementService.listJobs()
+                    : cameraArchiveManagementService.listJobs(printerId);
+            sendJson(exchange, 200, cameraArchiveJobSummariesJson(jobs));
             return;
         }
 
         String prefix = "/admin/camera/archive/jobs/";
+        if (path.startsWith("/admin/camera/archive/files/")) {
+            handleAdminCameraArchiveFile(exchange, path);
+            return;
+        }
+
         if (!path.startsWith(prefix)) {
             sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
             return;
@@ -767,16 +778,21 @@ public final class RemoteApiServer {
         }
 
         String jobId = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+        String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
         if (parts.length == 1) {
             if ("GET".equalsIgnoreCase(method)) {
                 sendJson(exchange, 200, cameraArchiveEntriesJson(
                         jobId,
-                        cameraArchiveManagementService.entriesForJob(jobId)));
+                        printerId == null || printerId.isBlank()
+                                ? cameraArchiveManagementService.entriesForJob(jobId)
+                                : cameraArchiveManagementService.entriesForJob(printerId, jobId)));
                 return;
             }
 
             if ("DELETE".equalsIgnoreCase(method)) {
-                CameraArchiveDeletionReport report = cameraArchiveManagementService.deleteJobArchive(jobId);
+                CameraArchiveDeletionReport report = printerId == null || printerId.isBlank()
+                        ? cameraArchiveManagementService.deleteJobArchive(jobId)
+                        : cameraArchiveManagementService.deleteJobArchive(printerId, jobId);
                 sendJson(exchange, 200, cameraArchiveDeletionReportJson(report));
                 return;
             }
@@ -793,7 +809,9 @@ public final class RemoteApiServer {
 
             sendJson(exchange, 200, cameraArchiveTimelineJson(
                     jobId,
-                    cameraArchiveManagementService.entriesForJob(jobId)));
+                    printerId == null || printerId.isBlank()
+                            ? cameraArchiveManagementService.entriesForJob(jobId)
+                            : cameraArchiveManagementService.entriesForJob(printerId, jobId)));
             return;
         }
 
@@ -812,6 +830,43 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+    }
+
+    private void handleAdminCameraArchiveFile(HttpExchange exchange, String path) throws IOException {
+        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        String idValue = path.substring("/admin/camera/archive/files/".length());
+        long entryId;
+        try {
+            entryId = Long.parseLong(idValue);
+        } catch (NumberFormatException exception) {
+            sendJson(exchange, 400, errorJson("invalid_camera_archive_entry_id"));
+            return;
+        }
+
+        Optional<CameraArchiveEntry> entry = cameraArchiveManagementService.entryById(entryId);
+        if (entry.isEmpty()) {
+            sendJson(exchange, 404, errorJson("camera_archive_entry_not_found"));
+            return;
+        }
+
+        Path archivePath = Path.of(entry.get().archivePath()).normalize();
+        if (!Files.isRegularFile(archivePath)) {
+            sendJson(exchange, 404, errorJson("camera_archive_file_not_found"));
+            return;
+        }
+
+        byte[] bytes = Files.readAllBytes(archivePath);
+        Headers headers = exchange.getResponseHeaders();
+        headers.set("Content-Type", entry.get().contentType());
+        headers.set("Cache-Control", "no-store");
+        exchange.sendResponseHeaders(200, bytes.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(bytes);
+        }
     }
 
     private void handleMonitoring(HttpExchange exchange) throws IOException {

@@ -2391,7 +2391,7 @@ Expected result:
 
 ### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
-status: planned
+status: done
 
 Goals:
 
@@ -2894,7 +2894,7 @@ Out of scope:
 
 ### 0.4.8 — Camera Dashboard Polish And Administration
 
-status: planned
+status: done
 
 Purpose:
 
@@ -2904,6 +2904,9 @@ Goals:
 
 * make Picture/Data Management accessible only to the ADMIN profile
 * connect the admin archive listing to backend picture/job metadata
+* scope Picture/Data Management by selected printer
+* filter admin camera jobs by the selected printer
+* keep delete/replay APIs able to target one printer/job pair
 * connect delete-by-job actions with confirmation
 * connect replay controls to the archive timeline
 * show archived picture, delta picture, and analysis values during replay
@@ -2917,6 +2920,8 @@ Goals:
 * show archive availability
 * show capture backend status
 * show camera storage path and retention status
+* non-official correction: show newest Spaghetti trace review samples first
+* non-official correction: cap the live Spaghetti trace review table to a recent sample window so long print jobs do not overload the dashboard
 
 Out of scope:
 

@@ -101,6 +101,38 @@ public final class CameraAnalysisSampleStore {
         }
     }
 
+    public List<CameraAnalysisSample> findRecentBySession(String printerId, String sessionId, int limit) {
+        int safeLimit = Math.max(1, limit);
+        String sql = """
+                SELECT id, session_id, printer_id, captured_at, analyzed_at, latest_snapshot_path,
+                    previous_snapshot_path, delta_snapshot_path, delta_score, changed_pixel_ratio,
+                    average_pixel_delta, confidence, suspected, reason_codes, message
+                FROM camera_analysis_samples
+                WHERE printer_id = ? AND session_id = ?
+                ORDER BY captured_at DESC, id DESC
+                LIMIT ?;
+                """;
+        List<CameraAnalysisSample> samples = new ArrayList<>();
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, requireText(printerId, "printerId"));
+            statement.setString(2, requireText(sessionId, "sessionId"));
+            statement.setInt(3, safeLimit);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    samples.add(mapSample(resultSet));
+                }
+            }
+            return samples;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to list recent camera analysis samples", exception);
+        }
+    }
+
     private static CameraAnalysisSample mapSample(ResultSet resultSet) throws SQLException {
         return new CameraAnalysisSample(
                 resultSet.getLong("id"),

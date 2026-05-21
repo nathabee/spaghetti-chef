@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import printerhub.persistence.CameraArchiveEntry;
 import printerhub.persistence.CameraArchiveEntryStore;
@@ -28,8 +29,20 @@ public final class CameraArchiveManagementService {
         return archiveEntryStore.findJobSummaries();
     }
 
+    public List<CameraArchiveJobSummary> listJobs(String printerId) {
+        return archiveEntryStore.findJobSummariesByPrinterId(printerId);
+    }
+
     public List<CameraArchiveEntry> entriesForJob(String jobId) {
         return archiveEntryStore.findByJobId(jobId);
+    }
+
+    public Optional<CameraArchiveEntry> entryById(long entryId) {
+        return archiveEntryStore.findById(entryId);
+    }
+
+    public List<CameraArchiveEntry> entriesForJob(String printerId, String jobId) {
+        return archiveEntryStore.findByPrinterIdAndJobId(printerId, jobId);
     }
 
     public CameraArchiveDeletionReport deleteJobArchive(String jobId) {
@@ -70,6 +83,46 @@ public final class CameraArchiveManagementService {
                 List.copyOf(failedFiles),
                 message);
     }
+
+    public CameraArchiveDeletionReport deleteJobArchive(String printerId, String jobId) {
+        List<CameraArchiveEntry> entries = archiveEntryStore.findByPrinterIdAndJobId(printerId, jobId);
+        List<String> failedFiles = new ArrayList<>();
+        int deletedFiles = 0;
+        long deletedBytes = 0L;
+
+        for (CameraArchiveEntry entry : entries) {
+            Path archivePath = Path.of(entry.archivePath()).normalize();
+
+            if (!isInsidePrinterCameraDirectory(entry.printerId(), archivePath)) {
+                failedFiles.add(entry.archivePath());
+                continue;
+            }
+
+            try {
+                long size = Files.isRegularFile(archivePath) ? Files.size(archivePath) : 0L;
+                if (Files.deleteIfExists(archivePath)) {
+                    deletedFiles++;
+                    deletedBytes += size;
+                }
+            } catch (IOException exception) {
+                failedFiles.add(entry.archivePath());
+            }
+        }
+
+        int deletedRows = archiveEntryStore.deleteByPrinterIdAndJobId(printerId, jobId);
+        String message = failedFiles.isEmpty()
+                ? "camera_archive_job_deleted"
+                : "camera_archive_job_deleted_with_file_errors";
+
+        return new CameraArchiveDeletionReport(
+                jobId,
+                deletedFiles,
+                deletedBytes,
+                deletedRows,
+                List.copyOf(failedFiles),
+                message);
+    }
+
 
     private boolean isInsidePrinterCameraDirectory(String printerId, Path candidatePath) {
         CameraSettings settings = settingsService.load(printerId);

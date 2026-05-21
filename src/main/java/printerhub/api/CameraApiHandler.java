@@ -31,6 +31,8 @@ import java.util.Optional;
 public final class CameraApiHandler {
 
     private static final int DEFAULT_EVENT_LIMIT = 20;
+    private static final int DEFAULT_ANALYSIS_SAMPLE_LIMIT = 200;
+    private static final int MAX_ANALYSIS_SAMPLE_LIMIT = 500;
 
     private final CameraCaptureService captureService;
     private final printerhub.camera.CameraSettingsService settingsService;
@@ -225,7 +227,13 @@ public final class CameraApiHandler {
             throws IOException {
         try {
             if (isMethod(exchange, "GET")) {
-                sendJson(exchange, 200, samplesJson(analysisSessionService.samples(printerId, sessionId)));
+                int limit = queryParameter(exchange, "limit")
+                        .map(CameraApiHandler::parsePositiveInteger)
+                        .orElse(DEFAULT_ANALYSIS_SAMPLE_LIMIT);
+                sendJson(exchange, 200, samplesJson(analysisSessionService.recentSamples(
+                        printerId,
+                        sessionId,
+                        Math.min(limit, MAX_ANALYSIS_SAMPLE_LIMIT))));
                 return;
             }
 
@@ -651,6 +659,19 @@ public final class CameraApiHandler {
         } catch (java.time.format.DateTimeParseException exception) {
             throw new IllegalArgumentException("invalid timestamp: " + value, exception);
         }
+    }
+
+    private static int parsePositiveInteger(String value) {
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed > 0) {
+                return parsed;
+            }
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("invalid positive integer: " + value, exception);
+        }
+
+        throw new IllegalArgumentException("invalid positive integer: " + value);
     }
 
     private static Optional<String> readRawField(String json, String fieldName) {
