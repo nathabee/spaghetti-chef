@@ -2299,7 +2299,7 @@ Operators can open one global Monitoring page to see farm runtime health, active
 
 ### 0.2.6 — Runtime Recovery and Serial Device Robustness
 
-status: planned
+status: done
 
 Goals:
 
@@ -2798,7 +2798,7 @@ Out of scope:
 
 ### 0.4.6 — Camera Dashboard Job Debug
 
-status: in progress
+status: done
 
 Goals:
 
@@ -2808,27 +2808,112 @@ Goals:
 * update docs/rest-api.md
 * show camera analysis parameters and computed detector values in table form before graph polish
 * show the analysis session card in the Camera view and Control view
-* list pictures in a camera analysis session, with links to display them
+* list archive pictures for the selected printer, with safe links to display them
 * support start/stop time filters for camera archive review
-* tune the spaghetti detection
+* show a camera archive gallery with file list and picture previews
+* keep archive browsing limited to `archive/*` files
+* add dashboard-local snapshot sync using `Capture interval seconds`
+* add dashboard-local automatic analysis sampling for active sessions
+* make long event and analysis tables scroll inside their cards
+* keep graph polish and backend/headless camera jobs for later
 
 
 ---
 
-### 0.4.7 — Camera Dashboard Polish
+### 0.4.7 — Camera Picture And Data Management
 
-status: planned
+status: done
+
+Purpose:
+
+Introduce the backend and admin-only structure needed to manage camera pictures, camera analysis data, and future replay/recalculation workflows. This milestone is about data ownership, cleanup, and simulation foundations before final dashboard polish.
 
 Goals:
 
-* improve camera cards
+* add the concept of a camera archive entry linked to printer id and, when available, print job id
+* make archived image filenames include date, time, and job id when a related job is known
+* keep `snapshots/` as a bounded cyclic working folder
+* enforce `Retained snapshots` as the maximum number of files kept in `snapshots/`
+* keep `latest`, `previous`, and `delta` as working files, not gallery/archive entries
+* decide and add an archive cadence setting if archiving every snapshot is too much
+* persist enough metadata to delete archive pictures by job id
+* add backend APIs for listing archive pictures by job id and time range
+* add backend APIs for deleting archive pictures and related camera analysis data by job id
+* add backend support for replaying a selected job's archived camera timeline
+* add backend placeholder support for recalculating detector values with changed parameters
+* add an admin-only Picture/Data Management menu placeholder
+* move the current Camera files / Snapshot archive card concept toward that admin area
+* add placeholder cards explaining future replay, cleanup, and recalculation workflows
+
+Replay target:
+
+```text
+Admin -> Picture/Data Management
+  Select job id
+  Display ms setting
+  Play
+  Left: archived picture
+  Middle: delta image associated with that moment
+  Right: analysis values
+    Captured at
+    Analyzed at
+    State
+    Confidence
+    Delta score
+    Changed pixels
+    Average delta
+```
+
+Recalculation target:
+
+```text
+Admin -> Picture/Data Management
+  Select job id
+  Edit detector parameters
+  Re-run calculation placeholder
+  Result table:
+    archive file / delta file
+    Captured at
+    Analyzed at
+    State
+    Confidence
+    Delta score
+    Changed pixels
+    Average delta
+```
+
+Out of scope:
+
+* final graph polish
+* replacing the camera analysis session model
+* automatic printer pause/abort behavior
+* allowing non-admin picture deletion
+* deleting arbitrary filesystem paths
+
+---
+
+### 0.4.8 — Camera Dashboard Polish And Administration
+
+status: planned
+
+Purpose:
+
+Connect the 0.4.7 picture/data management backend to a usable admin dashboard and polish the operator camera views.
+
+Goals:
+
+* make Picture/Data Management accessible only to the ADMIN profile
+* connect the admin archive listing to backend picture/job metadata
+* connect delete-by-job actions with confirmation
+* connect replay controls to the archive timeline
+* show archived picture, delta picture, and analysis values during replay
+* connect recalculation placeholders enough to display computed result tables
 * create graph for camera jobs to check evolution of spaghetti detection values over time
-* access old archive pictures on demand depending on an event status in the graph
-* add latest snapshot refresh
+* access old archive pictures on demand depending on selected graph event/time
+* improve camera cards
 * show last frame age
 * show camera event timeline
-* add camera settings editor
-* add safety mode indicator
+* show safety mode indicator
 * show archive availability
 * show capture backend status
 * show camera storage path and retention status
@@ -2837,10 +2922,11 @@ Out of scope:
 
 * changing SD upload logic
 * changing serial communication ownership
+* bypassing admin permissions for destructive picture/data cleanup
  
 ---
 
-### 0.4.8 — Code Clean Up
+### 0.4.9 — Code Clean Up
 
 - check that the code is completely following:
 RuntimeDefaults.java       -> numeric/default runtime values

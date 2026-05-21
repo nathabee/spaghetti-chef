@@ -32,7 +32,7 @@ public final class CameraArchiveService {
 
         List<CameraArchiveFile> files = new ArrayList<>();
 
-        try (Stream<Path> paths = Files.walk(printerDirectory, 2)) {
+        try (Stream<Path> paths = Files.walk(printerDirectory, 3)) {
             paths
                     .filter(Files::isRegularFile)
                     .filter(path -> normalizeRelativePath(printerDirectory.relativize(path)).startsWith("archive/"))

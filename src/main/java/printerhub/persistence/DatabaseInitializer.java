@@ -31,6 +31,7 @@ public final class DatabaseInitializer {
             createCameraSettingsTable(statement);
             createCameraEventsTable(statement);
             createCameraSnapshotMetadataTable(statement);
+            createCameraArchiveEntriesTable(statement);
             createCameraAnalysisSessionsTable(statement);
             createCameraAnalysisSamplesTable(statement);
             createSecuritySettingsTable(statement);
@@ -443,6 +444,25 @@ public final class DatabaseInitializer {
                     width INTEGER,
                     height INTEGER,
                     source_description TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraArchiveEntriesTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_archive_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    job_id TEXT,
+                    archive_path TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL DEFAULT 0,
+                    captured_at TEXT NOT NULL,
+                    archived_at TEXT NOT NULL,
+                    source_type TEXT,
+                    message TEXT
                 );
                 """;
 

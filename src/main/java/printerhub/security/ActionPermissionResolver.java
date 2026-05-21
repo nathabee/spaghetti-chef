@@ -12,6 +12,9 @@ public final class ActionPermissionResolver {
             return resolveReadPermission(normalizedPath);
         }
 
+        if (normalizedPath.startsWith("/admin/camera")) {
+            return Optional.of(Permission.CAMERA_DATA_MANAGE);
+        }
         if ("/printers".equals(normalizedPath)) {
             return Optional.of(Permission.PRINTER_CONFIGURE);
         }
@@ -107,6 +110,9 @@ public final class ActionPermissionResolver {
         }
         if (path.startsWith("/security")) {
             return Optional.of(Permission.SECURITY_VIEW);
+        }
+        if (path.startsWith("/admin/camera")) {
+            return Optional.of(Permission.CAMERA_DATA_MANAGE);
         }
 
         return Optional.empty();

@@ -4,6 +4,7 @@ export const PRIMARY_VIEW_IDS = Object.freeze({
   JOBS: "jobs",
   MONITORING: "monitoring",
   HISTORY: "history",
+  ADMIN_CAMERA: "admin-camera",
   SETTINGS: "settings"
 });
 
@@ -34,6 +35,7 @@ export const state = {
   securityRoles: [],
   monitoringOverview: null,
   operatorAuditEvents: [],
+  cameraArchiveJobs: [],
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -116,6 +118,10 @@ export function setMonitoringOverview(overview) {
 
 export function setOperatorAuditEvents(events) {
   state.operatorAuditEvents = Array.isArray(events) ? events : [];
+}
+
+export function setCameraArchiveJobs(jobs) {
+  state.cameraArchiveJobs = Array.isArray(jobs) ? jobs : [];
 }
 
 export function setPrimaryView(viewId) {
@@ -351,7 +357,8 @@ function legacyPermissionAllows(permissions, permission) {
     SETTINGS_VIEW: ["VIEW_SETTINGS"],
     SETTINGS_UPDATE: ["CONFIGURE_MONITORING", "CONFIGURE_TRANSFER_SETTINGS"],
     SECURITY_VIEW: ["MANAGE_SECURITY"],
-    SECURITY_MANAGE: ["MANAGE_SECURITY"]
+    SECURITY_MANAGE: ["MANAGE_SECURITY"],
+    CAMERA_DATA_MANAGE: ["MANAGE_SECURITY"]
   };
 
   return (legacyMap[permission] || []).some((legacyPermission) => permissions.includes(legacyPermission));

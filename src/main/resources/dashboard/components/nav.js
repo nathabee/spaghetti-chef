@@ -1,4 +1,4 @@
-import { currentLocalRole, PRIMARY_VIEW_IDS, PRINTER_VIEW_IDS, securityModeLabel, state } from "../state.js";
+import { currentLocalRole, hasPermission, PRIMARY_VIEW_IDS, PRINTER_VIEW_IDS, securityModeLabel, state } from "../state.js";
 import {  countEnabledPrinters, countDisabledPrinters, getSelectedPrinterDisplayName } from "../dashboard.js";
 import { escapeHtml } from "../utils/format.js";
 
@@ -9,6 +9,7 @@ const PRIMARY_ITEMS = [
   { id: PRIMARY_VIEW_IDS.JOBS, label: "Jobs", meta: () => `${state.jobs.length} tracked` },
   { id: PRIMARY_VIEW_IDS.MONITORING, label: "Monitoring", meta: () => `${state.monitoringOverview?.summary?.activeJobs ?? 0} active jobs` },
   { id: PRIMARY_VIEW_IDS.HISTORY, label: "History", meta: () => "Events and audit" },
+  { id: PRIMARY_VIEW_IDS.ADMIN_CAMERA, label: "Pictures", meta: () => "Admin camera data", permission: "CAMERA_DATA_MANAGE" },
   { id: PRIMARY_VIEW_IDS.SETTINGS, label: "Settings", meta: () => "Monitoring and runtime" }
 ];
 
@@ -30,7 +31,9 @@ export function renderNav() {
   const selectedPrinterNavSection = document.getElementById("selectedPrinterNavSection");
   const selectedPrinterLabel = document.getElementById("selectedPrinterLabel");
 
-  primaryNav.innerHTML = PRIMARY_ITEMS.map((item) => `
+  primaryNav.innerHTML = PRIMARY_ITEMS
+    .filter((item) => hasPermission(item.permission))
+    .map((item) => `
     <button
       type="button"
       class="nav-button ${state.activePrimaryView === item.id ? "active" : ""}"

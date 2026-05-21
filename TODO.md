@@ -1,6 +1,6 @@
 # TO DO
 
-This file is the short-term working specification for the active 0.4.x work.
+This file is the short-term working specification for the active 0.4.x camera work.
 
 The roadmap stays as the milestone overview. This file contains the concrete implementation detail needed before coding.
 
@@ -8,297 +8,396 @@ The roadmap stays as the milestone overview. This file contains the concrete imp
 
 ## Current Focus
 
-### 0.4.6 — Camera Dashboard Job Debug
+### 0.4.7 — Camera Picture And Data Management
 
-Status: in progress
-
-Purpose:
-
-Make camera analysis sessions debug-friendly before polishing graphs. The operator should be able to start an analysis session, capture samples, see every computed value in plain table form, inspect the related files, and understand why a point is good or suspicious.
-
-This milestone is about observability and debugging, not final visual polish.
-
----
-
-## 0.4.6 Scope
-
-### 1. Dashboard Analysis Sample Table
-
-The Camera view should show camera analysis samples as plain data first.
-
-Required columns:
-
-```text
-capturedAt
-analyzedAt
-state good/suspicious
-confidence
-deltaScore
-changedPixelRatio
-averagePixelDelta
-reasonCodes
-message
-latestSnapshotPath
-previousSnapshotPath
-deltaSnapshotPath
-```
+Status: implemented
 
 Purpose:
 
-* make the detector values visible without graph interpretation
-* confirm the backend is producing useful numeric values
-* define the future graph axes clearly
+Build the backend and admin-only UI structure needed to manage camera pictures, camera analysis data, cleanup, replay, and future spaghetti-detection recalculation.
 
-Future graph mapping:
-
-```text
-x-axis = capturedAt
-y-axis series = confidence
-y-axis series = deltaScore
-y-axis series = changedPixelRatio
-y-axis series = averagePixelDelta
-point state = good/suspicious
-point detail = reasonCodes + message + snapshot paths
-```
-
-Current decision:
-
-Do not spend time polishing the graph until this table is useful and trusted.
+0.4.6 made camera debugging visible in the Camera and Control pages. 0.4.7 should now separate operator monitoring from admin picture/data management.
 
 ---
 
-### 2. Camera Analysis Session Card Reuse
+## 0.4.6 Delivered
 
-The same camera analysis session card should be visible in:
+0.4.6 delivered the debug-first camera dashboard work:
+
+* camera analysis sample table in the Camera view
+* camera analysis sample table in the Control view
+* start/sample/stop analysis session actions from both views
+* visible detector values:
+  * captured at
+  * analyzed at
+  * state
+  * confidence
+  * delta score
+  * changed pixel ratio
+  * average pixel delta
+  * reason codes
+  * message
+  * latest/previous/delta paths
+* safe camera archive API
+* archive gallery showing only `archive/*`
+* start/stop time filters for archive review
+* latest snapshot sync button using `Capture interval seconds`
+* dashboard-local automatic analysis sampling while a session is active
+* scrollable event, analysis, and archive panels
+* Windows ffmpeg documentation and dashboard settings support
+
+Known limitation:
+
+The sync and automatic sampling added in 0.4.6 are dashboard-local. They run while the dashboard page is open. A true backend/headless camera-job scheduler is still future work.
+
+---
+
+## 0.4.7 Scope
+
+### 1. Admin Picture/Data Management Menu
+
+Add a new admin-only dashboard area:
 
 ```text
-Selected Printer -> Camera
-Selected Printer -> Control
+Admin -> Picture/Data Management
+```
+
+Access rule:
+
+```text
+ADMIN profile only
+```
+
+The first 0.4.7 UI can be mostly placeholders, but the placeholders must describe the workflows clearly enough that the backend/API work has a visible home.
+
+Initial cards:
+
+* Archive picture browser
+* Delete pictures/data by job
+* Replay camera job
+* Recalculate detector values
+* Storage/retention status
+
+Move or duplicate the current `Camera files / Snapshot archive` concept toward this admin area. The Camera page may keep a lightweight latest-snapshot/operator view, but picture cleanup and replay belong in Admin.
+
+---
+
+### 2. Camera Picture Ownership And Job Link
+
+We need to know which pictures belong to which print job.
+
+Backend target:
+
+```text
+CameraArchiveEntry
+  id
+  printerId
+  jobId optional
+  analysisSessionId optional
+  capturedAt
+  archivedAt
+  archivePath
+  deltaPath optional
+  contentType
+  sizeBytes
+  sourceType
+  message optional
+```
+
+Rules:
+
+* archive entries belong to a printer
+* archive entries should link to a job id when a print job is active or otherwise selected
+* archive file names should include date, time, and job id when job id is known
+* SQLite stores metadata and paths only
+* image bytes stay on disk
+* no image blobs in SQLite
+
+Suggested filename shape:
+
+```text
+archive/{jobId}/{yyyyMMdd_HHmmss_SSS}_{jobId}.jpg
+```
+
+If no job id is known:
+
+```text
+archive/unassigned/{yyyyMMdd_HHmmss_SSS}_unassigned.jpg
+```
+
+Open question:
+
+Whether job id should be inferred from the active print job or explicitly attached when a camera analysis session starts. Prefer explicit metadata once the active job lookup is reliable.
+
+---
+
+### 3. Snapshot Folder Must Be Cyclic
+
+There is a current problem: every capture can remain in `snapshots/`, so the folder grows like an archive.
+
+Desired behavior:
+
+```text
+latest.jpg    current working image
+previous.jpg  previous working image
+delta.jpg     current delta working image
+snapshots/    bounded cyclic working history
+archive/      long-term review pictures
+```
+
+Rules:
+
+* captures happen every `Capture interval seconds`
+* `Retained snapshots` is the maximum number of files kept in `snapshots/`
+* when the snapshot count exceeds the limit, delete the oldest snapshot files
+* `snapshots/` is for short working history, not permanent storage
+* `archive/` is for selected review images that may be cleaned by job id later
+
+Potential new setting:
+
+```text
+Archive every N snapshots
 ```
 
 Reason:
 
-During real printer testing, the operator may need printer controls and camera analysis close together.
+Archiving every capture during a 5 hour job can produce too many files. We may need a setting that controls how often a capture becomes an archive entry.
 
-Expected behavior:
+Possible default:
 
-* Start session from either page
-* Capture sample from either page
-* Stop session from either page
-* Refresh data after each action
-* Keep camera code independent from serial internals
+```text
+archiveEverySnapshotCount = 1
+```
+
+This preserves current behavior first, then allows reducing storage later.
 
 ---
 
-### 3. Archive And Snapshot File Review
+### 4. Archive Cleanup By Job
 
-Need a reviewable file list for the selected printer camera storage.
+Admin must be able to physically clean camera data from disk and related rows from SQLite.
 
-Desired UI:
-
-```text
-Camera archive card
-  start time
-  stop time
-  refresh/list button
-  table of files
-    file name
-    captured/modified time
-    type: latest / previous / delta / archive / snapshot
-    size
-    link/open action
-```
-
-Default time range:
+Backend target:
 
 ```text
-start = active print job start time when available
-stop  = active print job stop/end time when available, otherwise now
+GET    /admin/camera/archive/jobs
+GET    /admin/camera/archive/jobs/{jobId}
+DELETE /admin/camera/archive/jobs/{jobId}
 ```
 
-Manual override:
+Delete behavior:
+
+* delete archive pictures for the job from disk
+* delete delta/archive generated files for the job when they are tracked
+* delete or mark related camera archive metadata
+* delete or mark related camera analysis samples if requested
+* never delete files outside the configured camera storage
+* require admin permission
+* require confirmation in the frontend before destructive cleanup
+
+Possible delete mode:
 
 ```text
-operator can edit start and stop date/time
+DELETE /admin/camera/archive/jobs/{jobId}?includeAnalysis=true
 ```
 
-Backend need:
+Open question:
 
-The current API exposes latest snapshot and analysis sample paths, but it does not yet expose a safe browsable archive index. Add an API that lists files under the selected printer camera directory without allowing arbitrary filesystem browsing.
+Should delete remove rows physically or mark them as deleted? For early local lab usage, physical delete may be acceptable, but the API should return a clear deletion report.
 
-Possible endpoints:
+Deletion report:
 
 ```text
-GET /printers/{printerId}/camera/archive?from={isoInstant}&to={isoInstant}
-GET /printers/{printerId}/camera/archive/{fileId}
+jobId
+deletedFileCount
+deletedBytes
+deletedAnalysisSampleCount
+failedFiles[]
+message
 ```
-
-Important constraints:
-
-* keep image bytes on disk
-* do not store image blobs in SQLite
-* do not allow `../` path traversal
-* only expose files belonging to the selected printer camera storage
-* include file metadata in JSON
-* use stable file ids or safe relative paths, not raw unrestricted absolute paths
 
 ---
 
-### 4. Camera Job Session Concept
+### 5. Replay Camera Job
 
-For dashboard/debug wording, a "camera job session" means:
+Admin should be able to replay archived camera data for a selected job.
+
+UI target:
 
 ```text
-camera analysis session for a selected printer,
-optionally aligned with an active print job time window
+Admin -> Picture/Data Management -> Replay job
+  job id selector/input
+  display ms setting
+  Play / Pause / Stop
 ```
 
-It is not a replacement for the existing print job model.
-
-The implementation should keep:
+Replay frame layout:
 
 ```text
-PrintJob
-CameraAnalysisSession
-CameraAnalysisSample
-CameraSnapshotMetadata
+Left   archived picture at that moment
+Middle delta associated with that moment
+Right  spaghetti detection analysis values
 ```
 
-as separate concepts.
-
-Possible later link:
+Right panel values:
 
 ```text
-CameraAnalysisSession may optionally store relatedJobId
+Captured at
+Analyzed at
+State
+Confidence
+Delta score
+Changed pixels
+Average delta
+Reason codes
+Message
 ```
 
-Do not add that until the archive/time-window debugging proves the need.
-
----
-
-### 5. Spaghetti Detection Tuning
-
-The table should reveal whether detector values are useful.
-
-Tune only after checking real samples from Linux and Windows captures.
-
-Values to inspect:
+Backend target:
 
 ```text
+GET /admin/camera/archive/jobs/{jobId}/timeline
+```
+
+Timeline response should include enough metadata to render replay without scanning arbitrary paths:
+
+```text
+frameId
+capturedAt
+archiveFileId
+deltaFileId optional
+analysisSampleId optional
+confidence
 deltaScore
 changedPixelRatio
 averagePixelDelta
-confidence
 suspected
 reasonCodes
+message
 ```
 
-Useful debug questions:
+The frontend can play the timeline client-side using the configured `display ms`.
 
-* Are good frames producing low confidence?
-* Are suspicious frames producing visibly higher delta values?
-* Are lighting/camera noise changes causing false positives?
-* Does `changedPixelRatio` react too strongly to small camera movement?
-* Does `averagePixelDelta` need a clearer scale or threshold?
-* Do reason codes explain the decision enough for an operator?
+New setting:
 
-Out of scope for 0.4.6:
+```text
+Replay display ms
+```
 
-* automatic pause tuning
-* automatic abort
-* final graph styling
-* OpenCV/JavaCV migration
+Initial default suggestion:
+
+```text
+500 ms
+```
 
 ---
 
-### 6. Windows ffmpeg Debug Support
+### 6. Recalculate Detector Values Placeholder
 
-Keep the documentation and UI examples clear for Windows.
+Admin needs a future simulation tool for checking spaghetti detection parameters against real archived pictures.
 
-Known important setting:
+0.4.7 should add backend shape and frontend placeholders. Full algorithm tuning can be later if needed.
 
-```text
-ffmpeg input format = dshow
-source value        = video=<exact camera name>
-```
-
-Example:
+UI target:
 
 ```text
-video=PC-LM1E Camera
+Admin -> Picture/Data Management -> Recalculate detection
+  select job id
+  edit detector parameters
+  run/recalculate placeholder
+  results table
 ```
 
-Common bad value:
+Results table:
 
 ```text
-PC-LM1E Camera
+archive file
+delta file
+Captured at
+Analyzed at
+State
+Confidence
+Delta score
+Changed pixels
+Average delta
+Reason codes
+Message
 ```
 
-Expected failure if missing `video=`:
+Backend target placeholder:
 
 ```text
-Malformed dshow input string
+POST /admin/camera/archive/jobs/{jobId}/recalculate-preview
 ```
 
-Potential future improvement:
+Request shape:
 
-If `ffmpegInputFormat=dshow` and `sourceValue` does not start with `video=` or `audio=`, the dashboard could warn the user, or the backend could normalize it.
+```text
+confidenceThreshold
+changedPixelRatioThreshold
+averagePixelDeltaThreshold
+minimumDeltaScore
+other detector parameters as needed
+```
 
-Prefer warning first, because automatic normalization may hide operator mistakes.
+Important:
+
+This recalculation must not overwrite production analysis rows unless a later milestone explicitly adds an apply/save action.
 
 ---
 
-### 7. Documentation For 0.4.6
+### 7. Camera Archive API Rules
 
-Already updated or to keep aligned:
+All picture/data management APIs must follow these constraints:
 
-```text
-docs/dashboard.md      user manual
-docs/specification.md  technical architecture/spec
-docs/rest-api.md       endpoint reference
-tools/camera/README.md camera command examples
-```
-
-Documentation must stay clear about:
-
-* storage directory is a camera setting, not `run.env`
-* relative camera storage resolves from the database directory
-* PrinterHub adds the printer id to the camera storage base
-* Windows dshow source names need `video=`
-* image files are stored on disk, SQLite stores metadata/paths only
+* admin-only for destructive operations
+* never expose unrestricted absolute paths as stable public identifiers
+* use stable file ids or metadata ids
+* reject `../` path traversal
+* restrict file serving/deleting to configured camera storage
+* keep image bytes on disk
+* keep SQLite as metadata/path storage
+* log deletion/replay/recalculation actions clearly
+* return useful error messages when files are missing
 
 ---
 
-## 0.4.6 Acceptance Checklist
+## 0.4.7 Acceptance Checklist
 
-* Camera analysis sample table is visible in Camera view.
-* Camera analysis sample table is visible in Control view.
-* Start/sample/stop works from both Camera and Control.
-* Table contains all numeric detector values.
-* Table contains reason codes and message.
-* Table contains latest/previous/delta snapshot paths.
-* Archive/file listing API is designed before implementation.
-* Archive/file listing UI can filter by start and stop time.
-* Windows ffmpeg setup is documented with `video=` example.
-* The dashboard remains usable on small laptop screens.
+* Admin-only Picture/Data Management menu placeholder exists.
+* Placeholder cards describe archive browsing, cleanup, replay, and recalculation.
+* Camera archive entries can be associated with job id when known.
+* Archive filenames include date/time and job id when known.
+* `snapshots/` retention is enforced using `Retained snapshots`.
+* `archive/` remains separate from `snapshots/`.
+* Backend can list archive pictures by job id.
+* Backend can produce a replay timeline for a job.
+* Backend has a safe delete-by-job path with deletion report.
+* Backend has a recalculation-preview API shape or service placeholder.
+* All destructive picture/data operations require ADMIN.
 
 ---
 
-## 0.4.7 — Camera Dashboard Polish
+## 0.4.8 — Camera Dashboard Polish And Administration
 
-Status: planned after 0.4.6
+Status: planned after 0.4.7
 
 Purpose:
 
-Convert trusted debug data into a better operator experience.
+Connect the picture/data management backend to a usable admin dashboard and polish the normal camera dashboard.
 
 Candidate work:
 
+* connect admin archive listing to real backend data
+* connect delete-by-job UI with confirmation
+* connect replay controls to backend timeline
+* display archived picture, delta image, and analysis values during replay
+* connect recalculation preview enough to show result tables
 * time-series graph for analysis samples
 * graph point selection
 * snapshot preview for selected graph point
 * archive image browsing by selected event/time
-* latest snapshot auto-refresh
+* latest snapshot operator polish
 * last frame age
 * camera event timeline
 * safety mode indicator
@@ -307,13 +406,13 @@ Candidate work:
 
 Rule:
 
-Do not polish graphs before 0.4.6 table/debug data is working.
+Do not let graph polish block picture cleanup and retention correctness.
 
 ---
 
-## 0.4.8 — Code Cleanup
+## 0.4.9 — Code Cleanup
 
-Status: planned after camera dashboard debugging/polish
+Status: planned after camera picture/data management and dashboard polish
 
 Cleanup checks:
 
@@ -330,11 +429,7 @@ Rules:
 * continue moving direct console logging to `PrinterHubLog`
 * keep camera code independent from serial communication internals
 * keep image blobs out of SQLite
-
-
-+ 
-* true backend camera-job scheduler if you want it to continue without the browser open.
-
+* consider a true backend camera-job scheduler if capture/sampling must continue after browser close
 
 Docs to check:
 

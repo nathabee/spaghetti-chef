@@ -393,6 +393,34 @@ export function cameraArchiveFileUrl(printerId, fileId) {
   return `/printers/${encodeURIComponent(printerId)}/camera/archive/${encodeURIComponent(fileId)}?t=${Date.now()}`;
 }
 
+export async function getCameraArchiveJobs() {
+  const data = await requestJson("/admin/camera/archive/jobs");
+  return Array.isArray(data.jobs) ? data.jobs : [];
+}
+
+export async function getCameraArchiveJobEntries(jobId) {
+  const data = await requestJson(`/admin/camera/archive/jobs/${encodeURIComponent(jobId)}`);
+  return Array.isArray(data.entries) ? data.entries : [];
+}
+
+export async function deleteCameraArchiveJob(jobId) {
+  return requestJson(`/admin/camera/archive/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE"
+  });
+}
+
+export async function getCameraArchiveJobTimeline(jobId) {
+  const data = await requestJson(`/admin/camera/archive/jobs/${encodeURIComponent(jobId)}/timeline`);
+  return Array.isArray(data.timeline) ? data.timeline : [];
+}
+
+export async function previewCameraArchiveRecalculation(jobId, parameters = {}) {
+  return requestJson(`/admin/camera/archive/jobs/${encodeURIComponent(jobId)}/recalculate-preview`, {
+    method: "POST",
+    body: JSON.stringify(parameters)
+  });
+}
+
 export function cameraSnapshotUrl(printerId) {
   return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
 }

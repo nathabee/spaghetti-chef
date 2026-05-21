@@ -62,6 +62,7 @@ public final class AuthorizationService {
             case SETTINGS_UPDATE -> profile.allows(Permission.CONFIGURE_MONITORING)
                     || profile.allows(Permission.CONFIGURE_TRANSFER_SETTINGS);
             case SECURITY_VIEW, SECURITY_MANAGE -> profile.allows(Permission.MANAGE_SECURITY);
+            case CAMERA_DATA_MANAGE -> profile.allows(Permission.MANAGE_SECURITY);
             default -> false;
         };
     }

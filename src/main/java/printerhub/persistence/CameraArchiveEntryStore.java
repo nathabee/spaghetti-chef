@@ -1,0 +1,182 @@
+package printerhub.persistence;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class CameraArchiveEntryStore {
+
+    public CameraArchiveEntry save(CameraArchiveEntry entry) {
+        if (entry == null) {
+            throw new IllegalArgumentException("camera archive entry must not be null");
+        }
+
+        String sql = """
+                INSERT INTO camera_archive_entries (
+                    printer_id,
+                    job_id,
+                    archive_path,
+                    content_type,
+                    size_bytes,
+                    captured_at,
+                    archived_at,
+                    source_type,
+                    message
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+        ) {
+            statement.setString(1, entry.printerId());
+            statement.setString(2, entry.jobId());
+            statement.setString(3, entry.archivePath());
+            statement.setString(4, entry.contentType());
+            statement.setLong(5, entry.sizeBytes());
+            statement.setString(6, entry.capturedAt().toString());
+            statement.setString(7, entry.archivedAt().toString());
+            statement.setString(8, entry.sourceType());
+            statement.setString(9, entry.message());
+            statement.executeUpdate();
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    return new CameraArchiveEntry(
+                            keys.getLong(1),
+                            entry.printerId(),
+                            entry.jobId(),
+                            entry.archivePath(),
+                            entry.contentType(),
+                            entry.sizeBytes(),
+                            entry.capturedAt(),
+                            entry.archivedAt(),
+                            entry.sourceType(),
+                            entry.message());
+                }
+            }
+
+            return entry;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to save camera archive entry", exception);
+        }
+    }
+
+    public List<CameraArchiveJobSummary> findJobSummaries() {
+        String sql = """
+                SELECT
+                    COALESCE(job_id, 'unassigned') AS job_key,
+                    COUNT(*) AS file_count,
+                    COALESCE(SUM(size_bytes), 0) AS total_bytes,
+                    MIN(captured_at) AS first_captured_at,
+                    MAX(captured_at) AS last_captured_at
+                FROM camera_archive_entries
+                GROUP BY COALESCE(job_id, 'unassigned')
+                ORDER BY MAX(captured_at) DESC;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()
+        ) {
+            List<CameraArchiveJobSummary> summaries = new ArrayList<>();
+            while (resultSet.next()) {
+                summaries.add(new CameraArchiveJobSummary(
+                        resultSet.getString("job_key"),
+                        resultSet.getInt("file_count"),
+                        resultSet.getLong("total_bytes"),
+                        Instant.parse(resultSet.getString("first_captured_at")),
+                        Instant.parse(resultSet.getString("last_captured_at"))));
+            }
+            return summaries;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera archive job summaries", exception);
+        }
+    }
+
+    public List<CameraArchiveEntry> findByJobId(String jobId) {
+        String normalizedJobId = normalizeJobId(jobId);
+        boolean unassigned = "unassigned".equals(normalizedJobId);
+        String sql = """
+                SELECT
+                    id,
+                    printer_id,
+                    job_id,
+                    archive_path,
+                    content_type,
+                    size_bytes,
+                    captured_at,
+                    archived_at,
+                    source_type,
+                    message
+                FROM camera_archive_entries
+                WHERE %s
+                ORDER BY captured_at ASC, id ASC;
+                """.formatted(unassigned ? "job_id IS NULL" : "job_id = ?");
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            if (!unassigned) {
+                statement.setString(1, normalizedJobId);
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CameraArchiveEntry> entries = new ArrayList<>();
+                while (resultSet.next()) {
+                    entries.add(mapRow(resultSet));
+                }
+                return entries;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera archive entries", exception);
+        }
+    }
+
+    public int deleteByJobId(String jobId) {
+        String normalizedJobId = normalizeJobId(jobId);
+        boolean unassigned = "unassigned".equals(normalizedJobId);
+        String sql = "DELETE FROM camera_archive_entries WHERE " + (unassigned ? "job_id IS NULL" : "job_id = ?");
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            if (!unassigned) {
+                statement.setString(1, normalizedJobId);
+            }
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera archive entries", exception);
+        }
+    }
+
+    private static CameraArchiveEntry mapRow(ResultSet resultSet) throws SQLException {
+        return new CameraArchiveEntry(
+                resultSet.getLong("id"),
+                resultSet.getString("printer_id"),
+                resultSet.getString("job_id"),
+                resultSet.getString("archive_path"),
+                resultSet.getString("content_type"),
+                resultSet.getLong("size_bytes"),
+                Instant.parse(resultSet.getString("captured_at")),
+                Instant.parse(resultSet.getString("archived_at")),
+                resultSet.getString("source_type"),
+                resultSet.getString("message"));
+    }
+
+    private static String normalizeJobId(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            throw new IllegalArgumentException("jobId must not be blank");
+        }
+        return jobId.trim();
+    }
+}

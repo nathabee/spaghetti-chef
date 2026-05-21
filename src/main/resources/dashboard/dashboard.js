@@ -12,6 +12,7 @@ import {
   getJobExecutionSteps,
   getJobs,
   getAppVersion,
+  getCameraArchiveJobs,
   getMonitoringOverview,
   getMonitoringRules,
   getOperatorAuditEvents,
@@ -46,6 +47,7 @@ import {
 import { renderNav } from "./components/nav.js";
 import { renderFarmHome } from "./views/farm-home.js";
 import { renderJobsPage } from "./views/jobs.js";
+import { renderAdminCameraDataPage } from "./views/admin-camera-data.js";
 import { renderMonitoringPage } from "./views/monitoring.js";
 import { renderPrinterControl } from "./views/printer-control.js";
 import { renderPrinterHistory } from "./views/printer-history.js";
@@ -82,6 +84,7 @@ import {
   setJobSynchronization,
   setJobs,
   setAppVersion,
+  setCameraArchiveJobs,
   setLastRefreshLabel,
   setMessage,
   setMonitoringOverview,
@@ -175,6 +178,7 @@ async function refreshAllData(options = {}) {
     setMonitoringOverview(monitoringOverview);
     setOperatorAuditEvents(operatorAuditEvents);
     setAppVersion(appVersion);
+    await refreshCameraArchiveJobs();
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 
@@ -210,6 +214,19 @@ async function refreshUploadStatuses(printers) {
       // Upload status must not block normal dashboard refresh.
     }
   }));
+}
+
+async function refreshCameraArchiveJobs() {
+  if (!hasPermission("CAMERA_DATA_MANAGE")) {
+    setCameraArchiveJobs([]);
+    return;
+  }
+
+  try {
+    setCameraArchiveJobs(await getCameraArchiveJobs());
+  } catch (error) {
+    setCameraArchiveJobs([]);
+  }
 }
 
 async function refreshMonitoringOverview(options = {}) {
@@ -258,6 +275,12 @@ function renderHeader() {
   if (state.activePrimaryView === PRIMARY_VIEW_IDS.HISTORY) {
     pageTitleElement.textContent = "History";
     pageLeadElement.textContent = "Global history shell reserved for broader audit views as backend coverage grows.";
+    return;
+  }
+
+  if (state.activePrimaryView === PRIMARY_VIEW_IDS.ADMIN_CAMERA) {
+    pageTitleElement.textContent = "Pictures";
+    pageLeadElement.textContent = "Administrator tools for camera archive files, replay, cleanup, and detector recalculation.";
     return;
   }
 
@@ -320,6 +343,11 @@ function renderPage() {
         </article>
       </section>
     `;
+    return;
+  }
+
+  if (state.activePrimaryView === PRIMARY_VIEW_IDS.ADMIN_CAMERA) {
+    pageContentElement.innerHTML = renderAdminCameraDataPage(state.cameraArchiveJobs);
     return;
   }
 
