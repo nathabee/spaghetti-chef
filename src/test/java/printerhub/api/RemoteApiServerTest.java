@@ -1090,6 +1090,7 @@ class RemoteApiServerTest {
             assertEquals(200, archiveResponse.statusCode());
             assertTrue(archiveResponse.body().contains("\"files\":["));
             assertTrue(archiveResponse.body().contains("\"type\":\"archive\""));
+            assertTrue(archiveResponse.body().contains("archive/unassigned/"));
             assertFalse(archiveResponse.body().contains("\"type\":\"latest\""));
             assertFalse(archiveResponse.body().contains("\"type\":\"snapshot\""));
             assertFalse(archiveResponse.body().contains("\"type\":\"delta\""));
@@ -1103,6 +1104,67 @@ class RemoteApiServerTest {
             assertEquals(200, fileResponse.statusCode());
             assertTrue(fileResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
             assertTrue(fileResponse.headers().firstValue("cache-control").orElse("").contains("no-store"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void cameraArchiveAdminEndpointsExposeTimelineAndDeleteJobArchive() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-archive-admin-storage");
+
+        TestContext context = createContext("camera-archive-admin.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":1}
+                            """.formatted(cameraStorageDirectory)
+            );
+            assertEquals(200, settingsResponse.statusCode());
+
+            assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
+            assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
+
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/archive/jobs");
+            assertEquals(200, jobsResponse.statusCode());
+            assertTrue(jobsResponse.body().contains("\"jobId\":\"unassigned\""));
+            assertTrue(jobsResponse.body().contains("\"fileCount\":2"));
+
+            HttpResponse<String> timelineResponse = context.get("/admin/camera/archive/jobs/unassigned/timeline");
+            assertEquals(200, timelineResponse.statusCode());
+            assertTrue(timelineResponse.body().contains("\"timeline\":["));
+            assertTrue(timelineResponse.body().contains("\"archivePath\":"));
+
+            HttpResponse<String> previewResponse = context.request(
+                    "POST",
+                    "/admin/camera/archive/jobs/unassigned/recalculate-preview",
+                    "{}");
+            assertEquals(202, previewResponse.statusCode());
+            assertTrue(previewResponse.body().contains("camera_recalculate_preview_not_implemented"));
+
+            Path snapshotsDirectory = cameraStorageDirectory.resolve("printer-1").resolve("snapshots");
+            try (var snapshots = Files.list(snapshotsDirectory)) {
+                assertEquals(1, snapshots.filter(Files::isRegularFile).count());
+            }
+
+            HttpResponse<String> deleteResponse = context.request(
+                    "DELETE",
+                    "/admin/camera/archive/jobs/unassigned",
+                    null);
+            assertEquals(200, deleteResponse.statusCode());
+            assertTrue(deleteResponse.body().contains("\"deletedMetadataRows\":2"));
+
+            HttpResponse<String> jobsAfterDeleteResponse = context.get("/admin/camera/archive/jobs");
+            assertEquals(200, jobsAfterDeleteResponse.statusCode());
+            assertFalse(jobsAfterDeleteResponse.body().contains("\"jobId\":\"unassigned\""));
         } finally {
             context.close();
         }

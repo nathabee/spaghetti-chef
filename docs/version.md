@@ -8,13 +8,14 @@ see ROADMAP.md
 
 next:
 
-0.4.3 — Camera Analysis Sessions and Trace Review
+0.4.8 — Camera Dashboard Polish And Administration
 
 ## Version (done)
 
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.7 — Camera Picture And Data Management
 - 0.4.6 — Camera Dashboard Job Debug
 - 0.4.5 — Real Webcam Backend
 - 0.4.4 — Camera Safety Intervention

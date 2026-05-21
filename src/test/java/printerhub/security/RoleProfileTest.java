@@ -42,6 +42,7 @@ class RoleProfileTest {
         assertFalse(operator.allows(Permission.CONFIGURE_MONITORING));
         assertFalse(operator.allows(Permission.EXECUTE_DANGEROUS_COMMANDS));
         assertFalse(operator.allows(Permission.MANAGE_SECURITY));
+        assertFalse(operator.allows(Permission.CAMERA_DATA_MANAGE));
     }
 
     @Test
@@ -53,6 +54,7 @@ class RoleProfileTest {
         assertTrue(admin.allows(Permission.CONFIGURE_TRANSFER_SETTINGS));
         assertTrue(admin.allows(Permission.EXECUTE_DANGEROUS_COMMANDS));
         assertTrue(admin.allows(Permission.MANAGE_SECURITY));
+        assertTrue(admin.allows(Permission.CAMERA_DATA_MANAGE));
     }
 
     @Test

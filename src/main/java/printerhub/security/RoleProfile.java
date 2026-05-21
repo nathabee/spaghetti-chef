@@ -67,7 +67,8 @@ public record RoleProfile(
                     Permission.COMMAND_DANGEROUS_CONTROL,
                     Permission.COMMAND_RAW,
                     Permission.SETTINGS_UPDATE,
-                    Permission.SECURITY_MANAGE
+                    Permission.SECURITY_MANAGE,
+                    Permission.CAMERA_DATA_MANAGE
             )
     );
 
