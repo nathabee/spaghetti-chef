@@ -364,8 +364,13 @@ export async function stopCameraAnalysisSession(printerId, sessionId) {
   });
 }
 
-export async function getCameraAnalysisSamples(printerId, sessionId) {
-  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions/${encodeURIComponent(sessionId)}/samples`);
+export async function getCameraAnalysisSamples(printerId, sessionId, limit = 200) {
+  const params = new URLSearchParams();
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const query = params.toString();
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/analysis-sessions/${encodeURIComponent(sessionId)}/samples${query ? `?${query}` : ""}`);
   return Array.isArray(data.samples) ? data.samples : [];
 }
 
@@ -428,6 +433,10 @@ export async function previewCameraArchiveRecalculation(jobId, parameters = {}) 
     method: "POST",
     body: JSON.stringify(parameters)
   });
+}
+
+export function adminCameraArchiveEntryUrl(entryId) {
+  return `/admin/camera/archive/files/${encodeURIComponent(entryId)}?t=${Date.now()}`;
 }
 
 export function cameraSnapshotUrl(printerId) {

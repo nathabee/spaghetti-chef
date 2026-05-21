@@ -91,6 +91,17 @@ button:disabled {
   opacity: 0.55;
 }
 
+.button-danger {
+  border-color: rgba(255, 138, 128, 0.55);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(180, 35, 24, 0.24);
+}
+
 button.primary-button,
 button[type="submit"],
 .primary-button {
@@ -1072,6 +1083,43 @@ progress::-moz-progress-bar {
 .data-table th {
   color: var(--text-muted);
   font-weight: 700;
+}
+
+.data-table tr.selected-row td {
+  background: var(--primary-soft);
+}
+
+.diagnostic-output {
+  overflow: auto;
+  max-height: 14rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-small);
+  background: var(--bg-app);
+  color: var(--text-muted);
+}
+
+.metric-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.metric-list div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.4fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.metric-list dt {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.metric-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .event-header {

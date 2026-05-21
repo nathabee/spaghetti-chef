@@ -1165,6 +1165,12 @@ class RemoteApiServerTest {
             assertTrue(timelineResponse.body().contains("\"archivePath\":"));
             assertTrue(timelineResponse.body().contains("\"printerId\":\"printer-1\""));
             assertFalse(timelineResponse.body().contains("\"printerId\":\"printer-2\""));
+            Integer archiveEntryId = extractJsonInteger(timelineResponse.body(), "id");
+            assertNotNull(archiveEntryId);
+
+            HttpResponse<String> fileResponse = context.get("/admin/camera/archive/files/" + archiveEntryId);
+            assertEquals(200, fileResponse.statusCode());
+            assertTrue(fileResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
 
             HttpResponse<String> previewResponse = context.request(
                     "POST",
@@ -2714,6 +2720,18 @@ class RemoteApiServerTest {
         }
 
         return matcher.group(1);
+    }
+
+    private Integer extractJsonInteger(String body, String fieldName) {
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "\"" + java.util.regex.Pattern.quote(fieldName) + "\"\\s*:\\s*(\\d+)");
+        java.util.regex.Matcher matcher = pattern.matcher(body);
+
+        if (!matcher.find()) {
+            return null;
+        }
+
+        return Integer.parseInt(matcher.group(1));
     }
 
     private String registerPrinterSdFile(

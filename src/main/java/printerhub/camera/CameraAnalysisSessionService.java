@@ -127,6 +127,11 @@ public final class CameraAnalysisSessionService {
         return sampleStore.findBySession(printerId, sessionId);
     }
 
+    public List<CameraAnalysisSample> recentSamples(String printerId, String sessionId, int limit) {
+        find(printerId, sessionId);
+        return sampleStore.findRecentBySession(printerId, sessionId, limit);
+    }
+
     public CameraAnalysisSample captureSample(String sessionId, String printerId) {
         CameraAnalysisSession session = find(printerId, sessionId);
         if (!session.running()) {

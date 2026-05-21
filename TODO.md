@@ -406,6 +406,8 @@ Candidate work:
 * safety mode indicator
 * capture backend status
 * storage path and retention status
+* non-official correction: Spaghetti trace review lists newest samples first
+* non-official correction: Spaghetti trace review loads a bounded recent sample window instead of the full session history
 
 Rule:
 

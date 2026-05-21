@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import printerhub.persistence.CameraArchiveEntry;
 import printerhub.persistence.CameraArchiveEntryStore;
@@ -34,6 +35,10 @@ public final class CameraArchiveManagementService {
 
     public List<CameraArchiveEntry> entriesForJob(String jobId) {
         return archiveEntryStore.findByJobId(jobId);
+    }
+
+    public Optional<CameraArchiveEntry> entryById(long entryId) {
+        return archiveEntryStore.findById(entryId);
     }
 
     public List<CameraArchiveEntry> entriesForJob(String printerId, String jobId) {

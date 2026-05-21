@@ -37,6 +37,10 @@ export const state = {
   monitoringOverview: null,
   operatorAuditEvents: [],
   cameraArchiveJobs: [],
+  adminCameraTimeline: [],
+  adminCameraSelectedJobId: null,
+  adminCameraSelectedEntryId: null,
+  adminCameraActionResult: null,
   printerEvents: new Map(),
   jobEvents: new Map(),
   jobExecutionSteps: new Map(),
@@ -141,6 +145,24 @@ export function setAdminCameraPrinter(printerId) {
 
   const exists = state.printers.some((printer) => printer.id === printerId);
   state.adminCameraPrinterId = exists ? printerId : state.adminCameraPrinterId;
+  state.adminCameraTimeline = [];
+  state.adminCameraSelectedJobId = null;
+  state.adminCameraSelectedEntryId = null;
+  state.adminCameraActionResult = null;
+}
+
+export function setAdminCameraTimeline(jobId, timeline) {
+  state.adminCameraSelectedJobId = jobId || null;
+  state.adminCameraTimeline = Array.isArray(timeline) ? timeline : [];
+  state.adminCameraSelectedEntryId = state.adminCameraTimeline[0]?.id ?? null;
+}
+
+export function setAdminCameraSelectedEntry(entryId) {
+  state.adminCameraSelectedEntryId = entryId == null ? null : Number(entryId);
+}
+
+export function setAdminCameraActionResult(result) {
+  state.adminCameraActionResult = result || null;
 }
 
 export function setPrimaryView(viewId) {

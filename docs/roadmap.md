@@ -2894,7 +2894,7 @@ Out of scope:
 
 ### 0.4.8 — Camera Dashboard Polish And Administration
 
-status: planned
+status: done
 
 Purpose:
 
@@ -2920,6 +2920,8 @@ Goals:
 * show archive availability
 * show capture backend status
 * show camera storage path and retention status
+* non-official correction: show newest Spaghetti trace review samples first
+* non-official correction: cap the live Spaghetti trace review table to a recent sample window so long print jobs do not overload the dashboard
 
 Out of scope:
 

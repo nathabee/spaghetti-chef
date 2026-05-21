@@ -318,7 +318,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples, captureIn
   const activeSession = safeSessions.find((session) => session.state === "RUNNING");
   const selectedSession = activeSession || safeSessions[0];
   const safeSamples = Array.isArray(samples) ? samples : [];
-  const selectedSample = safeSamples[safeSamples.length - 1];
+  const selectedSample = safeSamples[0];
   const safeCaptureIntervalSeconds = positiveInteger(captureIntervalSeconds, 10);
 
   return `
@@ -345,7 +345,7 @@ export function renderCameraAnalysisCard(printerId, sessions, samples, captureIn
           <strong>${formatNullable(activeSession?.state || "idle")}</strong>
         </div>
         <div class="metric-card">
-          <span class="metric-label">Samples</span>
+          <span class="metric-label">Recent samples</span>
           <strong>${safeSamples.length}</strong>
         </div>
         <div class="metric-card">
@@ -407,6 +407,7 @@ function renderAnalysisSamplesTable(samples) {
 
   return `
     <div class="table-wrap">
+      <p class="muted table-note">Newest samples are shown first. The dashboard loads a recent window only, so long print jobs stay responsive.</p>
       <table class="data-table camera-analysis-table">
         <thead>
           <tr>

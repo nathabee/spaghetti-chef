@@ -12,7 +12,10 @@ import {
   getJobExecutionSteps,
   getJobs,
   getAppVersion,
+  adminCameraArchiveEntryUrl,
+  deleteCameraArchiveJob,
   getCameraArchiveJobs,
+  getCameraArchiveJobTimeline,
   getMonitoringOverview,
   getMonitoringRules,
   getOperatorAuditEvents,
@@ -31,6 +34,7 @@ import {
   registerPrinterSdFile,
   registerPrintFile,
   pauseJob,
+  previewCameraArchiveRecalculation,
   restartJob,
   resumeJob, 
   saveMonitoringRules,
@@ -85,6 +89,9 @@ import {
   setJobs,
   setAppVersion,
   setAdminCameraPrinter,
+  setAdminCameraActionResult,
+  setAdminCameraSelectedEntry,
+  setAdminCameraTimeline,
   setCameraArchiveJobs,
   setLastRefreshLabel,
   setMessage,
@@ -235,6 +242,53 @@ async function refreshCameraArchiveJobs() {
   }
 }
 
+async function loadAdminCameraTimeline(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  try {
+    const timeline = await getCameraArchiveJobTimeline(jobId, state.adminCameraPrinterId);
+    setAdminCameraTimeline(jobId, timeline);
+    setAdminCameraActionResult({ message: `Loaded ${timeline.length} camera archive entries for ${jobId}.` });
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to load camera archive timeline: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraRecalculate(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  try {
+    const result = await previewCameraArchiveRecalculation(jobId, { printerId: state.adminCameraPrinterId });
+    setAdminCameraActionResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to preview recalculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraDeleteJob(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete camera archive files for printer ${state.adminCameraPrinterId}, job ${jobId}?`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const report = await deleteCameraArchiveJob(jobId, state.adminCameraPrinterId);
+    setAdminCameraActionResult(report);
+    setAdminCameraTimeline(null, []);
+    await refreshCameraArchiveJobs();
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to delete camera archive job: ${error.message}` });
+  }
+}
+
 async function refreshMonitoringOverview(options = {}) {
   try {
     const overview = await getMonitoringOverview();
@@ -356,7 +410,12 @@ function renderPage() {
     pageContentElement.innerHTML = renderAdminCameraDataPage(
       state.printers,
       state.adminCameraPrinterId,
-      state.cameraArchiveJobs
+      state.cameraArchiveJobs,
+      state.adminCameraSelectedJobId,
+      state.adminCameraTimeline,
+      state.adminCameraSelectedEntryId,
+      state.adminCameraActionResult,
+      adminCameraArchiveEntryUrl
     );
     return;
   }
@@ -559,6 +618,34 @@ function bindGlobalListeners() {
     const cameraArchiveSelectButton = event.target.closest("[data-camera-archive-select]");
     if (cameraArchiveSelectButton) {
       selectCameraArchiveFile(cameraArchiveSelectButton);
+      return;
+    }
+
+    const adminCameraLoadJobButton = event.target.closest("[data-admin-camera-load-job]");
+    if (adminCameraLoadJobButton) {
+      await loadAdminCameraTimeline(adminCameraLoadJobButton.dataset.adminCameraLoadJob);
+      renderApp();
+      return;
+    }
+
+    const adminCameraSelectEntryButton = event.target.closest("[data-admin-camera-select-entry]");
+    if (adminCameraSelectEntryButton) {
+      setAdminCameraSelectedEntry(adminCameraSelectEntryButton.dataset.adminCameraSelectEntry);
+      renderApp();
+      return;
+    }
+
+    const adminCameraRecalculateButton = event.target.closest("[data-admin-camera-recalculate]");
+    if (adminCameraRecalculateButton) {
+      await handleAdminCameraRecalculate(adminCameraRecalculateButton.dataset.adminCameraRecalculate);
+      renderApp();
+      return;
+    }
+
+    const adminCameraDeleteJobButton = event.target.closest("[data-admin-camera-delete-job]");
+    if (adminCameraDeleteJobButton) {
+      await handleAdminCameraDeleteJob(adminCameraDeleteJobButton.dataset.adminCameraDeleteJob);
+      renderApp();
       return;
     }
 

@@ -8,6 +8,7 @@ import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class CameraArchiveEntryStore {
 
@@ -100,6 +101,42 @@ public final class CameraArchiveEntryStore {
             throw new IllegalStateException("Failed to load camera archive job summaries", exception);
         }
     }
+
+    public Optional<CameraArchiveEntry> findById(long id) {
+        String sql = """
+                SELECT
+                    id,
+                    printer_id,
+                    job_id,
+                    archive_path,
+                    content_type,
+                    size_bytes,
+                    captured_at,
+                    archived_at,
+                    source_type,
+                    message
+                FROM camera_archive_entries
+                WHERE id = ?;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, id);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera archive entry", exception);
+        }
+    }
+
 
     public List<CameraArchiveJobSummary> findJobSummariesByPrinterId(String printerId) {
         String normalizedPrinterId = normalizePrinterId(printerId);
