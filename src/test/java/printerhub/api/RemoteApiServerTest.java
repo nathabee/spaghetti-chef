@@ -21,6 +21,8 @@ import printerhub.job.PrinterActionMapper;
 import printerhub.job.PrinterSdFileService;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
+import printerhub.persistence.CameraArchiveEntry;
+import printerhub.persistence.CameraArchiveEntryStore;
 import printerhub.persistence.MonitoringRulesStore;
 import printerhub.persistence.PrintFileSettingsStore;
 import printerhub.persistence.PrintFileStore;
@@ -1023,6 +1025,10 @@ class RemoteApiServerTest {
                     PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
             context.printerRegistry.register(
                     PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-2", "Printer 2", "SIM_PORT_2", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-2", "Printer 2", "SIM_PORT_2", "sim", true));
 
             HttpResponse<String> settingsResponse = context.request(
                     "PUT",
@@ -1129,19 +1135,36 @@ class RemoteApiServerTest {
                             """.formatted(cameraStorageDirectory)
             );
             assertEquals(200, settingsResponse.statusCode());
-
             assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
             assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
+            new CameraArchiveEntryStore().save(CameraArchiveEntry.captured(
+                    "printer-2",
+                    null,
+                    cameraStorageDirectory
+                            .resolve("printer-2")
+                            .resolve("archive")
+                            .resolve("unassigned")
+                            .resolve("printer-2-example.jpg")
+                            .toString(),
+                    "image/jpeg",
+                    42L,
+                    Instant.parse("2026-05-21T12:00:00Z"),
+                    Instant.parse("2026-05-21T12:00:01Z"),
+                    "simulated",
+                    "test"));
 
-            HttpResponse<String> jobsResponse = context.get("/admin/camera/archive/jobs");
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/archive/jobs?printerId=printer-1");
             assertEquals(200, jobsResponse.statusCode());
             assertTrue(jobsResponse.body().contains("\"jobId\":\"unassigned\""));
             assertTrue(jobsResponse.body().contains("\"fileCount\":2"));
 
-            HttpResponse<String> timelineResponse = context.get("/admin/camera/archive/jobs/unassigned/timeline");
+            HttpResponse<String> timelineResponse = context.get(
+                    "/admin/camera/archive/jobs/unassigned/timeline?printerId=printer-1");
             assertEquals(200, timelineResponse.statusCode());
             assertTrue(timelineResponse.body().contains("\"timeline\":["));
             assertTrue(timelineResponse.body().contains("\"archivePath\":"));
+            assertTrue(timelineResponse.body().contains("\"printerId\":\"printer-1\""));
+            assertFalse(timelineResponse.body().contains("\"printerId\":\"printer-2\""));
 
             HttpResponse<String> previewResponse = context.request(
                     "POST",
@@ -1157,14 +1180,19 @@ class RemoteApiServerTest {
 
             HttpResponse<String> deleteResponse = context.request(
                     "DELETE",
-                    "/admin/camera/archive/jobs/unassigned",
+                    "/admin/camera/archive/jobs/unassigned?printerId=printer-1",
                     null);
             assertEquals(200, deleteResponse.statusCode());
             assertTrue(deleteResponse.body().contains("\"deletedMetadataRows\":2"));
 
-            HttpResponse<String> jobsAfterDeleteResponse = context.get("/admin/camera/archive/jobs");
+            HttpResponse<String> jobsAfterDeleteResponse = context.get("/admin/camera/archive/jobs?printerId=printer-1");
             assertEquals(200, jobsAfterDeleteResponse.statusCode());
             assertFalse(jobsAfterDeleteResponse.body().contains("\"jobId\":\"unassigned\""));
+
+            HttpResponse<String> secondPrinterJobsResponse = context.get("/admin/camera/archive/jobs?printerId=printer-2");
+            assertEquals(200, secondPrinterJobsResponse.statusCode());
+            assertTrue(secondPrinterJobsResponse.body().contains("\"jobId\":\"unassigned\""));
+            assertTrue(secondPrinterJobsResponse.body().contains("\"fileCount\":1"));
         } finally {
             context.close();
         }

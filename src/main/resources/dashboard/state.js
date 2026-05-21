@@ -23,6 +23,7 @@ export const state = {
   activePrimaryView: PRIMARY_VIEW_IDS.FARM_HOME,
   activePrinterView: PRINTER_VIEW_IDS.HOME,
   selectedPrinterId: null,
+  adminCameraPrinterId: null,
   printers: [],
   jobs: [],
   printFiles: [],
@@ -57,8 +58,16 @@ export function setPrinters(printers) {
     state.selectedPrinterId = state.printers[0].id;
   }
 
+  if (!state.adminCameraPrinterId && state.printers.length > 0) {
+    state.adminCameraPrinterId = state.selectedPrinterId || state.printers[0].id;
+  }
+
   if (state.selectedPrinterId && !state.printers.some((printer) => printer.id === state.selectedPrinterId)) {
     state.selectedPrinterId = state.printers[0]?.id ?? null;
+  }
+
+  if (state.adminCameraPrinterId && !state.printers.some((printer) => printer.id === state.adminCameraPrinterId)) {
+    state.adminCameraPrinterId = state.selectedPrinterId || state.printers[0]?.id || null;
   }
 }
 
@@ -122,6 +131,16 @@ export function setOperatorAuditEvents(events) {
 
 export function setCameraArchiveJobs(jobs) {
   state.cameraArchiveJobs = Array.isArray(jobs) ? jobs : [];
+}
+
+export function setAdminCameraPrinter(printerId) {
+  if (!printerId) {
+    state.adminCameraPrinterId = null;
+    return;
+  }
+
+  const exists = state.printers.some((printer) => printer.id === printerId);
+  state.adminCameraPrinterId = exists ? printerId : state.adminCameraPrinterId;
 }
 
 export function setPrimaryView(viewId) {

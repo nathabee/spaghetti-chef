@@ -101,6 +101,44 @@ public final class CameraArchiveEntryStore {
         }
     }
 
+    public List<CameraArchiveJobSummary> findJobSummariesByPrinterId(String printerId) {
+        String normalizedPrinterId = normalizePrinterId(printerId);
+        String sql = """
+                SELECT
+                    COALESCE(job_id, 'unassigned') AS job_key,
+                    COUNT(*) AS file_count,
+                    COALESCE(SUM(size_bytes), 0) AS total_bytes,
+                    MIN(captured_at) AS first_captured_at,
+                    MAX(captured_at) AS last_captured_at
+                FROM camera_archive_entries
+                WHERE printer_id = ?
+                GROUP BY COALESCE(job_id, 'unassigned')
+                ORDER BY MAX(captured_at) DESC;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CameraArchiveJobSummary> summaries = new ArrayList<>();
+                while (resultSet.next()) {
+                    summaries.add(new CameraArchiveJobSummary(
+                            resultSet.getString("job_key"),
+                            resultSet.getInt("file_count"),
+                            resultSet.getLong("total_bytes"),
+                            Instant.parse(resultSet.getString("first_captured_at")),
+                            Instant.parse(resultSet.getString("last_captured_at"))));
+                }
+                return summaries;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera archive job summaries", exception);
+        }
+    }
+
     public List<CameraArchiveEntry> findByJobId(String jobId) {
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
@@ -141,6 +179,49 @@ public final class CameraArchiveEntryStore {
         }
     }
 
+    public List<CameraArchiveEntry> findByPrinterIdAndJobId(String printerId, String jobId) {
+        String normalizedPrinterId = normalizePrinterId(printerId);
+        String normalizedJobId = normalizeJobId(jobId);
+        boolean unassigned = "unassigned".equals(normalizedJobId);
+        String sql = """
+                SELECT
+                    id,
+                    printer_id,
+                    job_id,
+                    archive_path,
+                    content_type,
+                    size_bytes,
+                    captured_at,
+                    archived_at,
+                    source_type,
+                    message
+                FROM camera_archive_entries
+                WHERE printer_id = ?
+                    AND %s
+                ORDER BY captured_at ASC, id ASC;
+                """.formatted(unassigned ? "job_id IS NULL" : "job_id = ?");
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+            if (!unassigned) {
+                statement.setString(2, normalizedJobId);
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CameraArchiveEntry> entries = new ArrayList<>();
+                while (resultSet.next()) {
+                    entries.add(mapRow(resultSet));
+                }
+                return entries;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera archive entries", exception);
+        }
+    }
+
     public int deleteByJobId(String jobId) {
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
@@ -152,6 +233,27 @@ public final class CameraArchiveEntryStore {
         ) {
             if (!unassigned) {
                 statement.setString(1, normalizedJobId);
+            }
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera archive entries", exception);
+        }
+    }
+
+    public int deleteByPrinterIdAndJobId(String printerId, String jobId) {
+        String normalizedPrinterId = normalizePrinterId(printerId);
+        String normalizedJobId = normalizeJobId(jobId);
+        boolean unassigned = "unassigned".equals(normalizedJobId);
+        String sql = "DELETE FROM camera_archive_entries WHERE printer_id = ? AND "
+                + (unassigned ? "job_id IS NULL" : "job_id = ?");
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+            if (!unassigned) {
+                statement.setString(2, normalizedJobId);
             }
             return statement.executeUpdate();
         } catch (SQLException exception) {
@@ -178,5 +280,12 @@ public final class CameraArchiveEntryStore {
             throw new IllegalArgumentException("jobId must not be blank");
         }
         return jobId.trim();
+    }
+
+    private static String normalizePrinterId(String printerId) {
+        if (printerId == null || printerId.isBlank()) {
+            throw new IllegalArgumentException("printerId must not be blank");
+        }
+        return printerId.trim();
     }
 }

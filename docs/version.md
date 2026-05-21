@@ -8,13 +8,14 @@ see ROADMAP.md
 
 next:
 
-0.4.8 — Camera Dashboard Polish And Administration
+0.4.9 — Code Clean Up
 
 ## Version (done)
 
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.8 — Camera Dashboard Printer-Scoped Administration
 - 0.4.7 — Camera Picture And Data Management
 - 0.4.6 — Camera Dashboard Job Debug
 - 0.4.5 — Real Webcam Backend

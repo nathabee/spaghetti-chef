@@ -1,7 +1,7 @@
 import { escapeHtml } from "../utils/format.js";
 import { hasPermission } from "../state.js";
 
-export function renderAdminCameraDataPage(jobs = []) {
+export function renderAdminCameraDataPage(printers = [], selectedPrinterId = null, jobs = []) {
   if (!hasPermission("CAMERA_DATA_MANAGE")) {
     return `
       <section class="placeholder-card">
@@ -17,6 +17,22 @@ export function renderAdminCameraDataPage(jobs = []) {
   }
 
   return `
+    <section class="placeholder-card">
+      <div class="section-header compact">
+        <div>
+          <h3>Picture/Data Management</h3>
+          <p class="placeholder-caption">Choose one printer. Archive jobs, replay, cleanup, and recalculation are scoped to that printer.</p>
+        </div>
+        <span class="badge badge-real">admin</span>
+      </div>
+      <label class="form-field">
+        <span>Printer</span>
+        <select data-admin-camera-printer>
+          ${renderPrinterOptions(printers, selectedPrinterId)}
+        </select>
+      </label>
+    </section>
+
     <section class="two-column-grid">
       <article class="placeholder-card">
         <div class="section-header compact">
@@ -26,7 +42,7 @@ export function renderAdminCameraDataPage(jobs = []) {
           </div>
           <span class="badge badge-real">0.4.7</span>
         </div>
-        ${renderJobTable(jobs)}
+        ${selectedPrinterId ? renderJobTable(jobs) : `<p class="muted">Select a printer to load camera archive jobs.</p>`}
       </article>
 
       <article class="placeholder-card">
@@ -46,6 +62,18 @@ export function renderAdminCameraDataPage(jobs = []) {
       </article>
     </section>
   `;
+}
+
+function renderPrinterOptions(printers, selectedPrinterId) {
+  if (!Array.isArray(printers) || printers.length === 0) {
+    return `<option value="">No printers configured</option>`;
+  }
+
+  return printers.map((printer) => `
+    <option value="${escapeHtml(printer.id)}" ${printer.id === selectedPrinterId ? "selected" : ""}>
+      ${escapeHtml(printer.displayName || printer.name || printer.id)}
+    </option>
+  `).join("");
 }
 
 function renderJobTable(jobs) {

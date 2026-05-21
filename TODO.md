@@ -380,7 +380,7 @@ All picture/data management APIs must follow these constraints:
 
 ## 0.4.8 — Camera Dashboard Polish And Administration
 
-Status: planned after 0.4.7
+Status: implemented
 
 Purpose:
 
@@ -389,6 +389,9 @@ Connect the picture/data management backend to a usable admin dashboard and poli
 Candidate work:
 
 * connect admin archive listing to real backend data
+* scope the admin Picture/Data Management page by selected printer
+* load only archive jobs for the selected printer
+* keep admin delete/replay API calls scoped to one printer when `printerId` is supplied
 * connect delete-by-job UI with confirmation
 * connect replay controls to backend timeline
 * display archived picture, delta image, and analysis values during replay

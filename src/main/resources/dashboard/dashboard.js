@@ -84,6 +84,7 @@ import {
   setJobSynchronization,
   setJobs,
   setAppVersion,
+  setAdminCameraPrinter,
   setCameraArchiveJobs,
   setLastRefreshLabel,
   setMessage,
@@ -222,8 +223,13 @@ async function refreshCameraArchiveJobs() {
     return;
   }
 
+  if (!state.adminCameraPrinterId) {
+    setCameraArchiveJobs([]);
+    return;
+  }
+
   try {
-    setCameraArchiveJobs(await getCameraArchiveJobs());
+    setCameraArchiveJobs(await getCameraArchiveJobs(state.adminCameraPrinterId));
   } catch (error) {
     setCameraArchiveJobs([]);
   }
@@ -347,7 +353,11 @@ function renderPage() {
   }
 
   if (state.activePrimaryView === PRIMARY_VIEW_IDS.ADMIN_CAMERA) {
-    pageContentElement.innerHTML = renderAdminCameraDataPage(state.cameraArchiveJobs);
+    pageContentElement.innerHTML = renderAdminCameraDataPage(
+      state.printers,
+      state.adminCameraPrinterId,
+      state.cameraArchiveJobs
+    );
     return;
   }
 
@@ -694,6 +704,13 @@ function bindGlobalListeners() {
   });
 
   document.addEventListener("change", (event) => {
+    const adminCameraPrinterSelect = event.target.closest("[data-admin-camera-printer]");
+    if (adminCameraPrinterSelect) {
+      setAdminCameraPrinter(adminCameraPrinterSelect.value);
+      refreshCameraArchiveJobs().then(renderApp);
+      return;
+    }
+
     const filterInput = event.target.closest("[data-sd-target-filter]");
     if (!filterInput) {
       return;

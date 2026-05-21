@@ -749,7 +749,11 @@ public final class RemoteApiServer {
                 return;
             }
 
-            sendJson(exchange, 200, cameraArchiveJobSummariesJson(cameraArchiveManagementService.listJobs()));
+            String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+            List<CameraArchiveJobSummary> jobs = printerId == null || printerId.isBlank()
+                    ? cameraArchiveManagementService.listJobs()
+                    : cameraArchiveManagementService.listJobs(printerId);
+            sendJson(exchange, 200, cameraArchiveJobSummariesJson(jobs));
             return;
         }
 
@@ -767,16 +771,21 @@ public final class RemoteApiServer {
         }
 
         String jobId = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+        String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
         if (parts.length == 1) {
             if ("GET".equalsIgnoreCase(method)) {
                 sendJson(exchange, 200, cameraArchiveEntriesJson(
                         jobId,
-                        cameraArchiveManagementService.entriesForJob(jobId)));
+                        printerId == null || printerId.isBlank()
+                                ? cameraArchiveManagementService.entriesForJob(jobId)
+                                : cameraArchiveManagementService.entriesForJob(printerId, jobId)));
                 return;
             }
 
             if ("DELETE".equalsIgnoreCase(method)) {
-                CameraArchiveDeletionReport report = cameraArchiveManagementService.deleteJobArchive(jobId);
+                CameraArchiveDeletionReport report = printerId == null || printerId.isBlank()
+                        ? cameraArchiveManagementService.deleteJobArchive(jobId)
+                        : cameraArchiveManagementService.deleteJobArchive(printerId, jobId);
                 sendJson(exchange, 200, cameraArchiveDeletionReportJson(report));
                 return;
             }
@@ -793,7 +802,9 @@ public final class RemoteApiServer {
 
             sendJson(exchange, 200, cameraArchiveTimelineJson(
                     jobId,
-                    cameraArchiveManagementService.entriesForJob(jobId)));
+                    printerId == null || printerId.isBlank()
+                            ? cameraArchiveManagementService.entriesForJob(jobId)
+                            : cameraArchiveManagementService.entriesForJob(printerId, jobId)));
             return;
         }
 
