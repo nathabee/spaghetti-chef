@@ -147,16 +147,18 @@ public final class CameraCaptureService {
 
     public CameraCaptureResult capture(String printerId) {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
-        PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
-                + " enabled=" + settings.enabled()
-                + " sourceType=" + settings.sourceType().wireValue()
-                + " sourceValue=" + settings.sourceValue().orElse("")
-                + " ffmpegCommand=" + settings.ffmpegCommand()
-                + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
-                + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
-                + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
-                + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
-                + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
+        if (settings.diagnosticLoggingEnabled()) {
+            PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
+                    + " enabled=" + settings.enabled()
+                    + " sourceType=" + settings.sourceType().wireValue()
+                    + " sourceValue=" + settings.sourceValue().orElse("")
+                    + " ffmpegCommand=" + settings.ffmpegCommand()
+                    + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
+                    + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
+                    + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
+                    + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
+                    + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
+        }
 
         if (!settings.enabled()) {
             eventStore.record(
@@ -168,9 +170,11 @@ public final class CameraCaptureService {
         }
 
         try (CameraDevice device = createDevice(settings)) {
-            PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
-                    + " description=" + device.describe()
-                    + " available=" + device.isAvailable());
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
+                        + " description=" + device.describe()
+                        + " available=" + device.isAvailable());
+            }
 
             if (!device.isAvailable()) {
                 eventStore.record(
@@ -196,9 +200,11 @@ public final class CameraCaptureService {
             }
 
             PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get());
-            PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
-                    + " latest=" + persistedPaths.latestPath()
-                    + " snapshot=" + persistedPaths.snapshotPath());
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
+                        + " latest=" + persistedPaths.latestPath()
+                        + " snapshot=" + persistedPaths.snapshotPath());
+            }
 
             eventStore.record(
                     settings.printerId(),
@@ -257,6 +263,7 @@ public final class CameraCaptureService {
                     settings.ffmpegVideoSize().orElse(null),
                     settings.ffmpegTimeoutMs(),
                     settings.ffmpegJpegQuality(),
+                    settings.diagnosticLoggingEnabled(),
                     clock);
         }
 

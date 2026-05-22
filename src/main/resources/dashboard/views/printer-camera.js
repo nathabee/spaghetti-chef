@@ -145,6 +145,7 @@ function cameraSettingsPayload(form) {
   const analysisEnabled = form.querySelector("#cameraAnalysisEnabledInput")?.checked === true;
   const safetyEnabled = form.querySelector("#cameraSafetyEnabledInput")?.checked === true;
   const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
+  const diagnosticLoggingEnabled = form.querySelector("#cameraDiagnosticLoggingInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const storageDirectoryInput = form.querySelector("#cameraStorageDirectoryInput");
@@ -170,6 +171,7 @@ function cameraSettingsPayload(form) {
     analysisEnabled,
     safetyEnabled,
     pauseOnConfirmedSpaghetti,
+    diagnosticLoggingEnabled,
     confidenceThreshold: ratio(confidenceThresholdInput?.value, 0.85),
     confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3),
     ffmpegCommand: ffmpegCommandInput?.value?.trim() || "ffmpeg",

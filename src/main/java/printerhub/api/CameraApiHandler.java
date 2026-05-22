@@ -356,6 +356,9 @@ public final class CameraApiHandler {
         String storageDirectory = readStringField(body, "storageDirectory")
                 .orElse(current.storageDirectory());
 
+        boolean diagnosticLoggingEnabled = readBooleanField(body, "diagnosticLoggingEnabled")
+                .orElse(current.diagnosticLoggingEnabled());
+
         return new CameraSettings(
                 current.printerId(),
                 enabled,
@@ -374,6 +377,7 @@ public final class CameraApiHandler {
                 ffmpegTimeoutMs,
                 ffmpegJpegQuality,
                 storageDirectory,
+                diagnosticLoggingEnabled,
                 Instant.now());
     }
 
@@ -409,6 +413,7 @@ public final class CameraApiHandler {
                 + jsonField("ffmpegTimeoutMs", settings.ffmpegTimeoutMs()) + ","
                 + jsonField("ffmpegJpegQuality", settings.ffmpegJpegQuality()) + ","
                 + jsonField("storageDirectory", settings.storageDirectory()) + ","
+                + jsonField("diagnosticLoggingEnabled", settings.diagnosticLoggingEnabled()) + ","
                 + jsonField("updatedAt", settings.updatedAt().toString())
                 + "}";
     }

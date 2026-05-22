@@ -160,8 +160,19 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
   }
 
   return `
+    <div class="form-grid compact-form">
+      <label>
+        Delta snapshot step
+        <input id="adminCameraDeltaSnapshotStepInput" type="number" min="1" step="1" value="1">
+      </label>
+      <label>
+        Method
+        <input id="adminCameraDeltaMethodInput" type="text" value="image-delta">
+      </label>
+    </div>
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(selectedJobId)}">Reload timeline</button>
+      <button type="button" class="button-secondary" data-admin-camera-generate-delta="${escapeHtml(selectedJobId)}">Generate delta set</button>
       <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(selectedJobId)}">Preview recalculation</button>
       <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete retained snapshots</button>
     </div>

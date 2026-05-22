@@ -435,6 +435,17 @@ export async function previewCameraSnapshotRecalculation(jobId, parameters = {})
   });
 }
 
+export async function generateCameraDeltaSet(jobId, parameters = {}) {
+  const query = parameters.printerId ? `?printerId=${encodeURIComponent(parameters.printerId)}` : "";
+  return requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/delta-sets${query}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(parameters)
+  });
+}
+
 export function adminCameraSnapshotEntryUrl(entryId) {
   return `/admin/camera/snapshot/files/${encodeURIComponent(entryId)}?t=${Date.now()}`;
 }

@@ -34,6 +34,7 @@ public final class CameraSettingsStore {
                     ffmpeg_timeout_ms,
                     ffmpeg_jpeg_quality,
                     storage_directory,
+                    diagnostic_logging_enabled,
                     updated_at
                 FROM camera_settings
                 WHERE printer_id = ?;
@@ -87,9 +88,10 @@ public final class CameraSettingsStore {
                     ffmpeg_timeout_ms,
                     ffmpeg_jpeg_quality,
                     storage_directory,
+                    diagnostic_logging_enabled,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(printer_id) DO UPDATE SET
                     enabled = excluded.enabled,
                     source_type = excluded.source_type,
@@ -107,6 +109,7 @@ public final class CameraSettingsStore {
                     ffmpeg_timeout_ms = excluded.ffmpeg_timeout_ms,
                     ffmpeg_jpeg_quality = excluded.ffmpeg_jpeg_quality,
                     storage_directory = excluded.storage_directory,
+                    diagnostic_logging_enabled = excluded.diagnostic_logging_enabled,
                     updated_at = excluded.updated_at;
                 """;
 
@@ -131,7 +134,8 @@ public final class CameraSettingsStore {
             statement.setInt(15, settings.ffmpegTimeoutMs());
             statement.setInt(16, settings.ffmpegJpegQuality());
             statement.setString(17, settings.storageDirectory());
-            statement.setString(18, settings.updatedAt().toString());
+            statement.setInt(18, settings.diagnosticLoggingEnabled() ? 1 : 0);
+            statement.setString(19, settings.updatedAt().toString());
 
             statement.executeUpdate();
             return settings;
@@ -162,6 +166,7 @@ public final class CameraSettingsStore {
                         resultSet,
                         "storage_directory",
                         RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY),
+                resultSet.getInt("diagnostic_logging_enabled") == 1,
                 parseInstant(resultSet.getString("updated_at"))
         );
     }

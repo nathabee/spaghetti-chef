@@ -25,6 +25,7 @@ public final class FfmpegCameraDevice implements CameraDevice {
     private final String videoSize;
     private final int timeoutMs;
     private final int jpegQuality;
+    private final boolean diagnosticLoggingEnabled;
     private final Clock clock;
 
     public FfmpegCameraDevice(
@@ -36,6 +37,28 @@ public final class FfmpegCameraDevice implements CameraDevice {
             int timeoutMs,
             int jpegQuality,
             Clock clock) {
+        this(
+                printerId,
+                sourceValue,
+                ffmpegCommand,
+                inputFormat,
+                videoSize,
+                timeoutMs,
+                jpegQuality,
+                false,
+                clock);
+    }
+
+    public FfmpegCameraDevice(
+            String printerId,
+            String sourceValue,
+            String ffmpegCommand,
+            String inputFormat,
+            String videoSize,
+            int timeoutMs,
+            int jpegQuality,
+            boolean diagnosticLoggingEnabled,
+            Clock clock) {
         this.printerId = requireText(printerId, "printerId");
         this.sourceValue = requireText(sourceValue, "sourceValue");
         this.ffmpegCommand = requireText(ffmpegCommand, "ffmpegCommand");
@@ -43,6 +66,7 @@ public final class FfmpegCameraDevice implements CameraDevice {
         this.videoSize = normalize(videoSize);
         this.timeoutMs = requirePositive(timeoutMs, "timeoutMs");
         this.jpegQuality = requirePositive(jpegQuality, "jpegQuality");
+        this.diagnosticLoggingEnabled = diagnosticLoggingEnabled;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -55,12 +79,14 @@ public final class FfmpegCameraDevice implements CameraDevice {
             processOutputFile = Files.createTempFile("printerhub-camera-ffmpeg-", ".log");
             List<String> command = captureCommand(tempFile);
 
-            PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureStarting(
-                    printerId,
-                    describe(),
-                    redactedCommand(command),
-                    tempFile.toString(),
-                    timeoutMs));
+            if (diagnosticLoggingEnabled) {
+                PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureStarting(
+                        printerId,
+                        describe(),
+                        redactedCommand(command),
+                        tempFile.toString(),
+                        timeoutMs));
+            }
 
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
@@ -98,10 +124,12 @@ public final class FfmpegCameraDevice implements CameraDevice {
             }
 
             byte[] bytes = Files.readAllBytes(tempFile);
-            PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureSucceeded(
-                    printerId,
-                    bytes.length,
-                    tempFile.toString()));
+            if (diagnosticLoggingEnabled) {
+                PrinterHubLog.info(OperationMessages.cameraFfmpegCaptureSucceeded(
+                        printerId,
+                        bytes.length,
+                        tempFile.toString()));
+            }
 
             return Optional.of(CameraFrame.jpeg(
                     printerId,

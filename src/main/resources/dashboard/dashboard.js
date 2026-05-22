@@ -16,6 +16,7 @@ import {
   deleteCameraSnapshotJob,
   getCameraSnapshotJobs,
   getCameraSnapshotJobTimeline,
+  generateCameraDeltaSet,
   getMonitoringOverview,
   getMonitoringRules,
   getOperatorAuditEvents,
@@ -266,6 +267,28 @@ async function handleAdminCameraRecalculate(jobId) {
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to preview recalculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraGenerateDeltaSet(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  const stepInput = document.getElementById("adminCameraDeltaSnapshotStepInput");
+  const methodInput = document.getElementById("adminCameraDeltaMethodInput");
+  const deltaSnapshotStep = Number.parseInt(stepInput?.value || "1", 10);
+
+  try {
+    const result = await generateCameraDeltaSet(jobId, {
+      printerId: state.adminCameraPrinterId,
+      deltaSnapshotStep: Number.isFinite(deltaSnapshotStep) && deltaSnapshotStep > 0 ? deltaSnapshotStep : 1,
+      methodName: methodInput?.value?.trim() || "image-delta",
+      message: "dashboard generated delta set"
+    });
+    setAdminCameraActionResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to generate delta set: ${error.message}` });
   }
 }
 
@@ -640,6 +663,13 @@ function bindGlobalListeners() {
     const adminCameraRecalculateButton = event.target.closest("[data-admin-camera-recalculate]");
     if (adminCameraRecalculateButton) {
       await handleAdminCameraRecalculate(adminCameraRecalculateButton.dataset.adminCameraRecalculate);
+      renderApp();
+      return;
+    }
+
+    const adminCameraGenerateDeltaButton = event.target.closest("[data-admin-camera-generate-delta]");
+    if (adminCameraGenerateDeltaButton) {
+      await handleAdminCameraGenerateDeltaSet(adminCameraGenerateDeltaButton.dataset.adminCameraGenerateDelta);
       renderApp();
       return;
     }

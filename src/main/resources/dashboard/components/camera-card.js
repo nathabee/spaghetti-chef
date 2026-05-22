@@ -109,6 +109,11 @@ export function renderCameraSettingsCard(settings) {
           Pause on confirmed spaghetti
         </label>
 
+        <label class="checkbox-label">
+          <input id="cameraDiagnosticLoggingInput" name="diagnosticLoggingEnabled" type="checkbox" ${settings?.diagnosticLoggingEnabled ? "checked" : ""}>
+          Enable camera diagnostic logs
+        </label>
+
         <label>
           Source type
           <select id="cameraSourceTypeInput" name="sourceType">

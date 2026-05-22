@@ -117,6 +117,7 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY);
             ensureColumn(connection, "camera_settings", "storage_directory",
                     "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY + "'");
+            ensureColumn(connection, "camera_settings", "diagnostic_logging_enabled", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
             ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
@@ -518,6 +519,7 @@ public final class DatabaseInitializer {
                     ffmpeg_timeout_ms INTEGER NOT NULL DEFAULT 5000,
                     ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
                     storage_directory TEXT NOT NULL DEFAULT 'camera',
+                    diagnostic_logging_enabled INTEGER NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL
                 );
                 """;
