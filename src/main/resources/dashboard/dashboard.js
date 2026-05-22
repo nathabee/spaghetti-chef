@@ -12,10 +12,11 @@ import {
   getJobExecutionSteps,
   getJobs,
   getAppVersion,
-  adminCameraArchiveEntryUrl,
-  deleteCameraArchiveJob,
-  getCameraArchiveJobs,
-  getCameraArchiveJobTimeline,
+  adminCameraSnapshotEntryUrl,
+  deleteCameraSnapshotJob,
+  getCameraSnapshotJobs,
+  getCameraSnapshotJobTimeline,
+  generateCameraDeltaSet,
   getMonitoringOverview,
   getMonitoringRules,
   getOperatorAuditEvents,
@@ -34,7 +35,7 @@ import {
   registerPrinterSdFile,
   registerPrintFile,
   pauseJob,
-  previewCameraArchiveRecalculation,
+  previewCameraSnapshotRecalculation,
   restartJob,
   resumeJob, 
   saveMonitoringRules,
@@ -64,7 +65,7 @@ import { renderSettingsPage } from "./views/settings.js";
 import {
   capturePrinterCameraSnapshot,
   capturePrinterCameraAnalysisSample,
-  cameraArchiveRangeFromForm,
+  cameraSnapshotRangeFromForm,
   renderPrinterCamera,
   renderPrinterCameraAnalysisPanel,
   renderPrinterCameraLoading,
@@ -92,7 +93,7 @@ import {
   setAdminCameraActionResult,
   setAdminCameraSelectedEntry,
   setAdminCameraTimeline,
-  setCameraArchiveJobs,
+  setCameraSnapshotJobs,
   setLastRefreshLabel,
   setMessage,
   setMonitoringOverview,
@@ -134,7 +135,7 @@ const jobStatusPollers = new Map();
 const cameraSnapshotSyncPollers = new Map();
 const cameraAnalysisSamplePollers = new Map();
 const JOB_STATUS_POLLING_INTERVAL_MS = 2500;
-let cameraArchiveScrollSelectionTimer = null;
+let cameraSnapshotScrollSelectionTimer = null;
 
 async function boot() {
   bindGlobalListeners();
@@ -186,7 +187,7 @@ async function refreshAllData(options = {}) {
     setMonitoringOverview(monitoringOverview);
     setOperatorAuditEvents(operatorAuditEvents);
     setAppVersion(appVersion);
-    await refreshCameraArchiveJobs();
+    await refreshCameraSnapshotJobs();
     setLastRefreshLabel(new Date().toLocaleTimeString());
     await refreshUploadStatuses(printers);
 
@@ -224,21 +225,21 @@ async function refreshUploadStatuses(printers) {
   }));
 }
 
-async function refreshCameraArchiveJobs() {
+async function refreshCameraSnapshotJobs() {
   if (!hasPermission("CAMERA_DATA_MANAGE")) {
-    setCameraArchiveJobs([]);
+    setCameraSnapshotJobs([]);
     return;
   }
 
   if (!state.adminCameraPrinterId) {
-    setCameraArchiveJobs([]);
+    setCameraSnapshotJobs([]);
     return;
   }
 
   try {
-    setCameraArchiveJobs(await getCameraArchiveJobs(state.adminCameraPrinterId));
+    setCameraSnapshotJobs(await getCameraSnapshotJobs(state.adminCameraPrinterId));
   } catch (error) {
-    setCameraArchiveJobs([]);
+    setCameraSnapshotJobs([]);
   }
 }
 
@@ -248,11 +249,11 @@ async function loadAdminCameraTimeline(jobId) {
   }
 
   try {
-    const timeline = await getCameraArchiveJobTimeline(jobId, state.adminCameraPrinterId);
+    const timeline = await getCameraSnapshotJobTimeline(jobId, state.adminCameraPrinterId);
     setAdminCameraTimeline(jobId, timeline);
-    setAdminCameraActionResult({ message: `Loaded ${timeline.length} camera archive entries for ${jobId}.` });
+    setAdminCameraActionResult({ message: `Loaded ${timeline.length} camera snapshot entries for ${jobId}.` });
   } catch (error) {
-    setAdminCameraActionResult({ error: `Failed to load camera archive timeline: ${error.message}` });
+    setAdminCameraActionResult({ error: `Failed to load camera snapshot timeline: ${error.message}` });
   }
 }
 
@@ -262,10 +263,32 @@ async function handleAdminCameraRecalculate(jobId) {
   }
 
   try {
-    const result = await previewCameraArchiveRecalculation(jobId, { printerId: state.adminCameraPrinterId });
+    const result = await previewCameraSnapshotRecalculation(jobId, { printerId: state.adminCameraPrinterId });
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to preview recalculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraGenerateDeltaSet(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  const stepInput = document.getElementById("adminCameraDeltaSnapshotStepInput");
+  const methodInput = document.getElementById("adminCameraDeltaMethodInput");
+  const deltaSnapshotStep = Number.parseInt(stepInput?.value || "1", 10);
+
+  try {
+    const result = await generateCameraDeltaSet(jobId, {
+      printerId: state.adminCameraPrinterId,
+      deltaSnapshotStep: Number.isFinite(deltaSnapshotStep) && deltaSnapshotStep > 0 ? deltaSnapshotStep : 1,
+      methodName: methodInput?.value?.trim() || "image-delta",
+      message: "dashboard generated delta set"
+    });
+    setAdminCameraActionResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to generate delta set: ${error.message}` });
   }
 }
 
@@ -274,18 +297,20 @@ async function handleAdminCameraDeleteJob(jobId) {
     return;
   }
 
-  const confirmed = window.confirm(`Delete camera archive files for printer ${state.adminCameraPrinterId}, job ${jobId}?`);
+  const confirmed = window.confirm(
+    `Delete retained source snapshots for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
+  );
   if (!confirmed) {
     return;
   }
 
   try {
-    const report = await deleteCameraArchiveJob(jobId, state.adminCameraPrinterId);
+    const report = await deleteCameraSnapshotJob(jobId, state.adminCameraPrinterId);
     setAdminCameraActionResult(report);
     setAdminCameraTimeline(null, []);
-    await refreshCameraArchiveJobs();
+    await refreshCameraSnapshotJobs();
   } catch (error) {
-    setAdminCameraActionResult({ error: `Failed to delete camera archive job: ${error.message}` });
+    setAdminCameraActionResult({ error: `Failed to delete camera snapshot job: ${error.message}` });
   }
 }
 
@@ -340,7 +365,7 @@ function renderHeader() {
 
   if (state.activePrimaryView === PRIMARY_VIEW_IDS.ADMIN_CAMERA) {
     pageTitleElement.textContent = "Pictures";
-    pageLeadElement.textContent = "Administrator tools for camera archive files, replay, cleanup, and detector recalculation.";
+    pageLeadElement.textContent = "Administrator tools for camera snapshot files, replay, cleanup, and detector recalculation.";
     return;
   }
 
@@ -410,12 +435,12 @@ function renderPage() {
     pageContentElement.innerHTML = renderAdminCameraDataPage(
       state.printers,
       state.adminCameraPrinterId,
-      state.cameraArchiveJobs,
+      state.cameraSnapshotJobs,
       state.adminCameraSelectedJobId,
       state.adminCameraTimeline,
       state.adminCameraSelectedEntryId,
       state.adminCameraActionResult,
-      adminCameraArchiveEntryUrl
+      adminCameraSnapshotEntryUrl
     );
     return;
   }
@@ -615,9 +640,9 @@ function bindGlobalListeners() {
       return;
     }
 
-    const cameraArchiveSelectButton = event.target.closest("[data-camera-archive-select]");
-    if (cameraArchiveSelectButton) {
-      selectCameraArchiveFile(cameraArchiveSelectButton);
+    const cameraSnapshotSelectButton = event.target.closest("[data-camera-snapshot-select]");
+    if (cameraSnapshotSelectButton) {
+      selectCameraSnapshotFile(cameraSnapshotSelectButton);
       return;
     }
 
@@ -638,6 +663,13 @@ function bindGlobalListeners() {
     const adminCameraRecalculateButton = event.target.closest("[data-admin-camera-recalculate]");
     if (adminCameraRecalculateButton) {
       await handleAdminCameraRecalculate(adminCameraRecalculateButton.dataset.adminCameraRecalculate);
+      renderApp();
+      return;
+    }
+
+    const adminCameraGenerateDeltaButton = event.target.closest("[data-admin-camera-generate-delta]");
+    if (adminCameraGenerateDeltaButton) {
+      await handleAdminCameraGenerateDeltaSet(adminCameraGenerateDeltaButton.dataset.adminCameraGenerateDelta);
       renderApp();
       return;
     }
@@ -794,7 +826,7 @@ function bindGlobalListeners() {
     const adminCameraPrinterSelect = event.target.closest("[data-admin-camera-printer]");
     if (adminCameraPrinterSelect) {
       setAdminCameraPrinter(adminCameraPrinterSelect.value);
-      refreshCameraArchiveJobs().then(renderApp);
+      refreshCameraSnapshotJobs().then(renderApp);
       return;
     }
 
@@ -895,22 +927,22 @@ function bindPageListeners() {
     });
   }
 
-  const cameraArchiveForm = document.getElementById("cameraArchiveForm");
-  if (cameraArchiveForm) {
-    cameraArchiveForm.addEventListener("submit", async (event) => {
+  const cameraSnapshotForm = document.getElementById("cameraSnapshotForm");
+  if (cameraSnapshotForm) {
+    cameraSnapshotForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      await loadPrinterCameraIntoPage(getSelectedPrinter(), cameraArchiveRangeFromForm(cameraArchiveForm));
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), cameraSnapshotRangeFromForm(cameraSnapshotForm));
     });
   }
 
-  const cameraArchiveFileList = document.getElementById("cameraArchiveFileList");
-  if (cameraArchiveFileList) {
-    cameraArchiveFileList.addEventListener("scroll", () => {
-      window.clearTimeout(cameraArchiveScrollSelectionTimer);
-      cameraArchiveScrollSelectionTimer = window.setTimeout(() => {
-        const firstVisible = firstVisibleCameraArchiveItem(cameraArchiveFileList);
+  const cameraSnapshotFileList = document.getElementById("cameraSnapshotFileList");
+  if (cameraSnapshotFileList) {
+    cameraSnapshotFileList.addEventListener("scroll", () => {
+      window.clearTimeout(cameraSnapshotScrollSelectionTimer);
+      cameraSnapshotScrollSelectionTimer = window.setTimeout(() => {
+        const firstVisible = firstVisibleCameraSnapshotItem(cameraSnapshotFileList);
         if (firstVisible) {
-          selectCameraArchiveFile(firstVisible);
+          selectCameraSnapshotFile(firstVisible);
         }
       }, 2000);
     }, { passive: true });
@@ -2451,21 +2483,21 @@ function ensurePermission(permission) {
   return false;
 }
 
-function firstVisibleCameraArchiveItem(listElement) {
-  const items = Array.from(listElement.querySelectorAll("[data-camera-archive-select]"));
+function firstVisibleCameraSnapshotItem(listElement) {
+  const items = Array.from(listElement.querySelectorAll("[data-camera-snapshot-select]"));
   const listTop = listElement.getBoundingClientRect().top;
 
   return items.find((item) => item.getBoundingClientRect().bottom >= listTop) || items[0] || null;
 }
 
-function selectCameraArchiveFile(selectedButton) {
-  const listElement = selectedButton.closest("#cameraArchiveFileList");
+function selectCameraSnapshotFile(selectedButton) {
+  const listElement = selectedButton.closest("#cameraSnapshotFileList");
   if (!listElement) {
     return;
   }
 
-  const items = Array.from(listElement.querySelectorAll("[data-camera-archive-select]"));
-  const selectedIndex = Number.parseInt(selectedButton.dataset.cameraArchiveIndex, 10);
+  const items = Array.from(listElement.querySelectorAll("[data-camera-snapshot-select]"));
+  const selectedIndex = Number.parseInt(selectedButton.dataset.cameraSnapshotIndex, 10);
 
   if (!Number.isFinite(selectedIndex)) {
     return;
@@ -2475,15 +2507,15 @@ function selectCameraArchiveFile(selectedButton) {
     item.classList.toggle("selected", item === selectedButton);
   });
 
-  updateCameraArchivePreview(items.slice(selectedIndex, selectedIndex + 3));
+  updateCameraSnapshotPreview(items.slice(selectedIndex, selectedIndex + 3));
 }
 
-function updateCameraArchivePreview(items) {
+function updateCameraSnapshotPreview(items) {
   [0, 1, 2].forEach((slot) => {
     const item = items[slot];
-    const preview = document.querySelector(`[data-camera-archive-preview-slot="${slot}"]`);
-    const image = document.querySelector(`[data-camera-archive-preview-image="${slot}"]`);
-    const title = document.querySelector(`[data-camera-archive-preview-title="${slot}"]`);
+    const preview = document.querySelector(`[data-camera-snapshot-preview-slot="${slot}"]`);
+    const image = document.querySelector(`[data-camera-snapshot-preview-image="${slot}"]`);
+    const title = document.querySelector(`[data-camera-snapshot-preview-title="${slot}"]`);
 
     if (!preview || !image || !title) {
       return;
@@ -2497,18 +2529,18 @@ function updateCameraArchivePreview(items) {
     }
 
     preview.hidden = false;
-    title.textContent = item.dataset.cameraArchivePath || item.dataset.cameraArchiveUrl || "—";
+    title.textContent = item.dataset.cameraSnapshotPath || item.dataset.cameraSnapshotUrl || "—";
 
-    const imageUrl = item.dataset.cameraArchiveUrl || "";
+    const imageUrl = item.dataset.cameraSnapshotUrl || "";
     if (image.getAttribute("src") !== imageUrl) {
       image.setAttribute("src", imageUrl);
     }
-    image.setAttribute("alt", `Camera archive file ${item.dataset.cameraArchivePath || ""}`);
+    image.setAttribute("alt", `Camera snapshot file ${item.dataset.cameraSnapshotPath || ""}`);
   });
 }
 
 
-async function loadPrinterCameraIntoPage(printer, archiveRange) {
+async function loadPrinterCameraIntoPage(printer, snapshotRange) {
   if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA) {
     return;
   }
@@ -2516,7 +2548,7 @@ async function loadPrinterCameraIntoPage(printer, archiveRange) {
   const expectedPrinterId = printer.id;
 
   try {
-    const html = await renderPrinterCamera(printer, archiveRange);
+    const html = await renderPrinterCamera(printer, snapshotRange);
 
     if (
       state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA

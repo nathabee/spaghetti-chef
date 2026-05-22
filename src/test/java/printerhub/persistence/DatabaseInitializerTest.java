@@ -36,7 +36,11 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("configured_printers"));
         assertTrue(tableExists("monitoring_rules"));
         assertTrue(tableExists("serial_transfer_settings"));
-        assertTrue(tableExists("camera_archive_entries"));
+        assertTrue(tableExists("camera_snapshot_entries"));
+        assertTrue(tableExists("camera_delta_sets"));
+        assertTrue(tableExists("camera_delta_frames"));
+        assertTrue(tableExists("camera_calculation_runs"));
+        assertTrue(tableExists("camera_calculation_results"));
     }
 
     @Test
@@ -55,7 +59,11 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("configured_printers"));
         assertTrue(tableExists("monitoring_rules"));
         assertTrue(tableExists("serial_transfer_settings"));
-        assertTrue(tableExists("camera_archive_entries"));
+        assertTrue(tableExists("camera_snapshot_entries"));
+        assertTrue(tableExists("camera_delta_sets"));
+        assertTrue(tableExists("camera_delta_frames"));
+        assertTrue(tableExists("camera_calculation_runs"));
+        assertTrue(tableExists("camera_calculation_results"));
     }
 
     @Test

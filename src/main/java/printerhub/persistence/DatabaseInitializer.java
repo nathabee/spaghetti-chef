@@ -30,12 +30,17 @@ public final class DatabaseInitializer {
             createSerialTransferSettingsTable(statement);
             createCameraSettingsTable(statement);
             createCameraEventsTable(statement);
-            createCameraSnapshotMetadataTable(statement);
-            createCameraArchiveEntriesTable(statement);
-            createCameraAnalysisSessionsTable(statement);
             createCameraAnalysisSamplesTable(statement);
             createSecuritySettingsTable(statement);
             createRoleProfilesTable(statement);
+            createCameraSnapshotMetadataTable(statement);
+            createCameraJobsTable(statement);
+            createCameraSnapshotEntriesTable(statement);
+            createCameraDeltaSetsTable(statement);
+            createCameraDeltaFramesTable(statement);
+            createCameraCalculationRunsTable(statement);
+            createCameraCalculationResultsTable(statement);
+            createCameraAnalysisSessionsTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
             ensureColumn(connection, "print_jobs", "printer_sd_file_id", "TEXT");
@@ -112,6 +117,10 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY);
             ensureColumn(connection, "camera_settings", "storage_directory",
                     "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY + "'");
+            ensureColumn(connection, "camera_settings", "diagnostic_logging_enabled", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
+            ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
+            ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
 
             ensureBuiltInRoleProfiles(connection);
 
@@ -291,6 +300,105 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
+    private void createCameraJobsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    linked_print_job_id TEXT,
+                    analysis_session_id TEXT,
+                    state TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    stopped_at TEXT,
+                    capture_interval_seconds INTEGER NOT NULL,
+                    retained_snapshots INTEGER NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_description TEXT,
+                    snapshot_directory TEXT NOT NULL,
+                    message TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraDeltaSetsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_delta_sets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    delta_snapshot_step INTEGER NOT NULL,
+                    source_snapshot_count INTEGER NOT NULL,
+                    generated_delta_count INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    message TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraDeltaFramesTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_delta_frames (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    delta_set_id INTEGER NOT NULL,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    from_snapshot_id INTEGER NOT NULL,
+                    to_snapshot_id INTEGER NOT NULL,
+                    from_captured_at TEXT NOT NULL,
+                    to_captured_at TEXT NOT NULL,
+                    delta_path TEXT NOT NULL,
+                    delta_score REAL NOT NULL,
+                    changed_pixel_ratio REAL NOT NULL,
+                    average_pixel_delta REAL NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraCalculationRunsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_calculation_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    delta_set_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    parameter_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    result_count INTEGER NOT NULL,
+                    message TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraCalculationResultsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_calculation_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    calculation_run_id INTEGER NOT NULL,
+                    delta_frame_id INTEGER NOT NULL,
+                    confidence REAL NOT NULL,
+                    suspected INTEGER NOT NULL,
+                    reason_codes TEXT,
+                    message TEXT,
+                    created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
     private void createOperatorAuditEventsTable(Statement statement) throws SQLException {
         String sql = """
                 CREATE TABLE IF NOT EXISTS operator_audit_events (
@@ -411,6 +519,7 @@ public final class DatabaseInitializer {
                     ffmpeg_timeout_ms INTEGER NOT NULL DEFAULT 5000,
                     ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
                     storage_directory TEXT NOT NULL DEFAULT 'camera',
+                    diagnostic_logging_enabled INTEGER NOT NULL DEFAULT 0,
                     updated_at TEXT NOT NULL
                 );
                 """;
@@ -450,17 +559,18 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
-    private void createCameraArchiveEntriesTable(Statement statement) throws SQLException {
+    private void createCameraSnapshotEntriesTable(Statement statement) throws SQLException {
         String sql = """
-                CREATE TABLE IF NOT EXISTS camera_archive_entries (
+                CREATE TABLE IF NOT EXISTS camera_snapshot_entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     printer_id TEXT NOT NULL,
-                    job_id TEXT,
-                    archive_path TEXT NOT NULL,
+                    camera_job_id INTEGER,
+                    linked_print_job_id TEXT,
+                    snapshot_path TEXT NOT NULL,
                     content_type TEXT NOT NULL,
                     size_bytes INTEGER NOT NULL DEFAULT 0,
                     captured_at TEXT NOT NULL,
-                    archived_at TEXT NOT NULL,
+                    retained_at TEXT NOT NULL,
                     source_type TEXT,
                     message TEXT
                 );

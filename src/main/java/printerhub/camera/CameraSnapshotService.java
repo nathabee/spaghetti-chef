@@ -15,60 +15,60 @@ import java.util.stream.Stream;
 
 import printerhub.persistence.CameraSettings;
 
-public final class CameraArchiveService {
+public final class CameraSnapshotService {
 
     private final CameraSettingsService settingsService;
 
-    public CameraArchiveService(CameraSettingsService settingsService) {
+    public CameraSnapshotService(CameraSettingsService settingsService) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
     }
 
-    public List<CameraArchiveFile> list(String printerId, Optional<Instant> from, Optional<Instant> to) {
+    public List<CameraSnapshotFile> list(String printerId, Optional<Instant> from, Optional<Instant> to) {
         Path printerDirectory = printerDirectory(printerId);
 
         if (!Files.isDirectory(printerDirectory)) {
             return List.of();
         }
 
-        List<CameraArchiveFile> files = new ArrayList<>();
+        List<CameraSnapshotFile> files = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(printerDirectory, 3)) {
             paths
                     .filter(Files::isRegularFile)
-                    .filter(path -> normalizeRelativePath(printerDirectory.relativize(path)).startsWith("archive/"))
+                    .filter(path -> normalizeRelativePath(printerDirectory.relativize(path)).startsWith("snapshot/"))
                     .forEach(path -> appendFile(printerDirectory, path, from, to, files));
         } catch (IOException exception) {
-            throw new IllegalStateException("Failed to list camera archive files", exception);
+            throw new IllegalStateException("Failed to list camera snapshot files", exception);
         }
 
         files.sort(Comparator
-                .comparing(CameraArchiveFile::modifiedAt)
+                .comparing(CameraSnapshotFile::modifiedAt)
                 .reversed()
-                .thenComparing(CameraArchiveFile::relativePath));
+                .thenComparing(CameraSnapshotFile::relativePath));
 
         return files;
     }
 
-    public Optional<ResolvedCameraArchiveFile> resolve(String printerId, String fileId) {
+    public Optional<ResolvedCameraSnapshotFile> resolve(String printerId, String fileId) {
         Path printerDirectory = printerDirectory(printerId);
         Path relativePath = decodeRelativePath(fileId);
         Path resolvedPath = printerDirectory.resolve(relativePath).normalize();
         String normalizedRelativePath = normalizeRelativePath(relativePath);
 
-        if (!normalizedRelativePath.startsWith("archive/")
+        if (!normalizedRelativePath.startsWith("snapshot/")
                 || !resolvedPath.startsWith(printerDirectory)
                 || !Files.isRegularFile(resolvedPath)) {
             return Optional.empty();
         }
 
         try {
-            return Optional.of(new ResolvedCameraArchiveFile(
+            return Optional.of(new ResolvedCameraSnapshotFile(
                     resolvedPath,
                     contentType(resolvedPath),
                     Files.size(resolvedPath),
                     Files.getLastModifiedTime(resolvedPath).toInstant()));
         } catch (IOException exception) {
-            throw new IllegalStateException("Failed to read camera archive file", exception);
+            throw new IllegalStateException("Failed to read camera snapshot file", exception);
         }
     }
 
@@ -77,7 +77,7 @@ public final class CameraArchiveService {
             Path path,
             Optional<Instant> from,
             Optional<Instant> to,
-            List<CameraArchiveFile> files) {
+            List<CameraSnapshotFile> files) {
         try {
             Instant modifiedAt = Files.getLastModifiedTime(path).toInstant();
 
@@ -91,7 +91,7 @@ public final class CameraArchiveService {
 
             String relativePath = normalizeRelativePath(printerDirectory.relativize(path));
 
-            files.add(new CameraArchiveFile(
+            files.add(new CameraSnapshotFile(
                     encodeRelativePath(relativePath),
                     fileType(relativePath),
                     path.getFileName().toString(),
@@ -100,7 +100,7 @@ public final class CameraArchiveService {
                     Files.size(path),
                     modifiedAt));
         } catch (IOException exception) {
-            throw new IllegalStateException("Failed to inspect camera archive file", exception);
+            throw new IllegalStateException("Failed to inspect camera snapshot file", exception);
         }
     }
 
@@ -122,7 +122,7 @@ public final class CameraArchiveService {
 
     private static Path decodeRelativePath(String fileId) {
         if (fileId == null || fileId.isBlank()) {
-            throw new IllegalArgumentException("camera archive file id must not be blank");
+            throw new IllegalArgumentException("camera snapshot file id must not be blank");
         }
 
         try {
@@ -130,12 +130,12 @@ public final class CameraArchiveService {
             Path path = Path.of(relativePath);
 
             if (path.isAbsolute() || relativePath.contains("..")) {
-                throw new IllegalArgumentException("invalid camera archive file id");
+                throw new IllegalArgumentException("invalid camera snapshot file id");
             }
 
             return path.normalize();
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("invalid camera archive file id", exception);
+            throw new IllegalArgumentException("invalid camera snapshot file id", exception);
         }
     }
 
@@ -144,8 +144,8 @@ public final class CameraArchiveService {
     }
 
     private static String fileType(String relativePath) {
-        if (relativePath.startsWith("archive/")) {
-            return "archive";
+        if (relativePath.startsWith("snapshot/")) {
+            return "snapshot";
         }
         if (relativePath.startsWith("snapshots/")) {
             return "snapshot";

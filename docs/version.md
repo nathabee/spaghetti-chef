@@ -8,13 +8,15 @@ see ROADMAP.md
 
 next:
 
-0.4.9 — Code Clean Up
+0.4.11 — Replay, Compression, And Simulation Review
 
 ## Version (done)
 
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.10 — Camera Delta Sets And Calculation Runs
+- 0.4.9 — Camera Job Storage Model And Snapshot Ownership
 - 0.4.8 — Camera Dashboard Printer-Scoped Administration
   - non-official correction: Spaghetti trace review now shows recent analysis samples first and loads only a bounded recent sample window for dashboard performance.
 - 0.4.7 — Camera Picture And Data Management

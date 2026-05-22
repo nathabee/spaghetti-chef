@@ -14,14 +14,13 @@ import java.util.Optional;
 
 import printerhub.OperationMessages;
 import printerhub.PrinterHubLog;
-import printerhub.job.PrintJob;
-import printerhub.persistence.CameraArchiveEntry;
-import printerhub.persistence.CameraArchiveEntryStore;
+import printerhub.persistence.CameraSnapshotEntry;
+import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSnapshotMetadata;
 import printerhub.persistence.CameraSnapshotMetadataStore;
-import printerhub.persistence.PrintJobStore;
+import printerhub.persistence.CameraJob;
 
 public final class CameraCaptureService {
 
@@ -31,8 +30,8 @@ public final class CameraCaptureService {
     private final Clock clock;
     private final FrameAnalyzer frameAnalyzer;
     private final SpaghettiDetectionService spaghettiDetectionService;
-    private final CameraArchiveEntryStore archiveEntryStore;
-    private final PrintJobStore printJobStore;
+    private final CameraSnapshotEntryStore snapshotEntryStore;
+    private final CameraJobService cameraJobService;
 
     public CameraCaptureService(
             CameraSettingsService settingsService,
@@ -61,8 +60,8 @@ public final class CameraCaptureService {
                 clock,
                 new ImageDeltaFrameAnalyzer(),
                 new SpaghettiDetectionService(),
-                new CameraArchiveEntryStore(),
-                new PrintJobStore());
+                new CameraSnapshotEntryStore(),
+                new CameraJobService());
     }
 
     public CameraCaptureService(
@@ -81,8 +80,8 @@ public final class CameraCaptureService {
                 clock,
                 frameAnalyzer,
                 spaghettiDetectionService,
-                new CameraArchiveEntryStore(),
-                new PrintJobStore());
+                new CameraSnapshotEntryStore(),
+                new CameraJobService());
     }
 
     public CameraCaptureService(
@@ -93,8 +92,8 @@ public final class CameraCaptureService {
             Clock clock,
             FrameAnalyzer frameAnalyzer,
             SpaghettiDetectionService spaghettiDetectionService,
-            CameraArchiveEntryStore archiveEntryStore,
-            PrintJobStore printJobStore) {
+            CameraSnapshotEntryStore snapshotEntryStore,
+            CameraJobService cameraJobService) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
@@ -102,8 +101,8 @@ public final class CameraCaptureService {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.frameAnalyzer = Objects.requireNonNull(frameAnalyzer, "frameAnalyzer");
         this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
-        this.archiveEntryStore = Objects.requireNonNull(archiveEntryStore, "archiveEntryStore");
-        this.printJobStore = Objects.requireNonNull(printJobStore, "printJobStore");
+        this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
+        this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
     }
 
     public CameraStatus status(String printerId) {
@@ -148,16 +147,18 @@ public final class CameraCaptureService {
 
     public CameraCaptureResult capture(String printerId) {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
-        PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
-                + " enabled=" + settings.enabled()
-                + " sourceType=" + settings.sourceType().wireValue()
-                + " sourceValue=" + settings.sourceValue().orElse("")
-                + " ffmpegCommand=" + settings.ffmpegCommand()
-                + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
-                + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
-                + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
-                + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
-                + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
+        if (settings.diagnosticLoggingEnabled()) {
+            PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
+                    + " enabled=" + settings.enabled()
+                    + " sourceType=" + settings.sourceType().wireValue()
+                    + " sourceValue=" + settings.sourceValue().orElse("")
+                    + " ffmpegCommand=" + settings.ffmpegCommand()
+                    + " ffmpegInputFormat=" + settings.ffmpegInputFormat().orElse("")
+                    + " ffmpegVideoSize=" + settings.ffmpegVideoSize().orElse("")
+                    + " ffmpegTimeoutMs=" + settings.ffmpegTimeoutMs()
+                    + " ffmpegJpegQuality=" + settings.ffmpegJpegQuality()
+                    + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
+        }
 
         if (!settings.enabled()) {
             eventStore.record(
@@ -169,9 +170,11 @@ public final class CameraCaptureService {
         }
 
         try (CameraDevice device = createDevice(settings)) {
-            PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
-                    + " description=" + device.describe()
-                    + " available=" + device.isAvailable());
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
+                        + " description=" + device.describe()
+                        + " available=" + device.isAvailable());
+            }
 
             if (!device.isAvailable()) {
                 eventStore.record(
@@ -197,9 +200,11 @@ public final class CameraCaptureService {
             }
 
             PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get());
-            PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
-                    + " latest=" + persistedPaths.latestPath()
-                    + " snapshot=" + persistedPaths.snapshotPath());
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
+                        + " latest=" + persistedPaths.latestPath()
+                        + " snapshot=" + persistedPaths.snapshotPath());
+            }
 
             eventStore.record(
                     settings.printerId(),
@@ -258,6 +263,7 @@ public final class CameraCaptureService {
                     settings.ffmpegVideoSize().orElse(null),
                     settings.ffmpegTimeoutMs(),
                     settings.ffmpegJpegQuality(),
+                    settings.diagnosticLoggingEnabled(),
                     clock);
         }
 
@@ -265,37 +271,29 @@ public final class CameraCaptureService {
     }
 
     private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
-        Path printerDirectory = CameraStoragePaths
-                .resolveBaseDirectory(settings.storageDirectory())
-                .resolve(safePathSegment(frame.printerId()));
-        Path snapshotsDirectory = printerDirectory.resolve("snapshots");
-        Optional<String> activeJobId = activePrintJobId(settings.printerId());
-        String archiveJobSegment = safePathSegment(activeJobId.orElse("unassigned"));
-        Path archiveDirectory = printerDirectory.resolve("archive").resolve(archiveJobSegment);
+        CameraJob cameraJob = cameraJobService.getOrCreateActive(settings);
 
         String extension = extensionFor(frame.contentType());
-        String fileName = safeTimestamp(frame.capturedAt()) + extension;
-        String archiveFileName = safeTimestamp(frame.capturedAt()) + "_"
-                + archiveJobSegment + extension;
-
-        Path snapshotPath = snapshotsDirectory.resolve(fileName);
-        Path archivePath = archiveDirectory.resolve(archiveFileName);
+        Path printerDirectory = CameraStoragePaths.printerDirectory(settings.storageDirectory(), frame.printerId());
+        Path snapshotsDirectory = CameraStoragePaths
+                .snapshotsDirectory(settings.storageDirectory(), frame.printerId(), cameraJob.requireId());
+        Path snapshotPath = CameraStoragePaths
+                .snapshotPath(settings.storageDirectory(), frame.printerId(), cameraJob.requireId(), frame.capturedAt(), extension);
         Path latestPath = printerDirectory.resolve("latest" + extension);
         Path previousPath = printerDirectory.resolve("previous" + extension);
         Path deltaPath = printerDirectory.resolve("delta.jpg");
 
         try {
-            Files.createDirectories(snapshotsDirectory);
-            Files.createDirectories(archiveDirectory);
             Files.createDirectories(printerDirectory);
+            Files.createDirectories(snapshotsDirectory);
 
             if (Files.isRegularFile(latestPath)) {
                 Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
             }
 
             Files.write(snapshotPath, frame.bytes());
-            Files.write(archivePath, frame.bytes());
             Files.write(latestPath, frame.bytes());
+
             enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
 
             snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
@@ -306,12 +304,14 @@ public final class CameraCaptureService {
                     frame.width().isPresent() ? frame.width().getAsInt() : null,
                     frame.height().isPresent() ? frame.height().getAsInt() : null,
                     frame.sourceDescription().orElse(null)));
-            archiveEntryStore.save(CameraArchiveEntry.captured(
+
+            snapshotEntryStore.save(CameraSnapshotEntry.captured(
                     frame.printerId(),
-                    activeJobId.orElse(null),
-                    archivePath.toString(),
+                    cameraJob.requireId(),
+                    cameraJob.linkedPrintJobId().orElse(null),
+                    snapshotPath.toString(),
                     frame.contentType(),
-                    Files.size(archivePath),
+                    Files.size(snapshotPath),
                     frame.capturedAt(),
                     clock.instant(),
                     settings.sourceType().wireValue(),
@@ -324,20 +324,6 @@ public final class CameraCaptureService {
                     deltaPath);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist camera frame", exception);
-        }
-    }
-
-    private Optional<String> activePrintJobId(String printerId) {
-        try {
-            return printJobStore
-                    .findActivePrintFileJobByPrinterId(printerId)
-                    .map(PrintJob::id);
-        } catch (RuntimeException exception) {
-            PrinterHubLog.error("Camera archive could not resolve active print job printerId="
-                    + printerId
-                    + ": "
-                    + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
-            return Optional.empty();
         }
     }
 
@@ -437,20 +423,6 @@ public final class CameraCaptureService {
         }
 
         return ".jpg";
-    }
-
-    private static String safeTimestamp(Instant instant) {
-        return instant.toString().replaceAll("[^A-Za-z0-9._-]", "-");
-    }
-
-    private static String safePathSegment(String value) {
-        String normalized = requirePrinterId(value).replaceAll("[^A-Za-z0-9._-]", "_");
-
-        if (normalized.isBlank()) {
-            throw new IllegalArgumentException("printerId must not be blank");
-        }
-
-        return normalized;
     }
 
     private static String requirePrinterId(String printerId) {

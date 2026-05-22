@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CAPTURE_ONCE="${SCRIPT_DIR}/camera-capture-once.sh"
 
 PRINTER_DIR="${BASE_DIR}/${PRINTER_ID}"
-ARCHIVE_DIR="${PRINTER_DIR}/archive"
+ARCHIVE_DIR="${PRINTER_DIR}/snapshots"
 
 LATEST="${PRINTER_DIR}/latest.jpg"
 PREVIOUS="${PRINTER_DIR}/previous.jpg"

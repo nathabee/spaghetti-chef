@@ -4,24 +4,28 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-public record CameraArchiveEntry(
+public record CameraSnapshotEntry(
         Long id,
         String printerId,
-        String jobId,
-        String archivePath,
+        Long cameraJobId,
+        String linkedPrintJobId,
+        String snapshotPath,
         String contentType,
         long sizeBytes,
         Instant capturedAt,
-        Instant archivedAt,
+        Instant retainedAt,
         String sourceType,
         String message
 ) {
-    public CameraArchiveEntry {
+    public CameraSnapshotEntry {
         if (printerId == null || printerId.isBlank()) {
             throw new IllegalArgumentException("printerId must not be blank");
         }
-        if (archivePath == null || archivePath.isBlank()) {
-            throw new IllegalArgumentException("archivePath must not be blank");
+        if (cameraJobId != null && cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
+        if (snapshotPath == null || snapshotPath.isBlank()) {
+            throw new IllegalArgumentException("snapshotPath must not be blank");
         }
         if (contentType == null || contentType.isBlank()) {
             throw new IllegalArgumentException("contentType must not be blank");
@@ -31,21 +35,25 @@ public record CameraArchiveEntry(
         }
 
         printerId = printerId.trim();
-        jobId = jobId == null || jobId.isBlank() ? null : jobId.trim();
-        archivePath = archivePath.trim();
+        linkedPrintJobId = linkedPrintJobId == null || linkedPrintJobId.isBlank() ? null : linkedPrintJobId.trim();
+        snapshotPath = snapshotPath.trim();
         contentType = contentType.trim();
         capturedAt = Objects.requireNonNull(capturedAt, "capturedAt");
-        archivedAt = Objects.requireNonNull(archivedAt, "archivedAt");
+        retainedAt = Objects.requireNonNull(retainedAt, "retainedAt");
         sourceType = sourceType == null || sourceType.isBlank() ? null : sourceType.trim();
         message = message == null || message.isBlank() ? null : message.trim();
     }
 
-    public Optional<String> jobIdOptional() {
-        return Optional.ofNullable(jobId);
+    public Optional<Long> cameraJobIdOptional() {
+        return Optional.ofNullable(cameraJobId);
     }
 
-    public String jobKey() {
-        return jobId == null ? "unassigned" : jobId;
+    public Optional<String> linkedPrintJobIdOptional() {
+        return Optional.ofNullable(linkedPrintJobId);
+    }
+
+    public String cameraJobKey() {
+        return cameraJobId == null ? "unassigned" : Long.toString(cameraJobId);
     }
 
     public Optional<String> sourceTypeOptional() {
@@ -56,25 +64,27 @@ public record CameraArchiveEntry(
         return Optional.ofNullable(message);
     }
 
-    public static CameraArchiveEntry captured(
+    public static CameraSnapshotEntry captured(
             String printerId,
-            String jobId,
-            String archivePath,
+            Long cameraJobId,
+            String linkedPrintJobId,
+            String snapshotPath,
             String contentType,
             long sizeBytes,
             Instant capturedAt,
-            Instant archivedAt,
+            Instant retainedAt,
             String sourceType,
             String message) {
-        return new CameraArchiveEntry(
+        return new CameraSnapshotEntry(
                 null,
                 printerId,
-                jobId,
-                archivePath,
+                cameraJobId,
+                linkedPrintJobId,
+                snapshotPath,
                 contentType,
                 sizeBytes,
                 capturedAt,
-                archivedAt,
+                retainedAt,
                 sourceType,
                 message);
     }

@@ -31,6 +31,7 @@ public final class CameraSettings {
     private final int ffmpegTimeoutMs;
     private final int ffmpegJpegQuality;
     private final String storageDirectory;
+    private final boolean diagnosticLoggingEnabled;
     private final Instant updatedAt;
 
     public CameraSettings(
@@ -64,6 +65,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
+                false,
                 updatedAt);
     }
 
@@ -85,6 +87,48 @@ public final class CameraSettings {
             int ffmpegTimeoutMs,
             int ffmpegJpegQuality,
             String storageDirectory,
+            Instant updatedAt) {
+        this(
+                printerId,
+                enabled,
+                sourceType,
+                sourceValue,
+                captureIntervalSeconds,
+                retentionSnapshotCount,
+                analysisEnabled,
+                safetyEnabled,
+                pauseOnConfirmedSpaghetti,
+                confidenceThreshold,
+                confirmationsRequired,
+                ffmpegCommand,
+                ffmpegInputFormat,
+                ffmpegVideoSize,
+                ffmpegTimeoutMs,
+                ffmpegJpegQuality,
+                storageDirectory,
+                false,
+                updatedAt);
+    }
+
+    public CameraSettings(
+            String printerId,
+            boolean enabled,
+            CameraSourceType sourceType,
+            String sourceValue,
+            int captureIntervalSeconds,
+            int retentionSnapshotCount,
+            boolean analysisEnabled,
+            boolean safetyEnabled,
+            boolean pauseOnConfirmedSpaghetti,
+            double confidenceThreshold,
+            int confirmationsRequired,
+            String ffmpegCommand,
+            String ffmpegInputFormat,
+            String ffmpegVideoSize,
+            int ffmpegTimeoutMs,
+            int ffmpegJpegQuality,
+            String storageDirectory,
+            boolean diagnosticLoggingEnabled,
             Instant updatedAt) {
         this.printerId = requireText(printerId, "printerId");
         this.enabled = enabled;
@@ -109,6 +153,7 @@ public final class CameraSettings {
                 storageDirectory,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 "storageDirectory");
+        this.diagnosticLoggingEnabled = diagnosticLoggingEnabled;
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
 
         if (!enabled && sourceType != CameraSourceType.DISABLED) {
@@ -138,6 +183,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
+                false,
                 updatedAt);
     }
 
@@ -160,6 +206,7 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS,
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
+                false,
                 updatedAt);
     }
 
@@ -229,6 +276,10 @@ public final class CameraSettings {
 
     public String storageDirectory() {
         return storageDirectory;
+    }
+
+    public boolean diagnosticLoggingEnabled() {
+        return diagnosticLoggingEnabled;
     }
 
     public Instant updatedAt() {

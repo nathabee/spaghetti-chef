@@ -1,5 +1,5 @@
 import { escapeHtml, formatDateTime } from "../utils/format.js";
-import { cameraArchiveFileUrl, cameraSnapshotUrl } from "../api.js";
+import { cameraSnapshotFileUrl, cameraSnapshotUrl } from "../api.js";
 
 function formatBoolean(value) {
   return value ? "Yes" : "No";
@@ -107,6 +107,11 @@ export function renderCameraSettingsCard(settings) {
         <label class="checkbox-label">
           <input id="cameraPauseOnConfirmedInput" name="pauseOnConfirmedSpaghetti" type="checkbox" ${settings?.pauseOnConfirmedSpaghetti ? "checked" : ""}>
           Pause on confirmed spaghetti
+        </label>
+
+        <label class="checkbox-label">
+          <input id="cameraDiagnosticLoggingInput" name="diagnosticLoggingEnabled" type="checkbox" ${settings?.diagnosticLoggingEnabled ? "checked" : ""}>
+          Enable camera diagnostic logs
         </label>
 
         <label>
@@ -244,7 +249,7 @@ export function renderCameraSettingsCard(settings) {
   `;
 }
 
-export function renderCameraSnapshotCard(printerId, status, settings) {
+export function renderCameraLatestSnapshotCard(printerId, status, settings) {
   const captureIntervalSeconds = positiveInteger(settings?.captureIntervalSeconds, 10);
 
   return `
@@ -480,37 +485,37 @@ function renderSessionsList(sessions, selectedSession) {
   `;
 }
 
-export function renderCameraArchiveCard(printerId, files, archiveRange = {}) {
+export function renderCameraSnapshotFilesCard(printerId, files, snapshotRange = {}) {
   const safeFiles = Array.isArray(files) ? files : [];
 
   return `
-    <article class="section-card camera-archive-card">
+    <article class="section-card camera-snapshot-card">
       <div class="section-header compact">
         <div>
           <div class="kicker">Camera files</div>
-          <h3>Snapshot archive</h3>
+          <h3>Snapshot snapshot</h3>
           <p class="muted">Review files written by the camera backend for the selected time window.</p>
         </div>
       </div>
 
-      <form id="cameraArchiveForm" class="inline-form">
+      <form id="cameraSnapshotForm" class="inline-form">
         <label>
           Start
-          <input id="cameraArchiveFromInput" name="from" type="datetime-local" value="${escapeHtml(datetimeLocalValue(archiveRange.from))}">
+          <input id="cameraSnapshotFromInput" name="from" type="datetime-local" value="${escapeHtml(datetimeLocalValue(snapshotRange.from))}">
         </label>
         <label>
           Stop
-          <input id="cameraArchiveToInput" name="to" type="datetime-local" value="${escapeHtml(datetimeLocalValue(archiveRange.to))}">
+          <input id="cameraSnapshotToInput" name="to" type="datetime-local" value="${escapeHtml(datetimeLocalValue(snapshotRange.to))}">
         </label>
         <button type="submit">List files</button>
       </form>
 
-      ${renderArchiveGallery(printerId, safeFiles)}
+      ${renderSnapshotGallery(printerId, safeFiles)}
     </article>
   `;
 }
 
-function renderArchiveGallery(printerId, files) {
+function renderSnapshotGallery(printerId, files) {
   if (files.length === 0) {
     return `
       <div class="empty-state">
@@ -523,56 +528,56 @@ function renderArchiveGallery(printerId, files) {
   const previewFiles = files.slice(0, 3);
 
   return `
-    <div class="camera-archive-gallery">
-      <div id="cameraArchiveFileList" class="camera-archive-list" tabindex="0">
-        ${files.map((file, index) => renderArchiveFileListItem(printerId, file, index)).join("")}
+    <div class="camera-snapshot-gallery">
+      <div id="cameraSnapshotFileList" class="camera-snapshot-list" tabindex="0">
+        ${files.map((file, index) => renderSnapshotFileListItem(printerId, file, index)).join("")}
       </div>
-      <div class="camera-archive-preview-stack">
-        ${[0, 1, 2].map((slot) => renderArchivePreviewSlot(previewFiles[slot], printerId, slot)).join("")}
+      <div class="camera-snapshot-preview-stack">
+        ${[0, 1, 2].map((slot) => renderSnapshotPreviewSlot(previewFiles[slot], printerId, slot)).join("")}
       </div>
     </div>
   `;
 }
 
-function renderArchiveFileListItem(printerId, file, index) {
-  const fileUrl = cameraArchiveFileUrl(printerId, file.id);
+function renderSnapshotFileListItem(printerId, file, index) {
+  const fileUrl = cameraSnapshotFileUrl(printerId, file.id);
 
   return `
     <button
       type="button"
-      class="camera-archive-list-item ${index === 0 ? "selected" : ""}"
-      data-camera-archive-select
-      data-camera-archive-index="${index}"
-      data-camera-archive-url="${escapeHtml(fileUrl)}"
-      data-camera-archive-path="${escapeHtml(file.relativePath || file.fileName || "")}"
-      data-camera-archive-type="${escapeHtml(file.type || "")}"
-      data-camera-archive-time="${escapeHtml(file.modifiedAt || "")}"
-      data-camera-archive-size="${escapeHtml(String(file.sizeBytes ?? ""))}">
+      class="camera-snapshot-list-item ${index === 0 ? "selected" : ""}"
+      data-camera-snapshot-select
+      data-camera-snapshot-index="${index}"
+      data-camera-snapshot-url="${escapeHtml(fileUrl)}"
+      data-camera-snapshot-path="${escapeHtml(file.relativePath || file.fileName || "")}"
+      data-camera-snapshot-type="${escapeHtml(file.type || "")}"
+      data-camera-snapshot-time="${escapeHtml(file.modifiedAt || "")}"
+      data-camera-snapshot-size="${escapeHtml(String(file.sizeBytes ?? ""))}">
       <span>
         <strong>${formatNullable(file.fileName)}</strong>
         <code>${formatNullable(file.relativePath)}</code>
       </span>
-      <span class="camera-archive-list-meta">
+      <span class="camera-snapshot-list-meta">
         ${formatNullable(file.type)} · ${file.modifiedAt ? escapeHtml(formatDateTime(file.modifiedAt)) : "—"} · ${formatBytes(file.sizeBytes)}
       </span>
     </button>
   `;
 }
 
-function renderArchivePreviewSlot(file, printerId, slot) {
+function renderSnapshotPreviewSlot(file, printerId, slot) {
   const label = slot === 0 ? "Selected picture" : `Previous picture ${slot}`;
-  const fileUrl = file ? cameraArchiveFileUrl(printerId, file.id) : "";
+  const fileUrl = file ? cameraSnapshotFileUrl(printerId, file.id) : "";
 
   return `
-    <figure class="camera-archive-preview" data-camera-archive-preview-slot="${slot}" ${file ? "" : "hidden"}>
+    <figure class="camera-snapshot-preview" data-camera-snapshot-preview-slot="${slot}" ${file ? "" : "hidden"}>
       <figcaption>
         <span>${label}</span>
-        <code data-camera-archive-preview-title="${slot}">${file ? formatNullable(file.relativePath) : "—"}</code>
+        <code data-camera-snapshot-preview-title="${slot}">${file ? formatNullable(file.relativePath) : "—"}</code>
       </figcaption>
       <img
-        data-camera-archive-preview-image="${slot}"
+        data-camera-snapshot-preview-image="${slot}"
         src="${escapeHtml(fileUrl)}"
-        alt="${file ? `Camera archive file ${escapeHtml(file.relativePath || file.fileName || "")}` : ""}"
+        alt="${file ? `Camera snapshot file ${escapeHtml(file.relativePath || file.fileName || "")}` : ""}"
         loading="lazy">
     </figure>
   `;
@@ -625,7 +630,7 @@ function renderCameraEvent(event) {
   `;
 }
 
-export function renderCameraPage(printerId, status, settings, events, sessions, samples, archiveFiles, archiveRange) {
+export function renderCameraPage(printerId, status, settings, events, sessions, samples, snapshotFiles, snapshotRange) {
   return `
     <div class="view printer-camera-view">
       <div class="section-header">
@@ -640,7 +645,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
 
       <section class="two-column-grid">
         ${renderCameraStatusCard(status)}
-        ${renderCameraSnapshotCard(printerId, status, settings)}
+        ${renderCameraLatestSnapshotCard(printerId, status, settings)}
       </section>
 
       <section class="two-column-grid">
@@ -653,7 +658,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
       </section>
 
       <section>
-        ${renderCameraArchiveCard(printerId, archiveFiles, archiveRange)}
+        ${renderCameraSnapshotFilesCard(printerId, snapshotFiles, snapshotRange)}
       </section>
     </div>
   `;

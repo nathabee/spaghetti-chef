@@ -3,7 +3,7 @@ import {
   captureCameraAnalysisSample,
   getCameraAnalysisSamples,
   getCameraAnalysisSessions,
-  getCameraArchiveFiles,
+  getCameraSnapshotFiles,
   getCameraEvents,
   getCameraSettings,
   getCameraStatus,
@@ -38,7 +38,7 @@ export function renderPrinterCameraLoading(printer) {
   `;
 }
 
-export async function renderPrinterCamera(printer, archiveRange = defaultArchiveRange()) {
+export async function renderPrinterCamera(printer, snapshotRange = defaultSnapshotRange()) {
   if (!printer) {
     return `
       <div class="empty-state">
@@ -49,19 +49,19 @@ export async function renderPrinterCamera(printer, archiveRange = defaultArchive
   }
 
   try {
-    const [status, settings, events, sessions, archiveFiles] = await Promise.all([
+    const [status, settings, events, sessions, snapshotFiles] = await Promise.all([
       getCameraStatus(printer.id),
       getCameraSettings(printer.id),
       getCameraEvents(printer.id),
       getCameraAnalysisSessions(printer.id),
-      getCameraArchiveFiles(printer.id, archiveRange.from, archiveRange.to)
+      getCameraSnapshotFiles(printer.id, snapshotRange.from, snapshotRange.to)
     ]);
     const selectedSession = sessions.find((session) => session.state === "RUNNING") || sessions[0];
     const samples = selectedSession
       ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
       : [];
 
-    return renderCameraPage(printer.id, status, settings, events, sessions, samples, archiveFiles, archiveRange);
+    return renderCameraPage(printer.id, status, settings, events, sessions, samples, snapshotFiles, snapshotRange);
   } catch (error) {
     return `
       <div class="empty-state error-state">
@@ -110,14 +110,14 @@ export async function capturePrinterCameraAnalysisSample(printerId, sessionId) {
   return captureCameraAnalysisSample(printerId, sessionId);
 }
 
-export function cameraArchiveRangeFromForm(form) {
+export function cameraSnapshotRangeFromForm(form) {
   return {
-    from: instantFromDateTimeLocal(form.querySelector("#cameraArchiveFromInput")?.value),
-    to: instantFromDateTimeLocal(form.querySelector("#cameraArchiveToInput")?.value)
+    from: instantFromDateTimeLocal(form.querySelector("#cameraSnapshotFromInput")?.value),
+    to: instantFromDateTimeLocal(form.querySelector("#cameraSnapshotToInput")?.value)
   };
 }
 
-function defaultArchiveRange() {
+function defaultSnapshotRange() {
   const to = new Date();
   const from = new Date(to.getTime() - 60 * 60 * 1000);
 
@@ -145,6 +145,7 @@ function cameraSettingsPayload(form) {
   const analysisEnabled = form.querySelector("#cameraAnalysisEnabledInput")?.checked === true;
   const safetyEnabled = form.querySelector("#cameraSafetyEnabledInput")?.checked === true;
   const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
+  const diagnosticLoggingEnabled = form.querySelector("#cameraDiagnosticLoggingInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const storageDirectoryInput = form.querySelector("#cameraStorageDirectoryInput");
@@ -170,6 +171,7 @@ function cameraSettingsPayload(form) {
     analysisEnabled,
     safetyEnabled,
     pauseOnConfirmedSpaghetti,
+    diagnosticLoggingEnabled,
     confidenceThreshold: ratio(confidenceThresholdInput?.value, 0.85),
     confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3),
     ffmpegCommand: ffmpegCommandInput?.value?.trim() || "ffmpeg",

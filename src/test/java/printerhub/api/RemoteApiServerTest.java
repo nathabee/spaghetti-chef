@@ -21,8 +21,10 @@ import printerhub.job.PrinterActionMapper;
 import printerhub.job.PrinterSdFileService;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
-import printerhub.persistence.CameraArchiveEntry;
-import printerhub.persistence.CameraArchiveEntryStore;
+import printerhub.persistence.CameraJob;
+import printerhub.persistence.CameraJobStore;
+import printerhub.persistence.CameraSnapshotEntry;
+import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.MonitoringRulesStore;
 import printerhub.persistence.PrintFileSettingsStore;
 import printerhub.persistence.PrintFileStore;
@@ -1035,8 +1037,7 @@ class RemoteApiServerTest {
                     "/printers/printer-1/camera/settings",
                     """
                             {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            """.formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1052,7 +1053,7 @@ class RemoteApiServerTest {
             assertTrue(captureResponse.body().contains("\"height\":240"));
 
             assertTrue(Files.exists(cameraStorageDirectory.resolve("printer-1").resolve("latest.jpg")));
-            assertTrue(Files.isDirectory(cameraStorageDirectory.resolve("printer-1").resolve("archive")));
+            assertTrue(Files.isDirectory(cameraStorageDirectory.resolve("printer-1").resolve("snapshots")));
 
             HttpResponse<String> snapshotResponse = context.get("/printers/printer-1/camera/snapshot");
 
@@ -1063,12 +1064,11 @@ class RemoteApiServerTest {
             context.close();
         }
     }
-
     @Test
-    void cameraArchiveListsAndServesCapturedFiles() throws Exception {
-        Path cameraStorageDirectory = tempDir.resolve("camera-archive-storage");
+    void cameraSnapshotListsAndServesCapturedFiles() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-snapshot-storage");
 
-        TestContext context = createContext("camera-archive.db");
+        TestContext context = createContext("camera-snapshot.db");
 
         try {
             context.configurationStore.save(
@@ -1080,9 +1080,8 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":20}
+                            """.formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1091,21 +1090,34 @@ class RemoteApiServerTest {
                     null);
             assertEquals(200, captureResponse.statusCode());
 
-            HttpResponse<String> archiveResponse = context.get("/printers/printer-1/camera/archive");
+            HttpResponse<String> latestSnapshotResponse = context.get("/printers/printer-1/camera/snapshot");
 
-            assertEquals(200, archiveResponse.statusCode());
-            assertTrue(archiveResponse.body().contains("\"files\":["));
-            assertTrue(archiveResponse.body().contains("\"type\":\"archive\""));
-            assertTrue(archiveResponse.body().contains("archive/unassigned/"));
-            assertFalse(archiveResponse.body().contains("\"type\":\"latest\""));
-            assertFalse(archiveResponse.body().contains("\"type\":\"snapshot\""));
-            assertFalse(archiveResponse.body().contains("\"type\":\"delta\""));
-            assertFalse(archiveResponse.body().contains("\"type\":\"previous\""));
+            assertEquals(200, latestSnapshotResponse.statusCode());
+            assertTrue(latestSnapshotResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
+            assertTrue(latestSnapshotResponse.headers().firstValue("cache-control").orElse("").contains("no-store"));
 
-            String fileId = extractJsonString(archiveResponse.body(), "id");
-            assertNotNull(fileId);
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/snapshot/jobs?printerId=printer-1");
+            assertEquals(200, jobsResponse.statusCode());
+            assertTrue(jobsResponse.body().contains("\"fileCount\":1"));
 
-            HttpResponse<String> fileResponse = context.get("/printers/printer-1/camera/archive/" + fileId);
+            String cameraJobId = extractJsonString(jobsResponse.body(), "jobId");
+            assertNotNull(cameraJobId);
+
+            HttpResponse<String> timelineResponse = context.get(
+                    "/admin/camera/snapshot/jobs/" + cameraJobId + "/timeline?printerId=printer-1");
+
+            assertEquals(200, timelineResponse.statusCode());
+            assertTrue(timelineResponse.body().contains("\"timeline\":["));
+            assertTrue(timelineResponse.body().contains("\"type\":\"snapshot\""));
+            assertTrue(timelineResponse.body().contains("snapshots/" + cameraJobId + "/"));
+            assertTrue(timelineResponse.body().contains("\"snapshotPath\":"));
+            assertTrue(timelineResponse.body().contains("\"printerId\":\"printer-1\""));
+            assertTrue(timelineResponse.body().contains("\"cameraJobId\":" + cameraJobId));
+
+            Integer snapshotEntryId = extractJsonInteger(timelineResponse.body(), "id");
+            assertNotNull(snapshotEntryId);
+
+            HttpResponse<String> fileResponse = context.get("/admin/camera/snapshot/files/" + snapshotEntryId);
 
             assertEquals(200, fileResponse.statusCode());
             assertTrue(fileResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
@@ -1116,10 +1128,10 @@ class RemoteApiServerTest {
     }
 
     @Test
-    void cameraArchiveAdminEndpointsExposeTimelineAndDeleteJobArchive() throws Exception {
-        Path cameraStorageDirectory = tempDir.resolve("camera-archive-admin-storage");
+    void cameraDeltaSetAdminEndpointsGenerateAndListFrames() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-delta-storage");
 
-        TestContext context = createContext("camera-archive-admin.db");
+        TestContext context = createContext("camera-delta-admin.db");
 
         try {
             context.configurationStore.save(
@@ -1131,73 +1143,206 @@ class RemoteApiServerTest {
                     "PUT",
                     "/printers/printer-1/camera/settings",
                     """
-                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":1}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":20}
+                            """.formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
+
+            for (int i = 0; i < 3; i++) {
+                HttpResponse<String> captureResponse = context.request(
+                        "POST",
+                        "/printers/printer-1/camera/snapshot",
+                        null);
+                assertEquals(200, captureResponse.statusCode());
+            }
+
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/snapshot/jobs?printerId=printer-1");
+            assertEquals(200, jobsResponse.statusCode());
+            String cameraJobId = extractJsonString(jobsResponse.body(), "jobId");
+            assertNotNull(cameraJobId);
+
+            HttpResponse<String> createDeltaSetResponse = context.request(
+                    "POST",
+                    "/admin/camera/snapshot/jobs/" + cameraJobId + "/delta-sets?printerId=printer-1",
+                    """
+                            {"deltaSnapshotStep":1,"methodName":"image-delta","message":"api test"}
+                            """);
+
+            assertEquals(201, createDeltaSetResponse.statusCode());
+            assertTrue(createDeltaSetResponse.body().contains("\"sourceSnapshotCount\":3"));
+            assertTrue(createDeltaSetResponse.body().contains("\"generatedDeltaCount\":2"));
+            assertTrue(createDeltaSetResponse.body().contains("\"deltaSnapshotStep\":1"));
+
+            Integer deltaSetId = extractJsonInteger(createDeltaSetResponse.body(), "id");
+            assertNotNull(deltaSetId);
+
+            HttpResponse<String> deltaSetsResponse = context.get(
+                    "/admin/camera/snapshot/jobs/" + cameraJobId + "/delta-sets?printerId=printer-1");
+            assertEquals(200, deltaSetsResponse.statusCode());
+            assertTrue(deltaSetsResponse.body().contains("\"deltaSets\":["));
+            assertTrue(deltaSetsResponse.body().contains("\"generatedDeltaCount\":2"));
+
+            HttpResponse<String> framesResponse = context.get("/admin/camera/delta-sets/" + deltaSetId + "/frames");
+            assertEquals(200, framesResponse.statusCode());
+            assertTrue(framesResponse.body().contains("\"frames\":["));
+            assertTrue(framesResponse.body().contains("\"fromSnapshotId\":1"));
+            assertTrue(framesResponse.body().contains("\"toSnapshotId\":2"));
+            assertTrue(framesResponse.body().contains("\"fromSnapshotId\":2"));
+            assertTrue(framesResponse.body().contains("\"toSnapshotId\":3"));
+            assertTrue(framesResponse.body().contains("deltas/" + cameraJobId + "/" + deltaSetId + "/"));
+
+            HttpResponse<String> firstRunResponse = context.request(
+                    "POST",
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs",
+                    """
+                            {"methodName":"threshold-v1","confidenceThreshold":0.25,"message":"first run"}
+                            """);
+            HttpResponse<String> secondRunResponse = context.request(
+                    "POST",
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs",
+                    """
+                            {"methodName":"threshold-v1","confidenceThreshold":0.75,"message":"second run"}
+                            """);
+
+            assertEquals(201, firstRunResponse.statusCode());
+            assertEquals(201, secondRunResponse.statusCode());
+            assertTrue(firstRunResponse.body().contains("\"resultCount\":2"));
+            assertTrue(secondRunResponse.body().contains("\"resultCount\":2"));
+
+            Integer firstRunId = extractJsonInteger(firstRunResponse.body(), "id");
+            Integer secondRunId = extractJsonInteger(secondRunResponse.body(), "id");
+            assertNotNull(firstRunId);
+            assertNotNull(secondRunId);
+
+            HttpResponse<String> runsResponse = context.get(
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs");
+            assertEquals(200, runsResponse.statusCode());
+            assertTrue(runsResponse.body().contains("\"calculationRuns\":["));
+            assertTrue(runsResponse.body().contains("\"id\":" + firstRunId));
+            assertTrue(runsResponse.body().contains("\"id\":" + secondRunId));
+
+            HttpResponse<String> resultsResponse = context.get(
+                    "/admin/camera/calculation-runs/" + firstRunId + "/results");
+            assertEquals(200, resultsResponse.statusCode());
+            assertTrue(resultsResponse.body().contains("\"results\":["));
+            assertTrue(resultsResponse.body().contains("\"calculationRunId\":" + firstRunId));
+            assertTrue(resultsResponse.body().contains("\"deltaFrameId\":1"));
+            assertTrue(resultsResponse.body().contains("\"deltaFrameId\":2"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void cameraSnapshotAdminEndpointsExposeTimelineAndDeleteJobSnapshot() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-snapshot-admin-storage");
+
+        TestContext context = createContext("camera-snapshot-admin.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":20}
+                            """
+                            .formatted(cameraStorageDirectory));
+            assertEquals(200, settingsResponse.statusCode());
+
             assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
             assertEquals(200, context.request("POST", "/printers/printer-1/camera/snapshot", null).statusCode());
-            new CameraArchiveEntryStore().save(CameraArchiveEntry.captured(
+
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/snapshot/jobs?printerId=printer-1");
+            assertEquals(200, jobsResponse.statusCode());
+            assertTrue(jobsResponse.body().contains("\"fileCount\":2"));
+
+            String printer1CameraJobId = extractJsonString(jobsResponse.body(), "jobId");
+            assertNotNull(printer1CameraJobId);
+
+            CameraJob printer2CameraJob = new CameraJobStore().save(CameraJob.running(
                     "printer-2",
                     null,
-                    cameraStorageDirectory
-                            .resolve("printer-2")
-                            .resolve("archive")
-                            .resolve("unassigned")
-                            .resolve("printer-2-example.jpg")
-                            .toString(),
+                    null,
+                    Instant.parse("2026-05-21T12:00:00Z"),
+                    5,
+                    20,
+                    "simulated",
+                    "default",
+                    cameraStorageDirectory.resolve("printer-2").resolve("snapshots").resolve("2").toString(),
+                    "test"));
+            long printer2CameraJobId = printer2CameraJob.requireId();
+
+            Path printer2SnapshotDirectory = cameraStorageDirectory
+                    .resolve("printer-2")
+                    .resolve("snapshots")
+                    .resolve(Long.toString(printer2CameraJobId));
+            Files.createDirectories(printer2SnapshotDirectory);
+
+            Path printer2SnapshotPath = printer2SnapshotDirectory.resolve("printer-2-example.jpg");
+            Files.write(printer2SnapshotPath, "fake-jpeg".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            new CameraSnapshotEntryStore().save(CameraSnapshotEntry.captured(
+                    "printer-2",
+                    printer2CameraJobId,
+                    null,
+                    printer2SnapshotPath.toString(),
                     "image/jpeg",
-                    42L,
+                    Files.size(printer2SnapshotPath),
                     Instant.parse("2026-05-21T12:00:00Z"),
                     Instant.parse("2026-05-21T12:00:01Z"),
                     "simulated",
                     "test"));
 
-            HttpResponse<String> jobsResponse = context.get("/admin/camera/archive/jobs?printerId=printer-1");
-            assertEquals(200, jobsResponse.statusCode());
-            assertTrue(jobsResponse.body().contains("\"jobId\":\"unassigned\""));
-            assertTrue(jobsResponse.body().contains("\"fileCount\":2"));
-
             HttpResponse<String> timelineResponse = context.get(
-                    "/admin/camera/archive/jobs/unassigned/timeline?printerId=printer-1");
+                    "/admin/camera/snapshot/jobs/" + printer1CameraJobId + "/timeline?printerId=printer-1");
             assertEquals(200, timelineResponse.statusCode());
             assertTrue(timelineResponse.body().contains("\"timeline\":["));
-            assertTrue(timelineResponse.body().contains("\"archivePath\":"));
+            assertTrue(timelineResponse.body().contains("\"snapshotPath\":"));
             assertTrue(timelineResponse.body().contains("\"printerId\":\"printer-1\""));
             assertFalse(timelineResponse.body().contains("\"printerId\":\"printer-2\""));
-            Integer archiveEntryId = extractJsonInteger(timelineResponse.body(), "id");
-            assertNotNull(archiveEntryId);
 
-            HttpResponse<String> fileResponse = context.get("/admin/camera/archive/files/" + archiveEntryId);
+            Integer snapshotEntryId = extractJsonInteger(timelineResponse.body(), "id");
+            assertNotNull(snapshotEntryId);
+
+            HttpResponse<String> fileResponse = context.get("/admin/camera/snapshot/files/" + snapshotEntryId);
             assertEquals(200, fileResponse.statusCode());
             assertTrue(fileResponse.headers().firstValue("content-type").orElse("").contains("image/jpeg"));
 
             HttpResponse<String> previewResponse = context.request(
                     "POST",
-                    "/admin/camera/archive/jobs/unassigned/recalculate-preview",
+                    "/admin/camera/snapshot/jobs/" + printer1CameraJobId + "/recalculate-preview",
                     "{}");
             assertEquals(202, previewResponse.statusCode());
             assertTrue(previewResponse.body().contains("camera_recalculate_preview_not_implemented"));
 
-            Path snapshotsDirectory = cameraStorageDirectory.resolve("printer-1").resolve("snapshots");
+            Path snapshotsDirectory = cameraStorageDirectory
+                    .resolve("printer-1")
+                    .resolve("snapshots")
+                    .resolve(printer1CameraJobId);
             try (var snapshots = Files.list(snapshotsDirectory)) {
-                assertEquals(1, snapshots.filter(Files::isRegularFile).count());
+                assertEquals(2, snapshots.filter(Files::isRegularFile).count());
             }
 
             HttpResponse<String> deleteResponse = context.request(
                     "DELETE",
-                    "/admin/camera/archive/jobs/unassigned?printerId=printer-1",
+                    "/admin/camera/snapshot/jobs/" + printer1CameraJobId + "?printerId=printer-1",
                     null);
             assertEquals(200, deleteResponse.statusCode());
             assertTrue(deleteResponse.body().contains("\"deletedMetadataRows\":2"));
 
-            HttpResponse<String> jobsAfterDeleteResponse = context.get("/admin/camera/archive/jobs?printerId=printer-1");
+            HttpResponse<String> jobsAfterDeleteResponse = context
+                    .get("/admin/camera/snapshot/jobs?printerId=printer-1");
             assertEquals(200, jobsAfterDeleteResponse.statusCode());
-            assertFalse(jobsAfterDeleteResponse.body().contains("\"jobId\":\"unassigned\""));
+            assertFalse(jobsAfterDeleteResponse.body().contains("\"jobId\":\"" + printer1CameraJobId + "\""));
 
-            HttpResponse<String> secondPrinterJobsResponse = context.get("/admin/camera/archive/jobs?printerId=printer-2");
+            HttpResponse<String> secondPrinterJobsResponse = context
+                    .get("/admin/camera/snapshot/jobs?printerId=printer-2");
             assertEquals(200, secondPrinterJobsResponse.statusCode());
-            assertTrue(secondPrinterJobsResponse.body().contains("\"jobId\":\"unassigned\""));
+            assertTrue(secondPrinterJobsResponse.body().contains("\"jobId\":\"" + printer2CameraJobId + "\""));
             assertTrue(secondPrinterJobsResponse.body().contains("\"fileCount\":1"));
         } finally {
             context.close();
@@ -1221,8 +1366,7 @@ class RemoteApiServerTest {
                     "/printers/printer-1/camera/settings",
                     """
                             {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            """.formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1262,8 +1406,7 @@ class RemoteApiServerTest {
                     "/printers/printer-1/camera/settings",
                     """
                             {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s"}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            """.formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> captureResponse = context.request(
@@ -1299,8 +1442,8 @@ class RemoteApiServerTest {
                     "/printers/printer-1/camera/settings",
                     """
                             {"enabled":true,"sourceType":"simulated","sourceValue":"default","analysisEnabled":true,"storageDirectory":"%s"}
-                            """.formatted(cameraStorageDirectory)
-            );
+                            """
+                            .formatted(cameraStorageDirectory));
             assertEquals(200, settingsResponse.statusCode());
 
             HttpResponse<String> startResponse = context.request(

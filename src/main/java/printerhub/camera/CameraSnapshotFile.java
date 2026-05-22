@@ -2,7 +2,7 @@ package printerhub.camera;
 
 import java.time.Instant;
 
-public record CameraArchiveFile(
+public record CameraSnapshotFile(
         String id,
         String type,
         String fileName,
