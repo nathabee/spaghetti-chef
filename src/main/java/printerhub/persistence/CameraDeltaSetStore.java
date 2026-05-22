@@ -125,6 +125,37 @@ public final class CameraDeltaSetStore {
                 .orElseThrow(() -> new IllegalArgumentException("camera delta set not found: " + id));
     }
 
+    public CameraDeltaSet updateCounts(long id, int sourceSnapshotCount, int generatedDeltaCount) {
+        if (sourceSnapshotCount < 0) {
+            throw new IllegalArgumentException("sourceSnapshotCount must not be negative");
+        }
+        if (generatedDeltaCount < 0) {
+            throw new IllegalArgumentException("generatedDeltaCount must not be negative");
+        }
+
+        String sql = """
+                UPDATE camera_delta_sets
+                SET source_snapshot_count = ?,
+                    generated_delta_count = ?
+                WHERE id = ?;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, sourceSnapshotCount);
+            statement.setInt(2, generatedDeltaCount);
+            statement.setLong(3, requirePositive(id, "id"));
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update camera delta set counts", exception);
+        }
+
+        return findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("camera delta set not found: " + id));
+    }
+
     private static String selectColumns() {
         return """
                 SELECT

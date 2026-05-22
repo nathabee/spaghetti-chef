@@ -103,6 +103,28 @@ public final class CameraCalculationRunStore {
         }
     }
 
+    public CameraCalculationRun updateResultCount(long id, int resultCount) {
+        if (resultCount < 0) {
+            throw new IllegalArgumentException("resultCount must not be negative");
+        }
+
+        String sql = "UPDATE camera_calculation_runs SET result_count = ? WHERE id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, resultCount);
+            statement.setLong(2, requirePositive(id, "id"));
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update camera calculation run result count", exception);
+        }
+
+        return findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("camera calculation run not found: " + id));
+    }
+
     private static String selectColumns() {
         return """
                 SELECT

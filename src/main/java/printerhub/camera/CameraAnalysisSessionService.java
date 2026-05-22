@@ -5,6 +5,13 @@ import printerhub.persistence.CameraAnalysisSampleStore;
 import printerhub.persistence.CameraAnalysisSession;
 import printerhub.persistence.CameraAnalysisSessionState;
 import printerhub.persistence.CameraAnalysisSessionStore;
+import printerhub.persistence.CameraDeltaFrame;
+import printerhub.persistence.CameraDeltaFrameStore;
+import printerhub.persistence.CameraDeltaSet;
+import printerhub.persistence.CameraDeltaSetStore;
+import printerhub.persistence.CameraJob;
+import printerhub.persistence.CameraSnapshotEntry;
+import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraSnapshotMetadata;
 import printerhub.persistence.CameraSnapshotMetadataStore;
 
@@ -29,6 +36,10 @@ public final class CameraAnalysisSessionService {
     private final Path storageDirectory;
     private final Clock clock;
     private final CameraSafetyDecisionService safetyDecisionService;
+    private final CameraJobService cameraJobService;
+    private final CameraSnapshotEntryStore snapshotEntryStore;
+    private final CameraDeltaSetStore deltaSetStore;
+    private final CameraDeltaFrameStore deltaFrameStore;
 
     public CameraAnalysisSessionService(
             CameraCaptureService captureService,
@@ -46,7 +57,11 @@ public final class CameraAnalysisSessionService {
                 new SpaghettiDetectionService(),
                 storageDirectory,
                 Clock.systemUTC(),
-                safetyDecisionService);
+                safetyDecisionService,
+                new CameraJobService(),
+                new CameraSnapshotEntryStore(),
+                new CameraDeltaSetStore(),
+                new CameraDeltaFrameStore());
     }
 
     public CameraAnalysisSessionService(
@@ -59,6 +74,36 @@ public final class CameraAnalysisSessionService {
             Path storageDirectory,
             Clock clock,
             CameraSafetyDecisionService safetyDecisionService) {
+        this(
+                captureService,
+                snapshotMetadataStore,
+                sessionStore,
+                sampleStore,
+                frameAnalyzer,
+                spaghettiDetectionService,
+                storageDirectory,
+                clock,
+                safetyDecisionService,
+                new CameraJobService(),
+                new CameraSnapshotEntryStore(),
+                new CameraDeltaSetStore(),
+                new CameraDeltaFrameStore());
+    }
+
+    public CameraAnalysisSessionService(
+            CameraCaptureService captureService,
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            CameraAnalysisSessionStore sessionStore,
+            CameraAnalysisSampleStore sampleStore,
+            FrameAnalyzer frameAnalyzer,
+            SpaghettiDetectionService spaghettiDetectionService,
+            Path storageDirectory,
+            Clock clock,
+            CameraSafetyDecisionService safetyDecisionService,
+            CameraJobService cameraJobService,
+            CameraSnapshotEntryStore snapshotEntryStore,
+            CameraDeltaSetStore deltaSetStore,
+            CameraDeltaFrameStore deltaFrameStore) {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.sessionStore = Objects.requireNonNull(sessionStore, "sessionStore");
@@ -68,6 +113,10 @@ public final class CameraAnalysisSessionService {
         this.storageDirectory = Objects.requireNonNull(storageDirectory, "storageDirectory");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.safetyDecisionService = Objects.requireNonNull(safetyDecisionService, "safetyDecisionService");
+        this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
+        this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
+        this.deltaSetStore = Objects.requireNonNull(deltaSetStore, "deltaSetStore");
+        this.deltaFrameStore = Objects.requireNonNull(deltaFrameStore, "deltaFrameStore");
     }
 
     public CameraAnalysisSession start(String printerId) {
@@ -110,7 +159,9 @@ public final class CameraAnalysisSessionService {
                 session.createdAt(),
                 now,
                 "Camera analysis session stopped");
-        return sessionStore.update(stopped);
+        CameraAnalysisSession updated = sessionStore.update(stopped);
+        cameraJobService.completeActive(session.printerId(), "Camera job completed when analysis session stopped");
+        return updated;
     }
 
     public List<CameraAnalysisSession> list(String printerId) {
@@ -161,15 +212,45 @@ public final class CameraAnalysisSessionService {
             return sample;
         }
 
-        CameraSnapshotMetadata latest = snapshotMetadataStore.findLatestByPrinterId(printerId)
+        CameraSnapshotMetadata latestMetadata = snapshotMetadataStore.findLatestByPrinterId(printerId)
                 .orElseThrow(() -> new IllegalStateException("captured camera snapshot metadata was not found"));
-        Path latestPath = Path.of(latest.filePath());
-        String extension = extensionOf(latestPath);
-        Path printerDirectory = latestPath.getParent() == null || latestPath.getParent().getParent() == null
-                ? storageDirectory.resolve(safePathSegment(printerId))
-                : latestPath.getParent().getParent();
-        Path previousPath = printerDirectory.resolve("previous" + extension);
-        Path deltaPath = printerDirectory.resolve("delta.jpg");
+        CameraJob cameraJob = cameraJobService.findActive(printerId)
+                .orElseThrow(() -> new IllegalStateException("active camera job was not found"));
+        List<CameraSnapshotEntry> snapshots = snapshotEntryStore.findByPrinterIdAndJobId(
+                printerId,
+                Long.toString(cameraJob.requireId()));
+
+        if (snapshots.isEmpty()) {
+            throw new IllegalStateException("captured camera snapshot entry was not found");
+        }
+
+        CameraSnapshotEntry latestEntry = snapshots.get(snapshots.size() - 1);
+        Path latestPath = Path.of(latestEntry.snapshotPath());
+
+        if (snapshots.size() < 2) {
+            CameraAnalysisSample sample = sampleStore.save(new CameraAnalysisSample(
+                    null,
+                    sessionId,
+                    printerId,
+                    latestEntry.capturedAt(),
+                    Instant.now(clock),
+                    latestPath.toString(),
+                    null,
+                    null,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    false,
+                    "MISSING_PREVIOUS_FRAME",
+                    "Camera analysis skipped because previous source snapshot was not available"));
+            safetyDecisionService.evaluate(sample);
+            return sample;
+        }
+
+        CameraSnapshotEntry previousEntry = snapshots.get(snapshots.size() - 2);
+        Path previousPath = Path.of(previousEntry.snapshotPath());
+        Path deltaPath = deltaPathFor(cameraJob.requireId(), previousEntry, latestEntry, latestPath);
 
         FrameAnalysisResult analysis = frameAnalyzer.analyze(
                 printerId,
@@ -187,7 +268,7 @@ public final class CameraAnalysisSessionService {
                 null,
                 sessionId,
                 printerId,
-                latest.capturedAt(),
+                latestMetadata.capturedAt(),
                 detection.detectedAt(),
                 latestPath.toString(),
                 previousPath.toString(),
@@ -203,10 +284,61 @@ public final class CameraAnalysisSessionService {
         return sample;
     }
 
-    private static String extensionOf(Path path) {
-        String name = path.getFileName().toString();
-        int dotIndex = name.lastIndexOf('.');
-        return dotIndex >= 0 ? name.substring(dotIndex) : ".jpg";
+    private Path deltaPathFor(
+            long cameraJobId,
+            CameraSnapshotEntry previousEntry,
+            CameraSnapshotEntry latestEntry,
+            Path latestPath) {
+        long previousSnapshotId = requireSnapshotEntryId(previousEntry);
+        long latestSnapshotId = requireSnapshotEntryId(latestEntry);
+
+        Optional<CameraDeltaFrame> existingDelta = deltaFrameStore.findBySnapshotPair(
+                cameraJobId,
+                previousSnapshotId,
+                latestSnapshotId);
+        if (existingDelta.isPresent()) {
+            return Path.of(existingDelta.get().deltaPath());
+        }
+
+        Optional<CameraDeltaSet> liveDeltaSet = deltaSetStore.findByCameraJobId(cameraJobId).stream()
+                .filter(deltaSet -> "live-image-delta".equals(deltaSet.methodName()))
+                .findFirst();
+        if (liveDeltaSet.isPresent()) {
+            Path printerDirectory = printerDirectoryFor(latestPath, latestEntry.printerId());
+            Path configuredStorageDirectory = printerDirectory.getParent() == null
+                    ? storageDirectory
+                    : printerDirectory.getParent();
+            return CameraStoragePaths.deltaFramePath(
+                    configuredStorageDirectory.toString(),
+                    latestEntry.printerId(),
+                    cameraJobId,
+                    liveDeltaSet.get().requireId(),
+                    Math.toIntExact(previousSnapshotId),
+                    Math.toIntExact(latestSnapshotId));
+        }
+
+        return printerDirectoryFor(latestPath, latestEntry.printerId()).resolve("delta.jpg");
+    }
+
+    private Path printerDirectoryFor(Path snapshotPath, String printerId) {
+        Path parent = snapshotPath.getParent();
+        if (parent != null
+                && parent.getParent() != null
+                && parent.getParent().getFileName() != null
+                && "snapshots".equals(parent.getParent().getFileName().toString())
+                && parent.getParent().getParent() != null) {
+            return parent.getParent().getParent();
+        }
+
+        return storageDirectory.resolve(safePathSegment(printerId));
+    }
+
+    private static long requireSnapshotEntryId(CameraSnapshotEntry entry) {
+        if (entry.id() == null || entry.id() <= 0L) {
+            throw new IllegalStateException("camera snapshot entry id is not assigned");
+        }
+
+        return entry.id();
     }
 
     private static String safePathSegment(String value) {

@@ -2707,7 +2707,7 @@ CameraAnalysisSample
   suspected
   reasonCodes
   message
-````
+```
 
 Suggested API endpoints:
 
@@ -2968,7 +2968,7 @@ data/camera/<printerId>/
     <cameraJobId>/
       <sequence>_<timestamp>.jpg
       <sequence>_<timestamp>.jpg
-````
+```
 
 Database direction:
 
@@ -3064,28 +3064,53 @@ Out of scope:
 * replacing the current image-delta heuristic
 
 ---
+Yes, the renaming is **better**:
 
-### 0.4.10 — Camera Delta Sets And Calculation Runs
+```text
+0.4.10 = Delta/calculation foundation, Step A done
+0.4.11 = Live Camera Job Delta Pipeline, physical delta files
+0.4.12 = Analysis Session Review And Recalculation UI
+0.4.13 = Replay, Compression, And Simulation Review
+```
+
+Your uploaded TODO already follows that structure now, but 0.4.10 still needs sharper wording because it says “Delta Sets And Calculation Runs” and “Done” while the physical delta image files are not yet saved. 
+
+Use this in `docs/roadmap.md` from **0.4.10 onward**.
+
+```markdown
+### 0.4.10 — Delta Sets And Calculation Run Foundation
 
 status: done
 
 Purpose:
 
-Generate reusable delta sets from the retained source snapshots of a selected camera job, then run spaghetti-detection calculations from selected delta sets.
+Create the persistent foundation for reusable camera delta sets and spaghetti-detection calculation runs.
 
 This step depends on the 0.4.9 camera job ownership model.
+
+0.4.10 defines the database model, service layer, and API direction for delta sets and calculation runs. It separates delta generation from spaghetti calculation so the same source snapshots can later be reused with different delta parameters and different calculation parameters.
+
+Important limitation:
+
+0.4.10 is a foundation step.
+
+At this stage, delta set metadata and calculation run metadata may exist, but physical persisted delta image files are not yet guaranteed to be generated and saved on disk.
+
+Physical delta image generation belongs to 0.4.11.
 
 Goals:
 
 * select a printer and camera job as the source scope
-* generate one or more delta sets from a camera job's retained source snapshots
+* define reusable delta sets generated from retained source snapshots
 * define a delta snapshot step parameter
-* store delta files separately from source snapshots
-* persist delta set metadata and delta frame metadata
-* run spaghetti calculation from a selected delta set
+* define persistent delta frame metadata
+* define persistent calculation run metadata
+* define persistent calculation result metadata
+* allow several delta sets for the same camera job
 * allow several calculation runs for the same delta set
 * keep previous calculation runs instead of overwriting them
 * keep delta generation separate from spaghetti calculation
+* prepare the API and data model for physical delta files in 0.4.11
 
 Delta snapshot step rule:
 
@@ -3103,7 +3128,7 @@ If step = 10:
 
 Intermediate snapshots are skipped for that delta set.
 
-Filesystem target:
+Filesystem direction for the later physical delta files:
 
 ```text
 data/camera/<printerId>/
@@ -3115,7 +3140,7 @@ data/camera/<printerId>/
         000021_000031_delta.jpg
 ```
 
-Planned metadata:
+Database direction:
 
 ```text
 CameraDeltaSet
@@ -3174,59 +3199,434 @@ CameraCalculationResult
 
 Acceptance checklist:
 
-* admin can select printer and camera job
-* admin can generate a delta set from that camera job
-* delta snapshot step 1 compares consecutive snapshots
-* delta snapshot step 10 compares every tenth retained snapshot pair
+* admin/backend can select printer and camera job
+* delta set metadata can be created for a camera job
+* delta snapshot step 1 is modeled as consecutive snapshot comparison
+* delta snapshot step 10 is modeled as sampled snapshot comparison
 * several delta sets can exist for the same camera job
-* admin can run a calculation from one selected delta set
+* calculation run metadata can be created for one selected delta set
 * several calculation runs can exist for the same delta set
 * calculation runs do not overwrite previous runs
-
-Out of scope:
-
-* live printer safety action
-* automatic pause/abort
-* replay UI polish
-* archive/compression
+* delta generation and spaghetti calculation are separate workflows
+* `mvn test` passes
 
 Completion note:
 
-0.4.10 is complete. Admin can generate reusable delta sets from a selected camera job, source snapshot step sampling uses the configured delta snapshot step, delta files are stored under `deltas/<cameraJobId>/<deltaSetId>/`, calculation runs are persisted from selected delta sets, and repeated calculation runs do not overwrite previous runs.
+0.4.10 is complete as the delta/calculation persistence foundation.
+
+Physical delta image generation is intentionally not considered complete in this milestone and is handled by 0.4.11.
+
+Out of scope:
+
+* live camera-job delta generation
+* physical delta image file creation
+* serving persisted delta image files
+* live Analysis Session trace integration
+* dashboard recalculation UI
+* replay play/pause
+* real archive/compression
+* automatic printer pause/abort behavior
+* model training
+* replacing the current image-delta heuristic
 
 ---
 
-### 0.4.11 — Replay, Compression, And Simulation Review
+### 0.4.11 — Live Camera Job Delta Pipeline
+
+status: in progress
+
+Purpose:
+
+Extend the running camera job so it creates persisted source snapshots, persisted physical delta frames, and live calculation samples while the camera job is running.
+
+This step fixes the difference between volatile live preview files and real persisted analysis data.
+
+`latest.jpg`, `previous.jpg`, and `delta.jpg` remain volatile working files. They may be overwritten at every capture cycle and must not be used as persisted historical analysis references.
+
+Persistent analysis must reference database-owned source snapshots, delta frames, and calculation results.
+
+Goals:
+
+* create physical delta image files while a camera job is running
+* persist delta frame metadata only when the physical delta image exists
+* create or reuse one active live delta set for a running camera job
+* create or reuse one active live calculation run for a running camera job
+* generate live calculation results from newly created delta frames
+* ensure every live trace row can be traced to persisted source snapshots, a persisted delta frame, and a persisted calculation result
+* keep volatile preview files separate from persisted analysis files
+* make generated delta files readable by backend/admin APIs
+* reject or clearly report missing source files and missing delta files
+* keep all data scoped by selected printer and camera job
+
+Runtime rule:
+
+```text
+latest.jpg
+previous.jpg
+delta.jpg
+```
+
+are volatile working files only.
+
+They must not be used as persisted historical analysis references.
+
+Physical delta file requirement:
+
+0.4.11 is not complete until every generated `CameraDeltaFrame` has both:
+
+```text
+1. a database row in camera_delta_frames
+2. a real readable image file on disk at camera_delta_frames.deltaPath
+```
+
+The system must not create fake delta-frame metadata that points to a missing file.
+
+For every persisted `CameraDeltaFrame`:
+
+```text
+deltaPath must exist
+deltaPath must be inside data/camera/<printerId>/deltas/<cameraJobId>/<deltaSetId>/
+deltaPath must be readable by the API
+deltaPath must not be latest.jpg, previous.jpg, or delta.jpg
+```
+
+Live camera job pipeline:
+
+```text
+1. Camera job reads camera settings.
+2. Camera job captures a frame at the configured capture interval.
+3. The frame is saved as a retained source snapshot under:
+   data/camera/<printerId>/snapshots/<cameraJobId>/<sequence>_<timestamp>.jpg
+4. The snapshot metadata is saved in camera_snapshot_entries.
+5. If at least two source snapshots exist, a delta frame is generated from persisted source snapshots.
+6. The delta frame is saved under:
+   data/camera/<printerId>/deltas/<cameraJobId>/<deltaSetId>/<from>_<to>_delta.jpg
+7. The delta frame metadata is saved in camera_delta_frames.
+8. A live calculation result is generated from the delta frame.
+9. The calculation result is saved under the active live calculation run.
+10. The dashboard Analysis Session / Spaghetti trace review reads persisted rows, not volatile files.
+```
+
+Live delta set rule:
+
+```text
+A running camera job may create or reuse one active live delta set.
+
+The first delta frame of a job may start with:
+  fromSnapshotId = first retained snapshot
+  toSnapshotId   = next retained snapshot
+
+No fake delta frame is created before two source snapshots exist.
+```
+
+Live calculation rule:
+
+```text
+A running camera job may create or reuse one active live calculation run.
+
+The live calculation run uses the active live delta set.
+
+Every displayed live analysis sample must be traceable to:
+  printerId
+  cameraJobId
+  deltaSetId
+  deltaFrameId
+  calculationRunId
+  calculationResultId
+```
+
+Dashboard rule:
+
+```text
+Selected printer / Analysis session / Spaghetti trace review
+```
+
+must display persisted analysis data.
+
+It may show `latest.jpg` as a visual live preview, but the trace review table and graph must reference named source snapshot files, named delta files, and persisted calculation rows.
+
+Implementation slice 1 — physical delta image writer:
+
+Update / verify:
+
+```text
+src/main/java/printerhub/camera/CameraDeltaSetService.java
+src/main/java/printerhub/camera/CameraStoragePaths.java
+src/main/java/printerhub/camera/ImageDeltaFrameAnalyzer.java
+src/main/java/printerhub/persistence/CameraDeltaFrame.java
+src/main/java/printerhub/persistence/CameraDeltaFrameStore.java
+```
+
+Target:
+
+```text
+1. Read two persisted source snapshot files.
+2. Compute the delta image.
+3. Save the delta image under:
+   data/camera/<printerId>/deltas/<cameraJobId>/<deltaSetId>/<from>_<to>_delta.jpg
+4. Save CameraDeltaFrame.deltaPath pointing to that real file.
+5. Save delta metrics:
+   deltaScore
+   changedPixelRatio
+   averagePixelDelta
+6. Fail clearly if source snapshot files are missing.
+```
+
+Implementation slice 2 — live camera job creates delta frames:
+
+Update / verify:
+
+```text
+src/main/java/printerhub/camera/CameraCaptureService.java
+src/main/java/printerhub/camera/CameraJobService.java
+src/main/java/printerhub/camera/CameraDeltaSetService.java
+src/main/java/printerhub/camera/CameraCalculationRunService.java
+src/main/java/printerhub/camera/CameraMonitoringTask.java
+src/main/java/printerhub/camera/CameraAnalysisSessionService.java
+```
+
+Target:
+
+```text
+1. Capture source snapshot.
+2. Persist source snapshot entry.
+3. Resolve or create active live delta set for the camera job.
+4. If at least two source snapshots exist, create a physical delta file.
+5. Persist CameraDeltaFrame.
+6. Resolve or create active live calculation run.
+7. Run calculation on the new delta frame.
+8. Persist CameraCalculationResult.
+```
+
+Implementation slice 3 — serve persisted delta files:
+
+API direction:
+
+```text
+GET /admin/camera/delta-sets/{deltaSetId}/frames?printerId=<printerId>
+  List persisted delta frames for one delta set.
+
+GET /admin/camera/delta-frames/{deltaFrameId}/file?printerId=<printerId>
+  Serve one persisted physical delta image file.
+```
+
+Implementation slice 4 — analysis session trace reads persisted data:
+
+Target trace row:
+
+```text
+cameraJobId
+deltaSetId
+deltaFrameId
+calculationRunId
+calculationResultId
+fromSnapshotPath
+toSnapshotPath
+deltaPath
+confidence
+suspected
+reasonCodes
+createdAt
+```
+
+Acceptance checklist:
+
+* running a camera job creates persisted source snapshots
+* first capture creates no delta frame
+* second capture creates the first physical delta frame
+* later captures create additional physical delta frames
+* every persisted delta frame has a real physical delta image file
+* no persisted delta frame points to a missing file
+* no persisted delta frame points to volatile `delta.jpg`
+* generated delta files are stored under `deltas/<cameraJobId>/<deltaSetId>/`
+* generated delta files are readable by API
+* live delta generation does not wait for an admin replay/recalculation action
+* live calculation results are associated with the active live calculation run
+* Spaghetti trace review does not store or display `latest.jpg` / `delta.jpg` as historical analysis references
+* every live trace row references a real `cameraJobId`
+* every live trace row references a real source snapshot pair
+* every live trace row references a real delta frame when a delta exists
+* every live trace row references a real calculation result when a calculation exists
+* admin can later regenerate another delta set from the same camera job using a different delta snapshot step
+* admin can later run another calculation with different parameters without overwriting the live calculation run
+* tests verify `Files.exists(deltaPath)`
+* tests verify delta file size is greater than zero
+* `mvn test` passes
+
+Out of scope:
+
+* dashboard recalculation UI polish
+* replay play/pause
+* compression/archive deletion
+* automatic printer pause
+* automatic printer abort
+* model training
+* replacing the current image-delta heuristic
+
+---
+
+### 0.4.12 — Analysis Session Review And Recalculation UI
 
 status: planned
 
 Purpose:
 
-Add admin review tools for camera jobs, source snapshots, generated delta sets, and calculation results. This step introduces replay and explicit compression/archive actions after the storage and calculation models are stable.
+Make the dashboard and admin UI correctly expose persisted camera-job analysis data.
+
+The goal is to review live and historical spaghetti-detection traces using real source snapshots, real delta frames, and real calculation runs.
+
+Dependency:
+
+0.4.12 must not start until 0.4.11 physically writes and serves persisted delta image files.
+
+The UI must not be built around placeholder delta metadata or volatile `delta.jpg`.
 
 Goals:
 
-* replay source snapshots as an accelerated image sequence
+* add Analysis Session view for the selected printer
+* start and stop a camera job from the Analysis Session view
+* show current camera job status
+* show retained source snapshot count
+* show active live delta set
+* show active live calculation run
+* show Spaghetti trace review from persisted calculation results
+* show source snapshot file names used for each delta frame
+* show delta frame file names used for each calculation result
+* avoid using `latest.jpg`, `previous.jpg`, or `delta.jpg` as persisted history
+* allow admin to select printer, camera job, delta set, and calculation run
+* allow admin to regenerate a delta set with a different delta snapshot step
+* allow admin to rerun calculation with different parameters
+* keep old delta sets and calculation runs
+* compare calculation runs for the same camera job
+
+Recalculation workflow:
+
+```text
+1. Select printer.
+2. Select camera job.
+3. Select existing delta set or create a new delta set.
+4. Choose delta snapshot step.
+5. Choose delta method.
+6. Generate delta set.
+7. Choose calculation method.
+8. Choose calculation parameters.
+9. Run calculation.
+10. Persist a new calculation run.
+11. Display results without overwriting previous runs.
+```
+
+Dashboard display rule:
+
+The Spaghetti trace review card must show rows backed by persisted data:
+
+```text
+cameraJobId
+deltaSetId
+deltaFrameId
+calculationRunId
+calculationResultId
+fromSnapshotPath
+toSnapshotPath
+deltaPath
+confidence
+suspected
+reasonCodes
+createdAt
+```
+
+Acceptance checklist:
+
+* Analysis Session view exists for the selected printer
+* camera job can be started from the Analysis Session view
+* camera job can be stopped from the Analysis Session view
+* current camera job status is visible
+* active live delta set is visible
+* active live calculation run is visible
+* Spaghetti trace review reads persisted calculation results
+* trace rows show source snapshot file names
+* trace rows show delta frame file names
+* trace rows never use `latest.jpg`, `previous.jpg`, or `delta.jpg` as historical references
+* admin can regenerate a delta set from a selected camera job
+* admin can run a new calculation from a selected delta set
+* old delta sets and calculation runs remain available
+* calculation runs can be compared for the same camera job
+* `mvn test` passes
+
+Out of scope:
+
+* replay play/pause
+* real compression/archive deletion
+* automatic printer pause
+* automatic printer abort
+* model training
+* replacing the current image-delta heuristic
+
+---
+
+### 0.4.13 — Replay, Compression, And Simulation Review
+
+status: planned
+
+Purpose:
+
+Add admin review tools for replaying camera jobs, source snapshots, generated delta sets, and calculation results after the analysis-session and recalculation model is stable.
+
+This step is intentionally after the live/persisted analysis correction. Replay must use real persisted data, not volatile working files such as `latest.jpg`, `previous.jpg`, or `delta.jpg`.
+
+Goals:
+
+* replay retained source snapshots as an accelerated image sequence
 * replay delta frames from a selected delta set
 * replay calculation results over time
-* inspect selected frame metadata
+* inspect selected source snapshot metadata
+* inspect selected delta frame metadata
+* inspect selected calculation result metadata
 * support play, pause, stop, and replay speed controls
+* allow frame-by-frame manual review
+* show selected frame preview
+* show selected metadata panel
 * introduce explicit admin compression/archive behavior
 * prevent compression from touching live working files
 * clearly warn when compression deletes source data
 * invalidate or remove dependent delta sets and calculation runs when source snapshots are deleted
+* keep replay read-only unless the admin explicitly starts a compression/delete action
 
 Replay modes:
 
 ```text
 1. Snapshot replay
-   Shows raw object creation from source snapshots.
+   Shows raw source snapshots from one selected camera job.
 
 2. Delta replay
-   Shows visual difference evolution from a selected delta set.
+   Shows visual difference evolution from one selected delta set.
 
 3. Calculation replay
-   Shows delta frames together with numeric detection results.
+   Shows delta frames together with persisted spaghetti-detection results.
+
+4. Comparison replay
+   Optional later mode.
+   Compares two calculation runs for the same camera job or delta set.
+```
+
+Replay source rules:
+
+```text
+Snapshot replay reads:
+  camera_snapshot_entries
+
+Delta replay reads:
+  camera_delta_sets
+  camera_delta_frames
+
+Calculation replay reads:
+  camera_calculation_runs
+  camera_calculation_results
+  camera_delta_frames
+
+Replay must not read historical data from:
+  latest.jpg
+  previous.jpg
+  delta.jpg
 ```
 
 Replay controls:
@@ -3235,39 +3635,151 @@ Replay controls:
 Play
 Pause
 Stop
+Previous frame
+Next frame
 Replay display ms
 Frame counter
 Selected frame preview
 Selected metadata panel
+Selected source snapshot pair
+Selected delta frame
+Selected calculation result
+```
+
+Replay selection:
+
+```text
+Printer
+Camera job
+Replay mode
+Delta set, if replaying deltas or calculations
+Calculation run, if replaying calculation results
+Replay speed
 ```
 
 Compression rule:
 
-Compression is a future explicit admin action. It is not capture-time behavior.
+Compression is an explicit admin action.
 
-If source snapshots are compressed or deleted, all dependent delta sets and calculation runs must be deleted or marked invalid.
+It is not capture-time behavior.
+
+It must never run automatically during camera capture, live analysis, delta generation, or calculation.
+
+Live working files must never be compressed or deleted by this feature:
+
+```text
+latest.jpg
+previous.jpg
+delta.jpg
+```
+
+Source data deletion rule:
+
+If source snapshots are compressed, deleted, or moved to a non-readable archive location, all dependent data must be deleted or marked invalid:
+
+```text
+camera_delta_sets
+camera_delta_frames
+camera_calculation_runs
+camera_calculation_results
+analysis-session references
+```
 
 Admin warning:
 
 ```text
-This operation deletes source snapshots and may invalidate delta sets and calculation runs.
+This operation deletes or compresses source snapshots and may invalidate delta sets,
+calculation runs, and analysis-session history.
+
 Deleted source snapshots cannot be reconstructed.
 ```
 
+Filesystem safety rule:
+
+Compression/delete actions must be scoped to one selected printer and one selected camera job.
+
+Allowed target:
+
+```text
+data/camera/<printerId>/snapshots/<cameraJobId>/
+```
+
+Allowed derived-data target:
+
+```text
+data/camera/<printerId>/deltas/<cameraJobId>/
+```
+
+Forbidden targets:
+
+```text
+data/camera/<printerId>/latest.jpg
+data/camera/<printerId>/previous.jpg
+data/camera/<printerId>/delta.jpg
+data/camera/<otherPrinterId>/
+any path outside data/camera/
+```
+
+API direction:
+
+```text
+GET /admin/camera/replay/jobs?printerId=<printerId>
+  List replayable camera jobs.
+
+GET /admin/camera/replay/jobs/{cameraJobId}/snapshots?printerId=<printerId>
+  List replayable source snapshots.
+
+GET /admin/camera/replay/delta-sets/{deltaSetId}/frames?printerId=<printerId>
+  List replayable delta frames.
+
+GET /admin/camera/replay/calculation-runs/{calculationRunId}/results?printerId=<printerId>
+  List replayable calculation results.
+
+POST /admin/camera/compression/jobs/{cameraJobId}?printerId=<printerId>
+  Compress or delete selected camera job source data after confirmation.
+```
+
+Implementation notes:
+
+* keep replay read-only
+* do not mix replay with live capture scheduling
+* do not create new delta frames during replay
+* do not create new calculation results during replay
+* replay only displays existing persisted data
+* compression/delete requires explicit admin confirmation
+* compression/delete must be audited
+* deletion must clean database metadata and filesystem data consistently
+* failed compression/delete must leave the database and filesystem in a recoverable state
+
 Acceptance checklist:
 
-* admin can replay source snapshots
-* admin can replay delta sets
-* admin can inspect calculation results over time
+* admin can replay source snapshots for one selected camera job
+* admin can replay delta frames for one selected delta set
+* admin can replay calculation results for one selected calculation run
 * replay display ms controls playback speed
+* admin can pause replay
+* admin can step to previous and next frame
+* selected frame preview displays the correct persisted file
+* selected metadata panel shows persisted IDs and file paths
+* replay never uses `latest.jpg`, `previous.jpg`, or `delta.jpg` as history
 * compression requires confirmation
+* compression is limited to the selected printer and selected camera job
 * compression never touches `latest.jpg`, `previous.jpg`, or `delta.jpg`
 * compression never deletes files outside the selected printer/camera-job storage
-* deleting source snapshots invalidates or deletes dependent derived data
+* deleting source snapshots invalidates or deletes dependent delta sets and calculation runs
+* compression/delete actions are recorded in the operator audit/history
+* `mvn test` passes
 
+Out of scope:
+
+* automatic printer pause
+* automatic printer abort
+* model training
+* replacing the current image-delta heuristic
+* cloud archive upload
+* video encoding
+* long-term ML dataset management
  
-
-
 
 
 ## 0.5.x Upload and Simulation Hardening 

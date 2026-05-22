@@ -171,6 +171,35 @@ public final class CameraSnapshotEntryStore {
         }
     }
 
+    public CameraSnapshotEntry updateSnapshotPath(long id, String snapshotPath) {
+        if (id <= 0L) {
+            throw new IllegalArgumentException("camera snapshot entry id must be greater than zero");
+        }
+        if (snapshotPath == null || snapshotPath.isBlank()) {
+            throw new IllegalArgumentException("snapshotPath must not be blank");
+        }
+
+        String sql = "UPDATE camera_snapshot_entries SET snapshot_path = ? WHERE id = ?";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, snapshotPath.trim());
+            statement.setLong(2, id);
+            int updated = statement.executeUpdate();
+
+            if (updated != 1) {
+                throw new IllegalStateException("Camera snapshot entry not found: " + id);
+            }
+
+            return findById(id)
+                    .orElseThrow(() -> new IllegalStateException("Camera snapshot entry not found: " + id));
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update camera snapshot entry path", exception);
+        }
+    }
+
     public List<CameraSnapshotEntry> findByJobId(String jobId) {
         Long cameraJobId = parseCameraJobId(jobId);
 

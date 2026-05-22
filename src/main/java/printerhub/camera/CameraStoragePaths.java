@@ -1,8 +1,6 @@
 package printerhub.camera;
 
 import java.nio.file.Path;
-import java.time.Instant;
-
 import printerhub.config.RuntimeDefaults;
 import printerhub.persistence.DatabaseConfig;
 
@@ -45,14 +43,18 @@ public final class CameraStoragePaths {
                 .normalize();
     }
 
-    public static Path snapshotPath(
+    public static Path snapshotPathForEntryId(
             String configuredStorageDirectory,
             String printerId,
             long cameraJobId,
-            Instant capturedAt,
+            long snapshotEntryId,
             String extension) {
         String normalizedExtension = normalizeExtension(extension);
-        String fileName = safeTimestamp(capturedAt) + "_" + cameraJobSegment(cameraJobId) + normalizedExtension;
+        if (snapshotEntryId <= 0L) {
+            throw new IllegalArgumentException("snapshotEntryId must be greater than zero");
+        }
+
+        String fileName = "%06d_snapshot%s".formatted(snapshotEntryId, normalizedExtension);
 
         return snapshotsDirectory(configuredStorageDirectory, printerId, cameraJobId)
                 .resolve(fileName)
@@ -116,14 +118,6 @@ public final class CameraStoragePaths {
 
         String normalized = extension.trim();
         return normalized.startsWith(".") ? normalized : "." + normalized;
-    }
-
-    private static String safeTimestamp(Instant instant) {
-        if (instant == null) {
-            throw new NullPointerException("capturedAt");
-        }
-
-        return instant.toString().replace(':', '-');
     }
 
     private static String safePathSegment(String value, String fieldName) {

@@ -21,6 +21,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 import printerhub.persistence.CameraEvent;
 import printerhub.persistence.CameraEventStore;
+import printerhub.persistence.CameraCalculationResult;
+import printerhub.persistence.CameraCalculationResultStore;
+import printerhub.persistence.CameraCalculationRun;
+import printerhub.persistence.CameraCalculationRunStore;
+import printerhub.persistence.CameraDeltaFrame;
+import printerhub.persistence.CameraDeltaFrameStore;
+import printerhub.persistence.CameraDeltaSet;
+import printerhub.persistence.CameraDeltaSetStore;
 import printerhub.persistence.CameraSnapshotEntry;
 import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraSettings;
@@ -121,9 +129,55 @@ class CameraCaptureServiceTest {
         CameraSnapshotEntry entry = entries.get(0);
         assertEquals(1L, entry.cameraJobId());
         assertTrue(entry.linkedPrintJobIdOptional().isEmpty());
-        assertTrue(entry.snapshotPath().contains("/snapshots/1/"));
+        assertTrue(entry.snapshotPath().endsWith("/snapshots/1/000001_snapshot.jpg"));
+        assertFalse(entry.snapshotPath().contains("2026-05-22T10-15-30Z"));
         assertFalse(entry.snapshotPath().contains("/unassigned/"));
+        assertEquals(FIXED_INSTANT, entry.capturedAt());
         assertTrue(Files.exists(Path.of(entry.snapshotPath())));
+    }
+
+    @Test
+    void captureCreatesLiveDeltaFrameAndCalculationAfterSecondSnapshot() throws Exception {
+        useDatabase("camera-capture-live-delta.db");
+
+        CameraSettingsService settingsService = settingsService();
+        settingsService.save(withAnalysisEnabled(withTestStorage(settingsService.enableSimulated("printer-1"))));
+
+        CameraCaptureService service = captureService(settingsService);
+
+        assertTrue(service.capture("printer-1").success());
+        assertTrue(new CameraDeltaSetStore().findByCameraJobId(1L).isEmpty());
+
+        assertTrue(service.capture("printer-1").success());
+
+        List<CameraDeltaSet> deltaSets = new CameraDeltaSetStore().findByCameraJobId(1L);
+        assertEquals(1, deltaSets.size());
+        assertEquals("live-image-delta", deltaSets.get(0).methodName());
+        assertEquals(2, deltaSets.get(0).sourceSnapshotCount());
+        assertEquals(1, deltaSets.get(0).generatedDeltaCount());
+
+        List<CameraDeltaFrame> frames = new CameraDeltaFrameStore()
+                .findByDeltaSetId(deltaSets.get(0).requireId());
+        assertEquals(1, frames.size());
+        assertEquals(1L, frames.get(0).fromSnapshotId());
+        assertEquals(2L, frames.get(0).toSnapshotId());
+        assertTrue(frames.get(0).deltaPath().contains("/deltas/1/" + deltaSets.get(0).requireId() + "/"));
+        assertTrue(Files.isRegularFile(tempDir.resolve("camera-storage/printer-1/snapshots/1/000001_snapshot.jpg")));
+        assertTrue(Files.isRegularFile(tempDir.resolve("camera-storage/printer-1/snapshots/1/000002_snapshot.jpg")));
+        assertTrue(frames.get(0).deltaPath().endsWith("/000001_000002_delta.jpg"));
+        assertFalse(frames.get(0).deltaPath().endsWith("/delta.jpg"));
+        assertTrue(Files.isRegularFile(Path.of(frames.get(0).deltaPath())));
+
+        List<CameraCalculationRun> runs = new CameraCalculationRunStore()
+                .findByDeltaSetId(deltaSets.get(0).requireId());
+        assertEquals(1, runs.size());
+        assertEquals("live-spaghetti-delta-threshold", runs.get(0).methodName());
+        assertEquals(1, runs.get(0).resultCount());
+
+        List<CameraCalculationResult> results = new CameraCalculationResultStore()
+                .findByCalculationRunId(runs.get(0).requireId());
+        assertEquals(1, results.size());
+        assertEquals(frames.get(0).requireId(), results.get(0).deltaFrameId());
     }
 
     @Test
@@ -350,6 +404,29 @@ class CameraCaptureServiceTest {
                 settings.ffmpegTimeoutMs(),
                 settings.ffmpegJpegQuality(),
                 tempDir.resolve("camera-storage").toString(),
+                settings.updatedAt());
+    }
+
+    private CameraSettings withAnalysisEnabled(CameraSettings settings) {
+        return new CameraSettings(
+                settings.printerId(),
+                settings.enabled(),
+                settings.sourceType(),
+                settings.sourceValue().orElse(null),
+                settings.captureIntervalSeconds(),
+                settings.retentionSnapshotCount(),
+                true,
+                settings.safetyEnabled(),
+                settings.pauseOnConfirmedSpaghetti(),
+                settings.confidenceThreshold(),
+                settings.confirmationsRequired(),
+                settings.ffmpegCommand(),
+                settings.ffmpegInputFormat().orElse(null),
+                settings.ffmpegVideoSize().orElse(null),
+                settings.ffmpegTimeoutMs(),
+                settings.ffmpegJpegQuality(),
+                settings.storageDirectory(),
+                settings.diagnosticLoggingEnabled(),
                 settings.updatedAt());
     }
 
