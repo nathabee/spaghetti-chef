@@ -20,16 +20,17 @@ public final class CameraSnapshotEntryStore {
         String sql = """
                 INSERT INTO camera_snapshot_entries (
                     printer_id,
-                    job_id,
+                    camera_job_id,
+                    linked_print_job_id,
                     snapshot_path,
                     content_type,
                     size_bytes,
                     captured_at,
-                    snapshotd_at,
+                    retained_at,
                     source_type,
                     message
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """;
 
         try (
@@ -37,14 +38,19 @@ public final class CameraSnapshotEntryStore {
                 PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
         ) {
             statement.setString(1, entry.printerId());
-            statement.setString(2, entry.jobId());
-            statement.setString(3, entry.snapshotPath());
-            statement.setString(4, entry.contentType());
-            statement.setLong(5, entry.sizeBytes());
-            statement.setString(6, entry.capturedAt().toString());
-            statement.setString(7, entry.retainedAt().toString());
-            statement.setString(8, entry.sourceType());
-            statement.setString(9, entry.message());
+            if (entry.cameraJobId() == null) {
+                statement.setNull(2, java.sql.Types.INTEGER);
+            } else {
+                statement.setLong(2, entry.cameraJobId());
+            }
+            statement.setString(3, entry.linkedPrintJobId());
+            statement.setString(4, entry.snapshotPath());
+            statement.setString(5, entry.contentType());
+            statement.setLong(6, entry.sizeBytes());
+            statement.setString(7, entry.capturedAt().toString());
+            statement.setString(8, entry.retainedAt().toString());
+            statement.setString(9, entry.sourceType());
+            statement.setString(10, entry.message());
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -52,7 +58,8 @@ public final class CameraSnapshotEntryStore {
                     return new CameraSnapshotEntry(
                             keys.getLong(1),
                             entry.printerId(),
-                            entry.jobId(),
+                            entry.cameraJobId(),
+                            entry.linkedPrintJobId(),
                             entry.snapshotPath(),
                             entry.contentType(),
                             entry.sizeBytes(),
@@ -72,13 +79,13 @@ public final class CameraSnapshotEntryStore {
     public List<CameraSnapshotJobSummary> findJobSummaries() {
         String sql = """
                 SELECT
-                    COALESCE(job_id, 'unassigned') AS job_key,
+                    COALESCE(CAST(camera_job_id AS TEXT), 'unassigned') AS camera_job_key,
                     COUNT(*) AS file_count,
                     COALESCE(SUM(size_bytes), 0) AS total_bytes,
                     MIN(captured_at) AS first_captured_at,
                     MAX(captured_at) AS last_captured_at
                 FROM camera_snapshot_entries
-                GROUP BY COALESCE(job_id, 'unassigned')
+                GROUP BY COALESCE(CAST(camera_job_id AS TEXT), 'unassigned')
                 ORDER BY MAX(captured_at) DESC;
                 """;
 
@@ -90,7 +97,7 @@ public final class CameraSnapshotEntryStore {
             List<CameraSnapshotJobSummary> summaries = new ArrayList<>();
             while (resultSet.next()) {
                 summaries.add(new CameraSnapshotJobSummary(
-                        resultSet.getString("job_key"),
+                        resultSet.getString("camera_job_key"),
                         resultSet.getInt("file_count"),
                         resultSet.getLong("total_bytes"),
                         Instant.parse(resultSet.getString("first_captured_at")),
@@ -102,19 +109,46 @@ public final class CameraSnapshotEntryStore {
         }
     }
 
-    public Optional<CameraSnapshotEntry> findById(long id) {
+    public List<CameraSnapshotJobSummary> findJobSummariesByPrinterId(String printerId) {
+        String normalizedPrinterId = normalizePrinterId(printerId);
         String sql = """
                 SELECT
-                    id,
-                    printer_id,
-                    job_id,
-                    snapshot_path,
-                    content_type,
-                    size_bytes,
-                    captured_at,
-                    snapshotd_at,
-                    source_type,
-                    message
+                    COALESCE(CAST(camera_job_id AS TEXT), 'unassigned') AS camera_job_key,
+                    COUNT(*) AS file_count,
+                    COALESCE(SUM(size_bytes), 0) AS total_bytes,
+                    MIN(captured_at) AS first_captured_at,
+                    MAX(captured_at) AS last_captured_at
+                FROM camera_snapshot_entries
+                WHERE printer_id = ?
+                GROUP BY COALESCE(CAST(camera_job_id AS TEXT), 'unassigned')
+                ORDER BY MAX(captured_at) DESC;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CameraSnapshotJobSummary> summaries = new ArrayList<>();
+                while (resultSet.next()) {
+                    summaries.add(new CameraSnapshotJobSummary(
+                            resultSet.getString("camera_job_key"),
+                            resultSet.getInt("file_count"),
+                            resultSet.getLong("total_bytes"),
+                            Instant.parse(resultSet.getString("first_captured_at")),
+                            Instant.parse(resultSet.getString("last_captured_at"))));
+                }
+                return summaries;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera snapshot job summaries", exception);
+        }
+    }
+
+    public Optional<CameraSnapshotEntry> findById(long id) {
+        String sql = selectColumns() + """
                 FROM camera_snapshot_entries
                 WHERE id = ?;
                 """;
@@ -137,72 +171,20 @@ public final class CameraSnapshotEntryStore {
         }
     }
 
+    public List<CameraSnapshotEntry> findByJobId(String jobId) {
+        Long cameraJobId = parseCameraJobId(jobId);
 
-    public List<CameraSnapshotJobSummary> findJobSummariesByPrinterId(String printerId) {
-        String normalizedPrinterId = normalizePrinterId(printerId);
-        String sql = """
-                SELECT
-                    COALESCE(job_id, 'unassigned') AS job_key,
-                    COUNT(*) AS file_count,
-                    COALESCE(SUM(size_bytes), 0) AS total_bytes,
-                    MIN(captured_at) AS first_captured_at,
-                    MAX(captured_at) AS last_captured_at
+        String sql = selectColumns() + """
                 FROM camera_snapshot_entries
-                WHERE printer_id = ?
-                GROUP BY COALESCE(job_id, 'unassigned')
-                ORDER BY MAX(captured_at) DESC;
+                WHERE camera_job_id = ?
+                ORDER BY captured_at ASC, id ASC;
                 """;
 
         try (
                 Connection connection = Database.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)
         ) {
-            statement.setString(1, normalizedPrinterId);
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                List<CameraSnapshotJobSummary> summaries = new ArrayList<>();
-                while (resultSet.next()) {
-                    summaries.add(new CameraSnapshotJobSummary(
-                            resultSet.getString("job_key"),
-                            resultSet.getInt("file_count"),
-                            resultSet.getLong("total_bytes"),
-                            Instant.parse(resultSet.getString("first_captured_at")),
-                            Instant.parse(resultSet.getString("last_captured_at"))));
-                }
-                return summaries;
-            }
-        } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera snapshot job summaries", exception);
-        }
-    }
-
-    public List<CameraSnapshotEntry> findByJobId(String jobId) {
-        String normalizedJobId = normalizeJobId(jobId);
-        boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = """
-                SELECT
-                    id,
-                    printer_id,
-                    job_id,
-                    snapshot_path,
-                    content_type,
-                    size_bytes,
-                    captured_at,
-                    snapshotd_at,
-                    source_type,
-                    message
-                FROM camera_snapshot_entries
-                WHERE %s
-                ORDER BY captured_at ASC, id ASC;
-                """.formatted(unassigned ? "job_id IS NULL" : "job_id = ?");
-
-        try (
-                Connection connection = Database.getConnection();
-                PreparedStatement statement = connection.prepareStatement(sql)
-        ) {
-            if (!unassigned) {
-                statement.setString(1, normalizedJobId);
-            }
+            statement.setLong(1, cameraJobId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<CameraSnapshotEntry> entries = new ArrayList<>();
@@ -218,34 +200,21 @@ public final class CameraSnapshotEntryStore {
 
     public List<CameraSnapshotEntry> findByPrinterIdAndJobId(String printerId, String jobId) {
         String normalizedPrinterId = normalizePrinterId(printerId);
-        String normalizedJobId = normalizeJobId(jobId);
-        boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = """
-                SELECT
-                    id,
-                    printer_id,
-                    job_id,
-                    snapshot_path,
-                    content_type,
-                    size_bytes,
-                    captured_at,
-                    snapshotd_at,
-                    source_type,
-                    message
+        Long cameraJobId = parseCameraJobId(jobId);
+
+        String sql = selectColumns() + """
                 FROM camera_snapshot_entries
                 WHERE printer_id = ?
-                    AND %s
+                    AND camera_job_id = ?
                 ORDER BY captured_at ASC, id ASC;
-                """.formatted(unassigned ? "job_id IS NULL" : "job_id = ?");
+                """;
 
         try (
                 Connection connection = Database.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)
         ) {
             statement.setString(1, normalizedPrinterId);
-            if (!unassigned) {
-                statement.setString(2, normalizedJobId);
-            }
+            statement.setLong(2, cameraJobId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<CameraSnapshotEntry> entries = new ArrayList<>();
@@ -260,17 +229,15 @@ public final class CameraSnapshotEntryStore {
     }
 
     public int deleteByJobId(String jobId) {
-        String normalizedJobId = normalizeJobId(jobId);
-        boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = "DELETE FROM camera_snapshot_entries WHERE " + (unassigned ? "job_id IS NULL" : "job_id = ?");
+        Long cameraJobId = parseCameraJobId(jobId);
+
+        String sql = "DELETE FROM camera_snapshot_entries WHERE camera_job_id = ?";
 
         try (
                 Connection connection = Database.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)
         ) {
-            if (!unassigned) {
-                statement.setString(1, normalizedJobId);
-            }
+            statement.setLong(1, cameraJobId);
             return statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to delete camera snapshot entries", exception);
@@ -279,50 +246,89 @@ public final class CameraSnapshotEntryStore {
 
     public int deleteByPrinterIdAndJobId(String printerId, String jobId) {
         String normalizedPrinterId = normalizePrinterId(printerId);
-        String normalizedJobId = normalizeJobId(jobId);
-        boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = "DELETE FROM camera_snapshot_entries WHERE printer_id = ? AND "
-                + (unassigned ? "job_id IS NULL" : "job_id = ?");
+        Long cameraJobId = parseCameraJobId(jobId);
+
+        String sql = "DELETE FROM camera_snapshot_entries WHERE printer_id = ? AND camera_job_id = ?";
 
         try (
                 Connection connection = Database.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)
         ) {
             statement.setString(1, normalizedPrinterId);
-            if (!unassigned) {
-                statement.setString(2, normalizedJobId);
-            }
+            statement.setLong(2, cameraJobId);
             return statement.executeUpdate();
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to delete camera snapshot entries", exception);
         }
     }
 
+    private static String selectColumns() {
+        return """
+                SELECT
+                    id,
+                    printer_id,
+                    camera_job_id,
+                    linked_print_job_id,
+                    snapshot_path,
+                    content_type,
+                    size_bytes,
+                    captured_at,
+                    retained_at,
+                    source_type,
+                    message
+                """;
+    }
+
     private static CameraSnapshotEntry mapRow(ResultSet resultSet) throws SQLException {
+        Long cameraJobId = nullableLong(resultSet, "camera_job_id");
+
         return new CameraSnapshotEntry(
                 resultSet.getLong("id"),
                 resultSet.getString("printer_id"),
-                resultSet.getString("job_id"),
+                cameraJobId,
+                resultSet.getString("linked_print_job_id"),
                 resultSet.getString("snapshot_path"),
                 resultSet.getString("content_type"),
                 resultSet.getLong("size_bytes"),
                 Instant.parse(resultSet.getString("captured_at")),
-                Instant.parse(resultSet.getString("snapshotd_at")),
+                Instant.parse(resultSet.getString("retained_at")),
                 resultSet.getString("source_type"),
                 resultSet.getString("message"));
     }
 
-    private static String normalizeJobId(String jobId) {
-        if (jobId == null || jobId.isBlank()) {
-            throw new IllegalArgumentException("jobId must not be blank");
+    private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
+
+        if (resultSet.wasNull()) {
+            return null;
         }
-        return jobId.trim();
+
+        return value;
+    }
+
+    private static Long parseCameraJobId(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            throw new IllegalArgumentException("camera job id must not be blank");
+        }
+
+        try {
+            long parsed = Long.parseLong(jobId.trim());
+
+            if (parsed <= 0L) {
+                throw new IllegalArgumentException("camera job id must be greater than zero");
+            }
+
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("camera job id must be numeric: " + jobId, exception);
+        }
     }
 
     private static String normalizePrinterId(String printerId) {
         if (printerId == null || printerId.isBlank()) {
             throw new IllegalArgumentException("printerId must not be blank");
         }
+
         return printerId.trim();
     }
 }

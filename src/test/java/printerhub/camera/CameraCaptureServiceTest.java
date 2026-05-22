@@ -21,6 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import printerhub.persistence.CameraEvent;
 import printerhub.persistence.CameraEventStore;
+import printerhub.persistence.CameraSnapshotEntry;
+import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadata;
@@ -98,6 +100,30 @@ class CameraCaptureServiceTest {
         List<CameraEvent> events = new CameraEventStore().findRecentByPrinterId("printer-1", 10);
         assertEquals(1, events.size());
         assertEquals(OperationMessages.EVENT_CAMERA_FRAME_CAPTURED, events.get(0).eventType());
+    }
+
+    @Test
+    void captureStoresSnapshotEntryUnderCameraJobId() throws Exception {
+        useDatabase("camera-capture-camera-job.db");
+
+        CameraSettingsService settingsService = settingsService();
+        settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
+
+        CameraCaptureService service = captureService(settingsService);
+
+        CameraCaptureResult result = service.capture("printer-1");
+
+        assertTrue(result.success());
+
+        List<CameraSnapshotEntry> entries = new CameraSnapshotEntryStore().findByPrinterIdAndJobId("printer-1", "1");
+        assertEquals(1, entries.size());
+
+        CameraSnapshotEntry entry = entries.get(0);
+        assertEquals(1L, entry.cameraJobId());
+        assertTrue(entry.linkedPrintJobIdOptional().isEmpty());
+        assertTrue(entry.snapshotPath().contains("/snapshots/1/"));
+        assertFalse(entry.snapshotPath().contains("/unassigned/"));
+        assertTrue(Files.exists(Path.of(entry.snapshotPath())));
     }
 
     @Test

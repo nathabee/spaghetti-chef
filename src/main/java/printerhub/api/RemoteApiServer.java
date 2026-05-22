@@ -76,6 +76,7 @@ import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
 import printerhub.persistence.PrintJobStore;
+import printerhub.camera.CameraJobService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -252,7 +253,7 @@ public final class RemoteApiServer {
                 new printerhub.camera.ImageDeltaFrameAnalyzer(),
                 new printerhub.camera.SpaghettiDetectionService(),
                 cameraSnapshotEntryStore,
-                new PrintJobStore());
+                new CameraJobService());
         this.cameraSnapshotManagementService = new CameraSnapshotManagementService(
                 cameraSettingsService,
                 cameraSnapshotEntryStore);
@@ -1709,7 +1710,7 @@ public final class RemoteApiServer {
             return;
         }
 
-        if ("snapshot".equals(cameraResource)) {
+        if ("snapshots".equals(cameraResource)) {
             if (parts.length == 3) {
                 cameraApiHandler.handleSnapshots(exchange, printerId);
                 return;
@@ -2273,8 +2274,10 @@ public final class RemoteApiServer {
                     .append("\"jobId\":\"").append(escapeJson(summary.jobId())).append("\",")
                     .append("\"fileCount\":").append(summary.fileCount()).append(",")
                     .append("\"totalBytes\":").append(summary.totalBytes()).append(",")
-                    .append("\"firstCapturedAt\":\"").append(escapeJson(summary.firstCapturedAt().toString())).append("\",")
-                    .append("\"lastCapturedAt\":\"").append(escapeJson(summary.lastCapturedAt().toString())).append("\"")
+                    .append("\"firstCapturedAt\":\"").append(escapeJson(summary.firstCapturedAt().toString()))
+                    .append("\",")
+                    .append("\"lastCapturedAt\":\"").append(escapeJson(summary.lastCapturedAt().toString()))
+                    .append("\"")
                     .append("}");
             first = false;
         }
@@ -2301,11 +2304,17 @@ public final class RemoteApiServer {
                 json.append(",");
             }
 
+            String cameraJobKey = entry.cameraJobKey();
+
             json.append("{")
                     .append("\"id\":").append(nullableLong(entry.id())).append(",")
+                    .append("\"type\":\"snapshot\",")
                     .append("\"printerId\":\"").append(escapeJson(entry.printerId())).append("\",")
-                    .append("\"jobId\":").append(nullableString(entry.jobId())).append(",")
-                    .append("\"jobKey\":\"").append(escapeJson(entry.jobKey())).append("\",")
+                    .append("\"cameraJobId\":").append(nullableLong(entry.cameraJobId())).append(",")
+                    .append("\"cameraJobKey\":\"").append(escapeJson(cameraJobKey)).append("\",")
+                    .append("\"linkedPrintJobId\":").append(nullableString(entry.linkedPrintJobId())).append(",")
+                    .append("\"jobId\":").append(nullableString(entry.linkedPrintJobId())).append(",")
+                    .append("\"jobKey\":\"").append(escapeJson(cameraJobKey)).append("\",")
                     .append("\"snapshotPath\":\"").append(escapeJson(entry.snapshotPath())).append("\",")
                     .append("\"contentType\":\"").append(escapeJson(entry.contentType())).append("\",")
                     .append("\"sizeBytes\":").append(entry.sizeBytes()).append(",")
@@ -2314,6 +2323,7 @@ public final class RemoteApiServer {
                     .append("\"sourceType\":").append(nullableString(entry.sourceType())).append(",")
                     .append("\"message\":").append(nullableString(entry.message()))
                     .append("}");
+
             first = false;
         }
 

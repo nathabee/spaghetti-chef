@@ -2931,20 +2931,333 @@ Out of scope:
  
 ---
 
-### 0.4.9 — Code Clean Up
+### 0.4.9 — Camera Job Storage Model And Snapshot Ownership
 
-- check that the code is completely following:
-RuntimeDefaults.java       -> numeric/default runtime values
-OperationMessages.java     -> event names, error keys, fixed message vocabulary
-other java like :
-CameraCaptureService.java  -> orchestration only, no duplicated event constants
+status: in progress
 
-- check that the code is not making saferecord when using the value of an operationmessage : if operation message not exist : code should not compile instead of writing an alternative message
+Purpose:
 
-- check docs updated: README.md, docs/roadmap.md, docs/dashboard.md, docs/specification.md, docs/rest-api.md
+Correct the camera picture/data ownership model before adding delta generation, replay, simulation review, or archive/compression behavior.
 
-- true backend camera-job scheduler if you want it to continue without the browser open.
+The previous camera archive wording was misleading. In practice, the old archive implementation behaved like a retained snapshot timeline. In 0.4.9, capture-time image retention is modeled explicitly as source snapshots owned by a camera job.
 
+Goals:
+
+* remove the active use of archive as a capture-time storage concept
+* keep `latest.jpg`, `previous.jpg`, and `delta.jpg` as volatile live working files
+* introduce a database-owned camera job as the stable owner of retained source snapshots
+* store retained source snapshots under the selected printer and camera job
+* allow standalone camera jobs when no print job is active
+* optionally link a camera job to an active print job when one exists
+* keep camera jobs separate from print execution
+* ensure camera jobs never trigger SD upload, serial commands, printer movement, print start, pause, resume, or cancel behavior
+* persist source snapshot metadata in SQLite while keeping image bytes on disk
+* keep `Capture interval seconds` as the source snapshot capture cadence
+* keep `Retained snapshots` as the maximum number of retained source snapshots per camera job
+* update admin Picture/Data Management terminology from archive-oriented wording to camera-job and snapshot-oriented wording
+
+Filesystem target:
+
+```text
+data/camera/<printerId>/
+  latest.jpg
+  previous.jpg
+  delta.jpg
+
+  snapshots/
+    <cameraJobId>/
+      <sequence>_<timestamp>.jpg
+      <sequence>_<timestamp>.jpg
+````
+
+Database direction:
+
+```text
+camera_jobs
+  id
+  printer_id
+  linked_print_job_id
+  analysis_session_id
+  state
+  started_at
+  stopped_at
+  capture_interval_seconds
+  retained_snapshots
+  source_type
+  source_description
+  snapshot_directory
+  message
+  created_at
+  updated_at
+```
+
+```text
+camera_snapshot_entries
+  id
+  printer_id
+  camera_job_id
+  linked_print_job_id
+  snapshot_path
+  content_type
+  size_bytes
+  captured_at
+  retained_at
+  source_type
+  message
+```
+
+API direction:
+
+```text
+POST /printers/{printerId}/camera/snapshot
+  Capture one frame.
+
+GET /printers/{printerId}/camera/snapshot
+  Return latest.jpg.
+
+GET /printers/{printerId}/camera/snapshots
+  List retained source snapshots.
+
+GET /printers/{printerId}/camera/snapshots/{fileId}
+  Serve one retained source snapshot file.
+
+GET /admin/camera/snapshot/jobs?printerId=<printerId>
+  List camera jobs for a printer.
+
+GET /admin/camera/snapshot/jobs/{cameraJobId}/timeline?printerId=<printerId>
+  List source snapshots for one camera job.
+
+GET /admin/camera/snapshot/files/{snapshotEntryId}
+  Serve one retained source snapshot by metadata id.
+
+DELETE /admin/camera/snapshot/jobs/{cameraJobId}?printerId=<printerId>
+  Delete one camera job's retained snapshot data and metadata.
+```
+
+Acceptance checklist:
+
+* `POST /printers/{printerId}/camera/snapshot` still captures one frame
+* `GET /printers/{printerId}/camera/snapshot` still returns `latest.jpg`
+* a capture creates or reuses a camera job
+* every retained source snapshot has a `camera_job_id`
+* standalone camera capture works without an active print job
+* if an active print job exists, the camera job stores the linked print job id
+* source snapshots are stored under `snapshots/<cameraJobId>/`
+* capture does not create archive files
+* admin camera snapshot jobs list camera jobs, not fake `unassigned` groups
+* admin snapshot timeline reads snapshots by camera job id
+* deleting a camera job deletes only that camera job's snapshot files and metadata
+* `mvn test` passes
+
+Out of scope:
+
+* delta set generation
+* spaghetti calculation runs
+* replay play/pause
+* real archive/compression
+* automatic printer pause/abort behavior
+* model training
+* replacing the current image-delta heuristic
+
+---
+
+### 0.4.10 — Camera Delta Sets And Calculation Runs
+
+status: planned
+
+Purpose:
+
+Generate reusable delta sets from the retained source snapshots of a selected camera job, then run spaghetti-detection calculations from selected delta sets.
+
+This step depends on the 0.4.9 camera job ownership model.
+
+Goals:
+
+* select a printer and camera job as the source scope
+* generate one or more delta sets from a camera job's retained source snapshots
+* define a delta snapshot step parameter
+* store delta files separately from source snapshots
+* persist delta set metadata and delta frame metadata
+* run spaghetti calculation from a selected delta set
+* allow several calculation runs for the same delta set
+* keep previous calculation runs instead of overwriting them
+* keep delta generation separate from spaghetti calculation
+
+Delta snapshot step rule:
+
+```text
+If step = 1:
+  S1 -> S2
+  S2 -> S3
+  S3 -> S4
+
+If step = 10:
+  S1  -> S11
+  S11 -> S21
+  S21 -> S31
+```
+
+Intermediate snapshots are skipped for that delta set.
+
+Filesystem target:
+
+```text
+data/camera/<printerId>/
+  deltas/
+    <cameraJobId>/
+      <deltaSetId>/
+        000001_000011_delta.jpg
+        000011_000021_delta.jpg
+        000021_000031_delta.jpg
+```
+
+Planned metadata:
+
+```text
+CameraDeltaSet
+  id
+  printerId
+  cameraJobId
+  methodName
+  deltaSnapshotStep
+  sourceSnapshotCount
+  generatedDeltaCount
+  createdAt
+  message
+```
+
+```text
+CameraDeltaFrame
+  id
+  deltaSetId
+  printerId
+  cameraJobId
+  fromSnapshotId
+  toSnapshotId
+  fromCapturedAt
+  toCapturedAt
+  deltaPath
+  deltaScore
+  changedPixelRatio
+  averagePixelDelta
+  createdAt
+```
+
+```text
+CameraCalculationRun
+  id
+  printerId
+  cameraJobId
+  deltaSetId
+  methodName
+  parameterJson
+  createdAt
+  resultCount
+  message
+```
+
+```text
+CameraCalculationResult
+  id
+  calculationRunId
+  deltaFrameId
+  confidence
+  suspected
+  reasonCodes
+  message
+  createdAt
+```
+
+Acceptance checklist:
+
+* admin can select printer and camera job
+* admin can generate a delta set from that camera job
+* delta snapshot step 1 compares consecutive snapshots
+* delta snapshot step 10 compares every tenth retained snapshot pair
+* several delta sets can exist for the same camera job
+* admin can run a calculation from one selected delta set
+* several calculation runs can exist for the same delta set
+* calculation runs do not overwrite previous runs
+
+Out of scope:
+
+* live printer safety action
+* automatic pause/abort
+* replay UI polish
+* archive/compression
+
+---
+
+### 0.4.11 — Replay, Compression, And Simulation Review
+
+status: planned
+
+Purpose:
+
+Add admin review tools for camera jobs, source snapshots, generated delta sets, and calculation results. This step introduces replay and explicit compression/archive actions after the storage and calculation models are stable.
+
+Goals:
+
+* replay source snapshots as an accelerated image sequence
+* replay delta frames from a selected delta set
+* replay calculation results over time
+* inspect selected frame metadata
+* support play, pause, stop, and replay speed controls
+* introduce explicit admin compression/archive behavior
+* prevent compression from touching live working files
+* clearly warn when compression deletes source data
+* invalidate or remove dependent delta sets and calculation runs when source snapshots are deleted
+
+Replay modes:
+
+```text
+1. Snapshot replay
+   Shows raw object creation from source snapshots.
+
+2. Delta replay
+   Shows visual difference evolution from a selected delta set.
+
+3. Calculation replay
+   Shows delta frames together with numeric detection results.
+```
+
+Replay controls:
+
+```text
+Play
+Pause
+Stop
+Replay display ms
+Frame counter
+Selected frame preview
+Selected metadata panel
+```
+
+Compression rule:
+
+Compression is a future explicit admin action. It is not capture-time behavior.
+
+If source snapshots are compressed or deleted, all dependent delta sets and calculation runs must be deleted or marked invalid.
+
+Admin warning:
+
+```text
+This operation deletes source snapshots and may invalidate delta sets and calculation runs.
+Deleted source snapshots cannot be reconstructed.
+```
+
+Acceptance checklist:
+
+* admin can replay source snapshots
+* admin can replay delta sets
+* admin can inspect calculation results over time
+* replay display ms controls playback speed
+* compression requires confirmation
+* compression never touches `latest.jpg`, `previous.jpg`, or `delta.jpg`
+* compression never deletes files outside the selected printer/camera-job storage
+* deleting source snapshots invalidates or deletes dependent derived data
+
+ 
 
 
 

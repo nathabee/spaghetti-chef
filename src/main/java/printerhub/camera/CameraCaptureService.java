@@ -14,14 +14,13 @@ import java.util.Optional;
 
 import printerhub.OperationMessages;
 import printerhub.PrinterHubLog;
-import printerhub.job.PrintJob;
 import printerhub.persistence.CameraSnapshotEntry;
 import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSnapshotMetadata;
 import printerhub.persistence.CameraSnapshotMetadataStore;
-import printerhub.persistence.PrintJobStore;
+import printerhub.persistence.CameraJob;
 
 public final class CameraCaptureService {
 
@@ -32,7 +31,7 @@ public final class CameraCaptureService {
     private final FrameAnalyzer frameAnalyzer;
     private final SpaghettiDetectionService spaghettiDetectionService;
     private final CameraSnapshotEntryStore snapshotEntryStore;
-    private final PrintJobStore printJobStore;
+    private final CameraJobService cameraJobService;
 
     public CameraCaptureService(
             CameraSettingsService settingsService,
@@ -62,7 +61,7 @@ public final class CameraCaptureService {
                 new ImageDeltaFrameAnalyzer(),
                 new SpaghettiDetectionService(),
                 new CameraSnapshotEntryStore(),
-                new PrintJobStore());
+                new CameraJobService());
     }
 
     public CameraCaptureService(
@@ -82,7 +81,7 @@ public final class CameraCaptureService {
                 frameAnalyzer,
                 spaghettiDetectionService,
                 new CameraSnapshotEntryStore(),
-                new PrintJobStore());
+                new CameraJobService());
     }
 
     public CameraCaptureService(
@@ -94,7 +93,7 @@ public final class CameraCaptureService {
             FrameAnalyzer frameAnalyzer,
             SpaghettiDetectionService spaghettiDetectionService,
             CameraSnapshotEntryStore snapshotEntryStore,
-            PrintJobStore printJobStore) {
+            CameraJobService cameraJobService) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
@@ -103,7 +102,7 @@ public final class CameraCaptureService {
         this.frameAnalyzer = Objects.requireNonNull(frameAnalyzer, "frameAnalyzer");
         this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
         this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
-        this.printJobStore = Objects.requireNonNull(printJobStore, "printJobStore");
+        this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
     }
 
     public CameraStatus status(String printerId) {
@@ -264,80 +263,60 @@ public final class CameraCaptureService {
         return new NoopCameraDevice("unsupported-camera-source:" + settings.sourceType().wireValue());
     }
 
- private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
-    Path printerDirectory = CameraStoragePaths
-            .resolveBaseDirectory(settings.storageDirectory())
-            .resolve(safePathSegment(frame.printerId()));
+    private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
+        CameraJob cameraJob = cameraJobService.getOrCreateActive(settings);
 
-    Optional<String> activeJobId = activePrintJobId(settings.printerId());
-    String snapshotJobSegment = safePathSegment(activeJobId.orElse("unassigned"));
+        String extension = extensionFor(frame.contentType());
+        Path printerDirectory = CameraStoragePaths.printerDirectory(settings.storageDirectory(), frame.printerId());
+        Path snapshotsDirectory = CameraStoragePaths
+                .snapshotsDirectory(settings.storageDirectory(), frame.printerId(), cameraJob.requireId());
+        Path snapshotPath = CameraStoragePaths
+                .snapshotPath(settings.storageDirectory(), frame.printerId(), cameraJob.requireId(), frame.capturedAt(), extension);
+        Path latestPath = printerDirectory.resolve("latest" + extension);
+        Path previousPath = printerDirectory.resolve("previous" + extension);
+        Path deltaPath = printerDirectory.resolve("delta.jpg");
 
-    Path snapshotsDirectory = printerDirectory
-            .resolve("snapshots")
-            .resolve(snapshotJobSegment);
-
-    String extension = extensionFor(frame.contentType());
-    String snapshotFileName = safeTimestamp(frame.capturedAt()) + "_"
-            + snapshotJobSegment + extension;
-
-    Path snapshotPath = snapshotsDirectory.resolve(snapshotFileName);
-    Path latestPath = printerDirectory.resolve("latest" + extension);
-    Path previousPath = printerDirectory.resolve("previous" + extension);
-    Path deltaPath = printerDirectory.resolve("delta.jpg");
-
-    try {
-        Files.createDirectories(printerDirectory);
-        Files.createDirectories(snapshotsDirectory);
-
-        if (Files.isRegularFile(latestPath)) {
-            Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        Files.write(snapshotPath, frame.bytes());
-        Files.write(latestPath, frame.bytes());
-
-        enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
-
-        snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
-                frame.printerId(),
-                frame.capturedAt(),
-                frame.contentType(),
-                snapshotPath.toString(),
-                frame.width().isPresent() ? frame.width().getAsInt() : null,
-                frame.height().isPresent() ? frame.height().getAsInt() : null,
-                frame.sourceDescription().orElse(null)));
-
-        snapshotEntryStore.save(CameraSnapshotEntry.captured(
-                frame.printerId(),
-                activeJobId.orElse(null),
-                snapshotPath.toString(),
-                frame.contentType(),
-                Files.size(snapshotPath),
-                frame.capturedAt(),
-                clock.instant(),
-                settings.sourceType().wireValue(),
-                frame.sourceDescription().orElse(null)));
-
-        return new PersistedCameraFramePaths(
-                snapshotPath,
-                latestPath,
-                previousPath,
-                deltaPath);
-    } catch (IOException exception) {
-        throw new IllegalStateException("Failed to persist camera frame", exception);
-    }
-}
-    private Optional<String> activePrintJobId(String printerId) {
         try {
-            return printJobStore
-                    .findActivePrintFileJobByPrinterId(printerId)
-                    .map(PrintJob::id);
-        } catch (RuntimeException exception) {
-            PrinterHubLog.error("Camera snapshot could not resolve active print job printerId="
-                    + printerId
-                    + ": "
-                    + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
-            return Optional.empty();
+            Files.createDirectories(printerDirectory);
+            Files.createDirectories(snapshotsDirectory);
+
+            if (Files.isRegularFile(latestPath)) {
+                Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            Files.write(snapshotPath, frame.bytes());
+            Files.write(latestPath, frame.bytes());
+
+            enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
+
+            snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
+                    frame.printerId(),
+                    frame.capturedAt(),
+                    frame.contentType(),
+                    snapshotPath.toString(),
+                    frame.width().isPresent() ? frame.width().getAsInt() : null,
+                    frame.height().isPresent() ? frame.height().getAsInt() : null,
+                    frame.sourceDescription().orElse(null)));
+
+            snapshotEntryStore.save(CameraSnapshotEntry.captured(
+                    frame.printerId(),
+                    cameraJob.requireId(),
+                    cameraJob.linkedPrintJobId().orElse(null),
+                    snapshotPath.toString(),
+                    frame.contentType(),
+                    Files.size(snapshotPath),
+                    frame.capturedAt(),
+                    clock.instant(),
+                    settings.sourceType().wireValue(),
+                    frame.sourceDescription().orElse(null)));
+
+            return new PersistedCameraFramePaths(
+                    snapshotPath,
+                    latestPath,
+                    previousPath,
+                    deltaPath);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to persist camera frame", exception);
         }
     }
 
@@ -437,20 +416,6 @@ public final class CameraCaptureService {
         }
 
         return ".jpg";
-    }
-
-    private static String safeTimestamp(Instant instant) {
-        return instant.toString().replaceAll("[^A-Za-z0-9._-]", "-");
-    }
-
-    private static String safePathSegment(String value) {
-        String normalized = requirePrinterId(value).replaceAll("[^A-Za-z0-9._-]", "_");
-
-        if (normalized.isBlank()) {
-            throw new IllegalArgumentException("printerId must not be blank");
-        }
-
-        return normalized;
     }
 
     private static String requirePrinterId(String printerId) {

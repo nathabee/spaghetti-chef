@@ -7,7 +7,8 @@ import java.util.Optional;
 public record CameraSnapshotEntry(
         Long id,
         String printerId,
-        String jobId,
+        Long cameraJobId,
+        String linkedPrintJobId,
         String snapshotPath,
         String contentType,
         long sizeBytes,
@@ -20,6 +21,9 @@ public record CameraSnapshotEntry(
         if (printerId == null || printerId.isBlank()) {
             throw new IllegalArgumentException("printerId must not be blank");
         }
+        if (cameraJobId != null && cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
         if (snapshotPath == null || snapshotPath.isBlank()) {
             throw new IllegalArgumentException("snapshotPath must not be blank");
         }
@@ -31,7 +35,7 @@ public record CameraSnapshotEntry(
         }
 
         printerId = printerId.trim();
-        jobId = jobId == null || jobId.isBlank() ? null : jobId.trim();
+        linkedPrintJobId = linkedPrintJobId == null || linkedPrintJobId.isBlank() ? null : linkedPrintJobId.trim();
         snapshotPath = snapshotPath.trim();
         contentType = contentType.trim();
         capturedAt = Objects.requireNonNull(capturedAt, "capturedAt");
@@ -40,12 +44,16 @@ public record CameraSnapshotEntry(
         message = message == null || message.isBlank() ? null : message.trim();
     }
 
-    public Optional<String> jobIdOptional() {
-        return Optional.ofNullable(jobId);
+    public Optional<Long> cameraJobIdOptional() {
+        return Optional.ofNullable(cameraJobId);
     }
 
-    public String jobKey() {
-        return jobId == null ? "unassigned" : jobId;
+    public Optional<String> linkedPrintJobIdOptional() {
+        return Optional.ofNullable(linkedPrintJobId);
+    }
+
+    public String cameraJobKey() {
+        return cameraJobId == null ? "unassigned" : Long.toString(cameraJobId);
     }
 
     public Optional<String> sourceTypeOptional() {
@@ -58,7 +66,8 @@ public record CameraSnapshotEntry(
 
     public static CameraSnapshotEntry captured(
             String printerId,
-            String jobId,
+            Long cameraJobId,
+            String linkedPrintJobId,
             String snapshotPath,
             String contentType,
             long sizeBytes,
@@ -69,7 +78,8 @@ public record CameraSnapshotEntry(
         return new CameraSnapshotEntry(
                 null,
                 printerId,
-                jobId,
+                cameraJobId,
+                linkedPrintJobId,
                 snapshotPath,
                 contentType,
                 sizeBytes,
