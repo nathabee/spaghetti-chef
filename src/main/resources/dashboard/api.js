@@ -390,12 +390,12 @@ export async function getCameraSnapshotFiles(printerId, from, to) {
   }
 
   const query = params.toString();
-  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/snapshot${query ? `?${query}` : ""}`);
+  const data = await requestJson(`/printers/${encodeURIComponent(printerId)}/camera/snapshots${query ? `?${query}` : ""}`);
   return Array.isArray(data.files) ? data.files : [];
 }
 
 export function cameraSnapshotFileUrl(printerId, fileId) {
-  return `/printers/${encodeURIComponent(printerId)}/camera/snapshot/${encodeURIComponent(fileId)}?t=${Date.now()}`;
+  return `/printers/${encodeURIComponent(printerId)}/camera/snapshots/${encodeURIComponent(fileId)}?t=${Date.now()}`;
 }
 
 export async function getCameraSnapshotJobs(printerId) {

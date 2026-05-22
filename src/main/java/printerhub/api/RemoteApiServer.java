@@ -2271,13 +2271,24 @@ public final class RemoteApiServer {
             }
 
             json.append("{")
+                    .append("\"id\":").append(nullableLong(summary.cameraJobId())).append(",")
+                    .append("\"cameraJobId\":").append(nullableLong(summary.cameraJobId())).append(",")
+                    .append("\"cameraJobKey\":\"").append(escapeJson(summary.jobId())).append("\",")
                     .append("\"jobId\":\"").append(escapeJson(summary.jobId())).append("\",")
+                    .append("\"printerId\":").append(nullableString(summary.printerId())).append(",")
+                    .append("\"linkedPrintJobId\":").append(nullableString(summary.linkedPrintJobId())).append(",")
+                    .append("\"state\":").append(nullableString(summary.state() == null ? null : summary.state().name())).append(",")
+                    .append("\"startedAt\":").append(nullableString(instantString(summary.startedAt()))).append(",")
+                    .append("\"stoppedAt\":").append(nullableString(instantString(summary.stoppedAt()))).append(",")
+                    .append("\"captureIntervalSeconds\":").append(summary.captureIntervalSeconds()).append(",")
+                    .append("\"retainedSnapshots\":").append(summary.retainedSnapshots()).append(",")
+                    .append("\"sourceType\":").append(nullableString(summary.sourceType())).append(",")
+                    .append("\"sourceDescription\":").append(nullableString(summary.sourceDescription())).append(",")
+                    .append("\"snapshotDirectory\":").append(nullableString(summary.snapshotDirectory())).append(",")
                     .append("\"fileCount\":").append(summary.fileCount()).append(",")
                     .append("\"totalBytes\":").append(summary.totalBytes()).append(",")
-                    .append("\"firstCapturedAt\":\"").append(escapeJson(summary.firstCapturedAt().toString()))
-                    .append("\",")
-                    .append("\"lastCapturedAt\":\"").append(escapeJson(summary.lastCapturedAt().toString()))
-                    .append("\"")
+                    .append("\"firstCapturedAt\":").append(nullableString(instantString(summary.firstCapturedAt()))).append(",")
+                    .append("\"lastCapturedAt\":").append(nullableString(instantString(summary.lastCapturedAt())))
                     .append("}");
             first = false;
         }
@@ -2584,6 +2595,10 @@ public final class RemoteApiServer {
         }
 
         return "\"" + escapeJson(value) + "\"";
+    }
+
+    private String instantString(Instant instant) {
+        return instant == null ? null : instant.toString();
     }
 
     private String requiredJsonString(String body, String fieldName) {

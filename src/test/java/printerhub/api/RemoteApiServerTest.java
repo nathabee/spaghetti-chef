@@ -21,6 +21,8 @@ import printerhub.job.PrinterActionMapper;
 import printerhub.job.PrinterSdFileService;
 import printerhub.monitoring.PrinterMonitoringScheduler;
 import printerhub.persistence.DatabaseInitializer;
+import printerhub.persistence.CameraJob;
+import printerhub.persistence.CameraJobStore;
 import printerhub.persistence.CameraSnapshotEntry;
 import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.MonitoringRulesStore;
@@ -1156,10 +1158,23 @@ class RemoteApiServerTest {
             String printer1CameraJobId = extractJsonString(jobsResponse.body(), "jobId");
             assertNotNull(printer1CameraJobId);
 
+            CameraJob printer2CameraJob = new CameraJobStore().save(CameraJob.running(
+                    "printer-2",
+                    null,
+                    null,
+                    Instant.parse("2026-05-21T12:00:00Z"),
+                    5,
+                    20,
+                    "simulated",
+                    "default",
+                    cameraStorageDirectory.resolve("printer-2").resolve("snapshots").resolve("2").toString(),
+                    "test"));
+            long printer2CameraJobId = printer2CameraJob.requireId();
+
             Path printer2SnapshotDirectory = cameraStorageDirectory
                     .resolve("printer-2")
                     .resolve("snapshots")
-                    .resolve("2");
+                    .resolve(Long.toString(printer2CameraJobId));
             Files.createDirectories(printer2SnapshotDirectory);
 
             Path printer2SnapshotPath = printer2SnapshotDirectory.resolve("printer-2-example.jpg");
@@ -1167,7 +1182,7 @@ class RemoteApiServerTest {
 
             new CameraSnapshotEntryStore().save(CameraSnapshotEntry.captured(
                     "printer-2",
-                    2L,
+                    printer2CameraJobId,
                     null,
                     printer2SnapshotPath.toString(),
                     "image/jpeg",
@@ -1222,7 +1237,7 @@ class RemoteApiServerTest {
             HttpResponse<String> secondPrinterJobsResponse = context
                     .get("/admin/camera/snapshot/jobs?printerId=printer-2");
             assertEquals(200, secondPrinterJobsResponse.statusCode());
-            assertTrue(secondPrinterJobsResponse.body().contains("\"jobId\":\"2\""));
+            assertTrue(secondPrinterJobsResponse.body().contains("\"jobId\":\"" + printer2CameraJobId + "\""));
             assertTrue(secondPrinterJobsResponse.body().contains("\"fileCount\":1"));
         } finally {
             context.close();

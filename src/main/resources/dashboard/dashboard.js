@@ -274,7 +274,9 @@ async function handleAdminCameraDeleteJob(jobId) {
     return;
   }
 
-  const confirmed = window.confirm(`Delete camera snapshot files for printer ${state.adminCameraPrinterId}, job ${jobId}?`);
+  const confirmed = window.confirm(
+    `Delete retained source snapshots for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
+  );
   if (!confirmed) {
     return;
   }

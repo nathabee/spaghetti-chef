@@ -30,7 +30,7 @@ export function renderAdminCameraDataPage(
       <div class="section-header compact">
         <div>
           <h3>Picture/Data Management</h3>
-          <p class="placeholder-caption">Choose one printer. Snapshot jobs, replay, cleanup, and recalculation are scoped to that printer.</p>
+          <p class="placeholder-caption">Choose one printer. Camera jobs, retained snapshots, cleanup, and future recalculation are scoped to that printer.</p>
         </div>
         <span class="badge badge-real">admin</span>
       </div>
@@ -47,7 +47,7 @@ export function renderAdminCameraDataPage(
         <div class="section-header compact">
           <div>
             <h3>Camera snapshot jobs</h3>
-            <p class="placeholder-caption">Snapshot rows are grouped by print job id or unassigned captures for the selected printer.</p>
+            <p class="placeholder-caption">Retained source snapshots are grouped by camera job for the selected printer.</p>
           </div>
           <span class="badge badge-real">live</span>
         </div>
@@ -58,7 +58,7 @@ export function renderAdminCameraDataPage(
         <div class="section-header compact">
           <div>
             <h3>Job actions</h3>
-            <p class="placeholder-caption">Load a job timeline, select frames, preview recalculation state, or delete snapshot data after confirmation.</p>
+            <p class="placeholder-caption">Load a camera job timeline, select frames, preview recalculation state, or delete retained source snapshots after confirmation.</p>
           </div>
           <span class="badge badge-real">admin</span>
         </div>
@@ -72,7 +72,7 @@ export function renderAdminCameraDataPage(
         <div class="section-header compact">
           <div>
             <h3>Replay timeline</h3>
-            <p class="placeholder-caption">Select a row to inspect its snapshotd image and metadata.</p>
+            <p class="placeholder-caption">Select a row to inspect its retained source snapshot and metadata.</p>
           </div>
           <span class="badge badge-real">${escapeHtml(selectedJobId || "no job")}</span>
         </div>
@@ -115,7 +115,9 @@ function renderJobTable(jobs) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Job id</th>
+            <th>Camera job</th>
+            <th>State</th>
+            <th>Linked print job</th>
             <th>Files</th>
             <th>Bytes</th>
             <th>First capture</th>
@@ -124,20 +126,25 @@ function renderJobTable(jobs) {
           </tr>
         </thead>
         <tbody>
-          ${jobs.map((job) => `
+          ${jobs.map((job) => {
+            const cameraJobId = cameraJobKey(job);
+            return `
             <tr>
-              <td>${escapeHtml(job.jobId ?? "unassigned")}</td>
+              <td>${escapeHtml(cameraJobId)}</td>
+              <td>${escapeHtml(job.state ?? "-")}</td>
+              <td>${escapeHtml(job.linkedPrintJobId ?? "-")}</td>
               <td>${escapeHtml(String(job.fileCount ?? 0))}</td>
               <td>${escapeHtml(String(job.totalBytes ?? 0))}</td>
               <td>${escapeHtml(job.firstCapturedAt ?? "-")}</td>
               <td>${escapeHtml(job.lastCapturedAt ?? "-")}</td>
               <td>
-                <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(job.jobId ?? "unassigned")}">Load</button>
-                <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(job.jobId ?? "unassigned")}">Recalculate</button>
-                <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(job.jobId ?? "unassigned")}">Delete</button>
+                <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(cameraJobId)}">Load</button>
+                <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(cameraJobId)}">Recalculate</button>
+                <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(cameraJobId)}">Delete</button>
               </td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     </div>
@@ -156,7 +163,7 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(selectedJobId)}">Reload timeline</button>
       <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(selectedJobId)}">Preview recalculation</button>
-      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete job snapshot</button>
+      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete retained snapshots</button>
     </div>
   `;
 }
@@ -172,7 +179,7 @@ function renderTimelineTable(timeline, selectedEntryId) {
         <thead>
           <tr>
             <th>Captured at</th>
-            <th>Snapshotd at</th>
+            <th>Retained at</th>
             <th>Bytes</th>
             <th>Source</th>
             <th></th>
@@ -212,13 +219,27 @@ function renderSelectedEntry(timeline, selectedEntryId, snapshotEntryUrl) {
     </figure>
     <dl class="metric-list">
       <div><dt>Printer</dt><dd>${escapeHtml(entry.printerId ?? "-")}</dd></div>
-      <div><dt>Job</dt><dd>${escapeHtml(entry.jobKey ?? entry.jobId ?? "unassigned")}</dd></div>
+      <div><dt>Camera job</dt><dd>${escapeHtml(entry.cameraJobKey ?? entry.cameraJobId ?? entry.jobKey ?? "-")}</dd></div>
+      <div><dt>Linked print job</dt><dd>${escapeHtml(entry.linkedPrintJobId ?? "-")}</dd></div>
       <div><dt>Captured at</dt><dd>${escapeHtml(entry.capturedAt ?? "-")}</dd></div>
-      <div><dt>Snapshotd at</dt><dd>${escapeHtml(entry.retainedAt ?? "-")}</dd></div>
+      <div><dt>Retained at</dt><dd>${escapeHtml(entry.retainedAt ?? "-")}</dd></div>
       <div><dt>Content type</dt><dd>${escapeHtml(entry.contentType ?? "-")}</dd></div>
       <div><dt>Message</dt><dd>${escapeHtml(entry.message ?? "-")}</dd></div>
     </dl>
   `;
+}
+
+function cameraJobKey(job) {
+  if (job.cameraJobKey != null) {
+    return String(job.cameraJobKey);
+  }
+  if (job.cameraJobId != null) {
+    return String(job.cameraJobId);
+  }
+  if (job.jobId != null) {
+    return String(job.jobId);
+  }
+  return "";
 }
 
 function renderActionResult(result) {

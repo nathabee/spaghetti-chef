@@ -5,9 +5,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import printerhub.persistence.CameraJob;
+import printerhub.persistence.CameraJobStore;
 import printerhub.persistence.CameraSnapshotEntry;
 import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraSnapshotJobSummary;
@@ -17,20 +22,31 @@ public final class CameraSnapshotManagementService {
 
     private final CameraSettingsService settingsService;
     private final CameraSnapshotEntryStore snapshotEntryStore;
+    private final CameraJobStore cameraJobStore;
 
     public CameraSnapshotManagementService(
             CameraSettingsService settingsService,
             CameraSnapshotEntryStore snapshotEntryStore) {
+        this(settingsService, snapshotEntryStore, new CameraJobStore());
+    }
+
+    public CameraSnapshotManagementService(
+            CameraSettingsService settingsService,
+            CameraSnapshotEntryStore snapshotEntryStore,
+            CameraJobStore cameraJobStore) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
+        this.cameraJobStore = Objects.requireNonNull(cameraJobStore, "cameraJobStore");
     }
 
     public List<CameraSnapshotJobSummary> listJobs() {
-        return snapshotEntryStore.findJobSummaries();
+        return cameraJobSummaries(cameraJobStore.findAll(), snapshotEntryStore.findJobSummaries());
     }
 
     public List<CameraSnapshotJobSummary> listJobs(String printerId) {
-        return snapshotEntryStore.findJobSummariesByPrinterId(printerId);
+        return cameraJobSummaries(
+                cameraJobStore.findByPrinterId(printerId),
+                snapshotEntryStore.findJobSummariesByPrinterId(printerId));
     }
 
     public List<CameraSnapshotEntry> entriesForJob(String jobId) {
@@ -139,5 +155,19 @@ public final class CameraSnapshotManagementService {
             throw new IllegalArgumentException("value must not be blank");
         }
         return value.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private static List<CameraSnapshotJobSummary> cameraJobSummaries(
+            List<CameraJob> jobs,
+            List<CameraSnapshotJobSummary> snapshotSummaries) {
+        Map<String, CameraSnapshotJobSummary> summariesByJobId = snapshotSummaries.stream()
+                .collect(Collectors.toMap(CameraSnapshotJobSummary::jobId, Function.identity(), (left, right) -> left));
+
+        return jobs.stream()
+                .map(job -> CameraSnapshotJobSummary.fromCameraJob(
+                        job,
+                        summariesByJobId.get(Long.toString(job.requireId()))))
+                .filter(summary -> summary.fileCount() > 0)
+                .toList();
     }
 }

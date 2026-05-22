@@ -185,6 +185,29 @@ public final class CameraJobStore {
         }
     }
 
+    public List<CameraJob> findAll() {
+        String sql = selectColumns() + """
+                FROM camera_jobs
+                ORDER BY id DESC;
+                """;
+
+        List<CameraJob> jobs = new ArrayList<>();
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()
+        ) {
+            while (resultSet.next()) {
+                jobs.add(mapRow(resultSet));
+            }
+
+            return jobs;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera jobs", exception);
+        }
+    }
+
     public CameraJob updateSnapshotDirectory(long id, String snapshotDirectory, Instant updatedAt) {
         CameraJob current = findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("camera job not found: " + id));
