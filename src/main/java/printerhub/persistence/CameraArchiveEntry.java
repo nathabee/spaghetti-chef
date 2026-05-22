@@ -4,24 +4,24 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-public record CameraArchiveEntry(
+public record CameraSnapshotEntry(
         Long id,
         String printerId,
         String jobId,
-        String archivePath,
+        String snapshotPath,
         String contentType,
         long sizeBytes,
         Instant capturedAt,
-        Instant archivedAt,
+        Instant retainedAt,
         String sourceType,
         String message
 ) {
-    public CameraArchiveEntry {
+    public CameraSnapshotEntry {
         if (printerId == null || printerId.isBlank()) {
             throw new IllegalArgumentException("printerId must not be blank");
         }
-        if (archivePath == null || archivePath.isBlank()) {
-            throw new IllegalArgumentException("archivePath must not be blank");
+        if (snapshotPath == null || snapshotPath.isBlank()) {
+            throw new IllegalArgumentException("snapshotPath must not be blank");
         }
         if (contentType == null || contentType.isBlank()) {
             throw new IllegalArgumentException("contentType must not be blank");
@@ -32,10 +32,10 @@ public record CameraArchiveEntry(
 
         printerId = printerId.trim();
         jobId = jobId == null || jobId.isBlank() ? null : jobId.trim();
-        archivePath = archivePath.trim();
+        snapshotPath = snapshotPath.trim();
         contentType = contentType.trim();
         capturedAt = Objects.requireNonNull(capturedAt, "capturedAt");
-        archivedAt = Objects.requireNonNull(archivedAt, "archivedAt");
+        retainedAt = Objects.requireNonNull(retainedAt, "retainedAt");
         sourceType = sourceType == null || sourceType.isBlank() ? null : sourceType.trim();
         message = message == null || message.isBlank() ? null : message.trim();
     }
@@ -56,25 +56,25 @@ public record CameraArchiveEntry(
         return Optional.ofNullable(message);
     }
 
-    public static CameraArchiveEntry captured(
+    public static CameraSnapshotEntry captured(
             String printerId,
             String jobId,
-            String archivePath,
+            String snapshotPath,
             String contentType,
             long sizeBytes,
             Instant capturedAt,
-            Instant archivedAt,
+            Instant retainedAt,
             String sourceType,
             String message) {
-        return new CameraArchiveEntry(
+        return new CameraSnapshotEntry(
                 null,
                 printerId,
                 jobId,
-                archivePath,
+                snapshotPath,
                 contentType,
                 sizeBytes,
                 capturedAt,
-                archivedAt,
+                retainedAt,
                 sourceType,
                 message);
     }

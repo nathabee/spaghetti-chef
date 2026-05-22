@@ -36,7 +36,7 @@ export const state = {
   securityRoles: [],
   monitoringOverview: null,
   operatorAuditEvents: [],
-  cameraArchiveJobs: [],
+  cameraSnapshotJobs: [],
   adminCameraTimeline: [],
   adminCameraSelectedJobId: null,
   adminCameraSelectedEntryId: null,
@@ -133,8 +133,8 @@ export function setOperatorAuditEvents(events) {
   state.operatorAuditEvents = Array.isArray(events) ? events : [];
 }
 
-export function setCameraArchiveJobs(jobs) {
-  state.cameraArchiveJobs = Array.isArray(jobs) ? jobs : [];
+export function setCameraSnapshotJobs(jobs) {
+  state.cameraSnapshotJobs = Array.isArray(jobs) ? jobs : [];
 }
 
 export function setAdminCameraPrinter(printerId) {

@@ -10,22 +10,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public final class CameraArchiveEntryStore {
+public final class CameraSnapshotEntryStore {
 
-    public CameraArchiveEntry save(CameraArchiveEntry entry) {
+    public CameraSnapshotEntry save(CameraSnapshotEntry entry) {
         if (entry == null) {
-            throw new IllegalArgumentException("camera archive entry must not be null");
+            throw new IllegalArgumentException("camera snapshot entry must not be null");
         }
 
         String sql = """
-                INSERT INTO camera_archive_entries (
+                INSERT INTO camera_snapshot_entries (
                     printer_id,
                     job_id,
-                    archive_path,
+                    snapshot_path,
                     content_type,
                     size_bytes,
                     captured_at,
-                    archived_at,
+                    snapshotd_at,
                     source_type,
                     message
                 )
@@ -38,26 +38,26 @@ public final class CameraArchiveEntryStore {
         ) {
             statement.setString(1, entry.printerId());
             statement.setString(2, entry.jobId());
-            statement.setString(3, entry.archivePath());
+            statement.setString(3, entry.snapshotPath());
             statement.setString(4, entry.contentType());
             statement.setLong(5, entry.sizeBytes());
             statement.setString(6, entry.capturedAt().toString());
-            statement.setString(7, entry.archivedAt().toString());
+            statement.setString(7, entry.retainedAt().toString());
             statement.setString(8, entry.sourceType());
             statement.setString(9, entry.message());
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
                 if (keys.next()) {
-                    return new CameraArchiveEntry(
+                    return new CameraSnapshotEntry(
                             keys.getLong(1),
                             entry.printerId(),
                             entry.jobId(),
-                            entry.archivePath(),
+                            entry.snapshotPath(),
                             entry.contentType(),
                             entry.sizeBytes(),
                             entry.capturedAt(),
-                            entry.archivedAt(),
+                            entry.retainedAt(),
                             entry.sourceType(),
                             entry.message());
                 }
@@ -65,11 +65,11 @@ public final class CameraArchiveEntryStore {
 
             return entry;
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to save camera archive entry", exception);
+            throw new IllegalStateException("Failed to save camera snapshot entry", exception);
         }
     }
 
-    public List<CameraArchiveJobSummary> findJobSummaries() {
+    public List<CameraSnapshotJobSummary> findJobSummaries() {
         String sql = """
                 SELECT
                     COALESCE(job_id, 'unassigned') AS job_key,
@@ -77,7 +77,7 @@ public final class CameraArchiveEntryStore {
                     COALESCE(SUM(size_bytes), 0) AS total_bytes,
                     MIN(captured_at) AS first_captured_at,
                     MAX(captured_at) AS last_captured_at
-                FROM camera_archive_entries
+                FROM camera_snapshot_entries
                 GROUP BY COALESCE(job_id, 'unassigned')
                 ORDER BY MAX(captured_at) DESC;
                 """;
@@ -87,9 +87,9 @@ public final class CameraArchiveEntryStore {
                 PreparedStatement statement = connection.prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()
         ) {
-            List<CameraArchiveJobSummary> summaries = new ArrayList<>();
+            List<CameraSnapshotJobSummary> summaries = new ArrayList<>();
             while (resultSet.next()) {
-                summaries.add(new CameraArchiveJobSummary(
+                summaries.add(new CameraSnapshotJobSummary(
                         resultSet.getString("job_key"),
                         resultSet.getInt("file_count"),
                         resultSet.getLong("total_bytes"),
@@ -98,24 +98,24 @@ public final class CameraArchiveEntryStore {
             }
             return summaries;
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera archive job summaries", exception);
+            throw new IllegalStateException("Failed to load camera snapshot job summaries", exception);
         }
     }
 
-    public Optional<CameraArchiveEntry> findById(long id) {
+    public Optional<CameraSnapshotEntry> findById(long id) {
         String sql = """
                 SELECT
                     id,
                     printer_id,
                     job_id,
-                    archive_path,
+                    snapshot_path,
                     content_type,
                     size_bytes,
                     captured_at,
-                    archived_at,
+                    snapshotd_at,
                     source_type,
                     message
-                FROM camera_archive_entries
+                FROM camera_snapshot_entries
                 WHERE id = ?;
                 """;
 
@@ -133,12 +133,12 @@ public final class CameraArchiveEntryStore {
                 return Optional.of(mapRow(resultSet));
             }
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera archive entry", exception);
+            throw new IllegalStateException("Failed to load camera snapshot entry", exception);
         }
     }
 
 
-    public List<CameraArchiveJobSummary> findJobSummariesByPrinterId(String printerId) {
+    public List<CameraSnapshotJobSummary> findJobSummariesByPrinterId(String printerId) {
         String normalizedPrinterId = normalizePrinterId(printerId);
         String sql = """
                 SELECT
@@ -147,7 +147,7 @@ public final class CameraArchiveEntryStore {
                     COALESCE(SUM(size_bytes), 0) AS total_bytes,
                     MIN(captured_at) AS first_captured_at,
                     MAX(captured_at) AS last_captured_at
-                FROM camera_archive_entries
+                FROM camera_snapshot_entries
                 WHERE printer_id = ?
                 GROUP BY COALESCE(job_id, 'unassigned')
                 ORDER BY MAX(captured_at) DESC;
@@ -160,9 +160,9 @@ public final class CameraArchiveEntryStore {
             statement.setString(1, normalizedPrinterId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<CameraArchiveJobSummary> summaries = new ArrayList<>();
+                List<CameraSnapshotJobSummary> summaries = new ArrayList<>();
                 while (resultSet.next()) {
-                    summaries.add(new CameraArchiveJobSummary(
+                    summaries.add(new CameraSnapshotJobSummary(
                             resultSet.getString("job_key"),
                             resultSet.getInt("file_count"),
                             resultSet.getLong("total_bytes"),
@@ -172,11 +172,11 @@ public final class CameraArchiveEntryStore {
                 return summaries;
             }
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera archive job summaries", exception);
+            throw new IllegalStateException("Failed to load camera snapshot job summaries", exception);
         }
     }
 
-    public List<CameraArchiveEntry> findByJobId(String jobId) {
+    public List<CameraSnapshotEntry> findByJobId(String jobId) {
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
         String sql = """
@@ -184,14 +184,14 @@ public final class CameraArchiveEntryStore {
                     id,
                     printer_id,
                     job_id,
-                    archive_path,
+                    snapshot_path,
                     content_type,
                     size_bytes,
                     captured_at,
-                    archived_at,
+                    snapshotd_at,
                     source_type,
                     message
-                FROM camera_archive_entries
+                FROM camera_snapshot_entries
                 WHERE %s
                 ORDER BY captured_at ASC, id ASC;
                 """.formatted(unassigned ? "job_id IS NULL" : "job_id = ?");
@@ -205,18 +205,18 @@ public final class CameraArchiveEntryStore {
             }
 
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<CameraArchiveEntry> entries = new ArrayList<>();
+                List<CameraSnapshotEntry> entries = new ArrayList<>();
                 while (resultSet.next()) {
                     entries.add(mapRow(resultSet));
                 }
                 return entries;
             }
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera archive entries", exception);
+            throw new IllegalStateException("Failed to load camera snapshot entries", exception);
         }
     }
 
-    public List<CameraArchiveEntry> findByPrinterIdAndJobId(String printerId, String jobId) {
+    public List<CameraSnapshotEntry> findByPrinterIdAndJobId(String printerId, String jobId) {
         String normalizedPrinterId = normalizePrinterId(printerId);
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
@@ -225,14 +225,14 @@ public final class CameraArchiveEntryStore {
                     id,
                     printer_id,
                     job_id,
-                    archive_path,
+                    snapshot_path,
                     content_type,
                     size_bytes,
                     captured_at,
-                    archived_at,
+                    snapshotd_at,
                     source_type,
                     message
-                FROM camera_archive_entries
+                FROM camera_snapshot_entries
                 WHERE printer_id = ?
                     AND %s
                 ORDER BY captured_at ASC, id ASC;
@@ -248,21 +248,21 @@ public final class CameraArchiveEntryStore {
             }
 
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<CameraArchiveEntry> entries = new ArrayList<>();
+                List<CameraSnapshotEntry> entries = new ArrayList<>();
                 while (resultSet.next()) {
                     entries.add(mapRow(resultSet));
                 }
                 return entries;
             }
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to load camera archive entries", exception);
+            throw new IllegalStateException("Failed to load camera snapshot entries", exception);
         }
     }
 
     public int deleteByJobId(String jobId) {
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = "DELETE FROM camera_archive_entries WHERE " + (unassigned ? "job_id IS NULL" : "job_id = ?");
+        String sql = "DELETE FROM camera_snapshot_entries WHERE " + (unassigned ? "job_id IS NULL" : "job_id = ?");
 
         try (
                 Connection connection = Database.getConnection();
@@ -273,7 +273,7 @@ public final class CameraArchiveEntryStore {
             }
             return statement.executeUpdate();
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to delete camera archive entries", exception);
+            throw new IllegalStateException("Failed to delete camera snapshot entries", exception);
         }
     }
 
@@ -281,7 +281,7 @@ public final class CameraArchiveEntryStore {
         String normalizedPrinterId = normalizePrinterId(printerId);
         String normalizedJobId = normalizeJobId(jobId);
         boolean unassigned = "unassigned".equals(normalizedJobId);
-        String sql = "DELETE FROM camera_archive_entries WHERE printer_id = ? AND "
+        String sql = "DELETE FROM camera_snapshot_entries WHERE printer_id = ? AND "
                 + (unassigned ? "job_id IS NULL" : "job_id = ?");
 
         try (
@@ -294,20 +294,20 @@ public final class CameraArchiveEntryStore {
             }
             return statement.executeUpdate();
         } catch (SQLException exception) {
-            throw new IllegalStateException("Failed to delete camera archive entries", exception);
+            throw new IllegalStateException("Failed to delete camera snapshot entries", exception);
         }
     }
 
-    private static CameraArchiveEntry mapRow(ResultSet resultSet) throws SQLException {
-        return new CameraArchiveEntry(
+    private static CameraSnapshotEntry mapRow(ResultSet resultSet) throws SQLException {
+        return new CameraSnapshotEntry(
                 resultSet.getLong("id"),
                 resultSet.getString("printer_id"),
                 resultSet.getString("job_id"),
-                resultSet.getString("archive_path"),
+                resultSet.getString("snapshot_path"),
                 resultSet.getString("content_type"),
                 resultSet.getLong("size_bytes"),
                 Instant.parse(resultSet.getString("captured_at")),
-                Instant.parse(resultSet.getString("archived_at")),
+                Instant.parse(resultSet.getString("snapshotd_at")),
                 resultSet.getString("source_type"),
                 resultSet.getString("message"));
     }

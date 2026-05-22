@@ -2,14 +2,14 @@ package printerhub.api;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
-import printerhub.camera.CameraArchiveFile;
-import printerhub.camera.CameraArchiveService;
+import printerhub.camera.CameraSnapshotFile;
+import printerhub.camera.CameraSnapshotService;
 import printerhub.camera.CameraCaptureResult;
 import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSourceType;
 import printerhub.camera.CameraStatus;
-import printerhub.camera.ResolvedCameraArchiveFile;
+import printerhub.camera.ResolvedCameraSnapshotFile;
 import printerhub.persistence.CameraAnalysisSample;
 import printerhub.persistence.CameraAnalysisSession;
 import printerhub.persistence.CameraEvent;
@@ -39,7 +39,7 @@ public final class CameraApiHandler {
     private final CameraEventStore eventStore;
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
     private final CameraAnalysisSessionService analysisSessionService;
-    private final CameraArchiveService archiveService;
+    private final CameraSnapshotService snapshotService;
 
     public CameraApiHandler(
             CameraCaptureService captureService,
@@ -52,7 +52,7 @@ public final class CameraApiHandler {
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.analysisSessionService = Objects.requireNonNull(analysisSessionService, "analysisSessionService");
-        this.archiveService = new CameraArchiveService(this.settingsService);
+        this.snapshotService = new CameraSnapshotService(this.settingsService);
     }
 
     public void handleStatus(HttpExchange exchange, String printerId) throws IOException {
@@ -250,7 +250,7 @@ public final class CameraApiHandler {
         }
     }
 
-    public void handleArchive(HttpExchange exchange, String printerId) throws IOException {
+    public void handleSnapshots(HttpExchange exchange, String printerId) throws IOException {
         if (!isMethod(exchange, "GET")) {
             sendMethodNotAllowed(exchange, "GET");
             return;
@@ -260,42 +260,42 @@ public final class CameraApiHandler {
             Optional<Instant> from = queryParameter(exchange, "from").map(CameraApiHandler::parseInstant);
             Optional<Instant> to = queryParameter(exchange, "to").map(CameraApiHandler::parseInstant);
 
-            sendJson(exchange, 200, archiveFilesJson(archiveService.list(printerId, from, to)));
+            sendJson(exchange, 200, snapshotFilesJson(snapshotService.list(printerId, from, to)));
         } catch (IllegalArgumentException exception) {
-            sendError(exchange, 400, "invalid_camera_archive_request", exception.getMessage());
+            sendError(exchange, 400, "invalid_camera_snapshot_request", exception.getMessage());
         } catch (RuntimeException exception) {
-            sendError(exchange, 500, "camera_archive_failed", exception.getMessage());
+            sendError(exchange, 500, "camera_snapshot_failed", exception.getMessage());
         }
     }
 
-    public void handleArchiveFile(HttpExchange exchange, String printerId, String fileId) throws IOException {
+    public void handleSnapshotFile(HttpExchange exchange, String printerId, String fileId) throws IOException {
         if (!isMethod(exchange, "GET")) {
             sendMethodNotAllowed(exchange, "GET");
             return;
         }
 
         try {
-            Optional<ResolvedCameraArchiveFile> archiveFile = archiveService.resolve(printerId, fileId);
+            Optional<ResolvedCameraSnapshotFile> snapshotFile = snapshotService.resolve(printerId, fileId);
 
-            if (archiveFile.isEmpty()) {
-                sendError(exchange, 404, "camera_archive_file_not_found", "Camera archive file was not found");
+            if (snapshotFile.isEmpty()) {
+                sendError(exchange, 404, "camera_snapshot_file_not_found", "Camera snapshot file was not found");
                 return;
             }
 
-            byte[] bytes = Files.readAllBytes(archiveFile.get().path());
+            byte[] bytes = Files.readAllBytes(snapshotFile.get().path());
             Headers headers = exchange.getResponseHeaders();
-            headers.set("Content-Type", archiveFile.get().contentType());
+            headers.set("Content-Type", snapshotFile.get().contentType());
             headers.set("Cache-Control", "no-store");
-            headers.set("Last-Modified", archiveFile.get().modifiedAt().toString());
+            headers.set("Last-Modified", snapshotFile.get().modifiedAt().toString());
             exchange.sendResponseHeaders(200, bytes.length);
 
             try (OutputStream output = exchange.getResponseBody()) {
                 output.write(bytes);
             }
         } catch (IllegalArgumentException exception) {
-            sendError(exchange, 400, "invalid_camera_archive_file_request", exception.getMessage());
+            sendError(exchange, 400, "invalid_camera_snapshot_file_request", exception.getMessage());
         } catch (RuntimeException exception) {
-            sendError(exchange, 500, "camera_archive_file_failed", exception.getMessage());
+            sendError(exchange, 500, "camera_snapshot_file_failed", exception.getMessage());
         }
     }
 
@@ -503,11 +503,11 @@ public final class CameraApiHandler {
         return builder.toString();
     }
 
-    private static String archiveFilesJson(List<CameraArchiveFile> files) {
+    private static String snapshotFilesJson(List<CameraSnapshotFile> files) {
         StringBuilder builder = new StringBuilder();
         builder.append("{\"files\":[");
         for (int index = 0; index < files.size(); index++) {
-            CameraArchiveFile file = files.get(index);
+            CameraSnapshotFile file = files.get(index);
             if (index > 0) {
                 builder.append(",");
             }

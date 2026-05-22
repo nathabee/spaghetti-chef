@@ -2,7 +2,7 @@ package printerhub.camera;
 
 import java.util.List;
 
-public record CameraArchiveDeletionReport(
+public record CameraSnapshotDeletionReport(
         String jobId,
         int deletedFiles,
         long deletedBytes,

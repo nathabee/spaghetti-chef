@@ -1177,7 +1177,7 @@ progress::-moz-progress-bar {
   background: var(--bg-surface);
 }
 
-.camera-archive-gallery {
+.camera-snapshot-gallery {
   display: grid;
   grid-template-columns: minmax(min(18rem, 100%), 0.75fr) minmax(0, 2.25fr);
   gap: 1rem;
@@ -1185,7 +1185,7 @@ progress::-moz-progress-bar {
   min-width: 0;
 }
 
-.camera-archive-list {
+.camera-snapshot-list {
   display: grid;
   align-content: start;
   gap: 0.55rem;
@@ -1195,7 +1195,7 @@ progress::-moz-progress-bar {
   scrollbar-gutter: stable;
 }
 
-.camera-archive-list-item {
+.camera-snapshot-list-item {
   display: grid;
   gap: 0.35rem;
   width: 100%;
@@ -1205,33 +1205,33 @@ progress::-moz-progress-bar {
   background: var(--bg-surface-muted);
 }
 
-.camera-archive-list-item.selected {
+.camera-snapshot-list-item.selected {
   border-color: var(--primary);
   background: var(--primary-soft);
 }
 
-.camera-archive-list-item strong,
-.camera-archive-list-item code,
-.camera-archive-list-meta {
+.camera-snapshot-list-item strong,
+.camera-snapshot-list-item code,
+.camera-snapshot-list-meta {
   display: block;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.camera-archive-list-meta {
+.camera-snapshot-list-meta {
   color: var(--text-muted);
   font-size: 0.84rem;
   line-height: 1.35;
 }
 
-.camera-archive-preview-stack {
+.camera-snapshot-preview-stack {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   min-width: 0;
 }
 
-.camera-archive-preview {
+.camera-snapshot-preview {
   margin: 0;
   padding: 0.85rem;
   border: 1px solid var(--border);
@@ -1240,19 +1240,19 @@ progress::-moz-progress-bar {
   min-width: 0;
 }
 
-.camera-archive-preview figcaption {
+.camera-snapshot-preview figcaption {
   display: grid;
   gap: 0.3rem;
   margin-bottom: 0.7rem;
 }
 
-.camera-archive-preview figcaption span {
+.camera-snapshot-preview figcaption span {
   color: var(--text-muted);
   font-size: 0.82rem;
   font-weight: 700;
 }
 
-.camera-archive-preview img {
+.camera-snapshot-preview img {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -1385,11 +1385,11 @@ code {
     flex: 1 1 8rem;
   }
 
-  .camera-archive-gallery {
+  .camera-snapshot-gallery {
     grid-template-columns: 1fr;
   }
 
-  .camera-archive-preview-stack {
+  .camera-snapshot-preview-stack {
     grid-template-columns: 1fr;
   }
 }

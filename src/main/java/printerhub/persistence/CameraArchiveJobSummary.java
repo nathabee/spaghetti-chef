@@ -2,7 +2,7 @@ package printerhub.persistence;
 
 import java.time.Instant;
 
-public record CameraArchiveJobSummary(
+public record CameraSnapshotJobSummary(
         String jobId,
         int fileCount,
         long totalBytes,

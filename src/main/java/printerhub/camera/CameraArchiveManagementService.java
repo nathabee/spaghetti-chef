@@ -8,74 +8,74 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import printerhub.persistence.CameraArchiveEntry;
-import printerhub.persistence.CameraArchiveEntryStore;
-import printerhub.persistence.CameraArchiveJobSummary;
+import printerhub.persistence.CameraSnapshotEntry;
+import printerhub.persistence.CameraSnapshotEntryStore;
+import printerhub.persistence.CameraSnapshotJobSummary;
 import printerhub.persistence.CameraSettings;
 
-public final class CameraArchiveManagementService {
+public final class CameraSnapshotManagementService {
 
     private final CameraSettingsService settingsService;
-    private final CameraArchiveEntryStore archiveEntryStore;
+    private final CameraSnapshotEntryStore snapshotEntryStore;
 
-    public CameraArchiveManagementService(
+    public CameraSnapshotManagementService(
             CameraSettingsService settingsService,
-            CameraArchiveEntryStore archiveEntryStore) {
+            CameraSnapshotEntryStore snapshotEntryStore) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
-        this.archiveEntryStore = Objects.requireNonNull(archiveEntryStore, "archiveEntryStore");
+        this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
     }
 
-    public List<CameraArchiveJobSummary> listJobs() {
-        return archiveEntryStore.findJobSummaries();
+    public List<CameraSnapshotJobSummary> listJobs() {
+        return snapshotEntryStore.findJobSummaries();
     }
 
-    public List<CameraArchiveJobSummary> listJobs(String printerId) {
-        return archiveEntryStore.findJobSummariesByPrinterId(printerId);
+    public List<CameraSnapshotJobSummary> listJobs(String printerId) {
+        return snapshotEntryStore.findJobSummariesByPrinterId(printerId);
     }
 
-    public List<CameraArchiveEntry> entriesForJob(String jobId) {
-        return archiveEntryStore.findByJobId(jobId);
+    public List<CameraSnapshotEntry> entriesForJob(String jobId) {
+        return snapshotEntryStore.findByJobId(jobId);
     }
 
-    public Optional<CameraArchiveEntry> entryById(long entryId) {
-        return archiveEntryStore.findById(entryId);
+    public Optional<CameraSnapshotEntry> entryById(long entryId) {
+        return snapshotEntryStore.findById(entryId);
     }
 
-    public List<CameraArchiveEntry> entriesForJob(String printerId, String jobId) {
-        return archiveEntryStore.findByPrinterIdAndJobId(printerId, jobId);
+    public List<CameraSnapshotEntry> entriesForJob(String printerId, String jobId) {
+        return snapshotEntryStore.findByPrinterIdAndJobId(printerId, jobId);
     }
 
-    public CameraArchiveDeletionReport deleteJobArchive(String jobId) {
-        List<CameraArchiveEntry> entries = archiveEntryStore.findByJobId(jobId);
+    public CameraSnapshotDeletionReport deleteJobSnapshot(String jobId) {
+        List<CameraSnapshotEntry> entries = snapshotEntryStore.findByJobId(jobId);
         List<String> failedFiles = new ArrayList<>();
         int deletedFiles = 0;
         long deletedBytes = 0L;
 
-        for (CameraArchiveEntry entry : entries) {
-            Path archivePath = Path.of(entry.archivePath()).normalize();
+        for (CameraSnapshotEntry entry : entries) {
+            Path snapshotPath = Path.of(entry.snapshotPath()).normalize();
 
-            if (!isInsidePrinterCameraDirectory(entry.printerId(), archivePath)) {
-                failedFiles.add(entry.archivePath());
+            if (!isInsidePrinterCameraDirectory(entry.printerId(), snapshotPath)) {
+                failedFiles.add(entry.snapshotPath());
                 continue;
             }
 
             try {
-                long size = Files.isRegularFile(archivePath) ? Files.size(archivePath) : 0L;
-                if (Files.deleteIfExists(archivePath)) {
+                long size = Files.isRegularFile(snapshotPath) ? Files.size(snapshotPath) : 0L;
+                if (Files.deleteIfExists(snapshotPath)) {
                     deletedFiles++;
                     deletedBytes += size;
                 }
             } catch (IOException exception) {
-                failedFiles.add(entry.archivePath());
+                failedFiles.add(entry.snapshotPath());
             }
         }
 
-        int deletedRows = archiveEntryStore.deleteByJobId(jobId);
+        int deletedRows = snapshotEntryStore.deleteByJobId(jobId);
         String message = failedFiles.isEmpty()
-                ? "camera_archive_job_deleted"
-                : "camera_archive_job_deleted_with_file_errors";
+                ? "camera_snapshot_job_deleted"
+                : "camera_snapshot_job_deleted_with_file_errors";
 
-        return new CameraArchiveDeletionReport(
+        return new CameraSnapshotDeletionReport(
                 jobId,
                 deletedFiles,
                 deletedBytes,
@@ -84,37 +84,37 @@ public final class CameraArchiveManagementService {
                 message);
     }
 
-    public CameraArchiveDeletionReport deleteJobArchive(String printerId, String jobId) {
-        List<CameraArchiveEntry> entries = archiveEntryStore.findByPrinterIdAndJobId(printerId, jobId);
+    public CameraSnapshotDeletionReport deleteJobSnapshot(String printerId, String jobId) {
+        List<CameraSnapshotEntry> entries = snapshotEntryStore.findByPrinterIdAndJobId(printerId, jobId);
         List<String> failedFiles = new ArrayList<>();
         int deletedFiles = 0;
         long deletedBytes = 0L;
 
-        for (CameraArchiveEntry entry : entries) {
-            Path archivePath = Path.of(entry.archivePath()).normalize();
+        for (CameraSnapshotEntry entry : entries) {
+            Path snapshotPath = Path.of(entry.snapshotPath()).normalize();
 
-            if (!isInsidePrinterCameraDirectory(entry.printerId(), archivePath)) {
-                failedFiles.add(entry.archivePath());
+            if (!isInsidePrinterCameraDirectory(entry.printerId(), snapshotPath)) {
+                failedFiles.add(entry.snapshotPath());
                 continue;
             }
 
             try {
-                long size = Files.isRegularFile(archivePath) ? Files.size(archivePath) : 0L;
-                if (Files.deleteIfExists(archivePath)) {
+                long size = Files.isRegularFile(snapshotPath) ? Files.size(snapshotPath) : 0L;
+                if (Files.deleteIfExists(snapshotPath)) {
                     deletedFiles++;
                     deletedBytes += size;
                 }
             } catch (IOException exception) {
-                failedFiles.add(entry.archivePath());
+                failedFiles.add(entry.snapshotPath());
             }
         }
 
-        int deletedRows = archiveEntryStore.deleteByPrinterIdAndJobId(printerId, jobId);
+        int deletedRows = snapshotEntryStore.deleteByPrinterIdAndJobId(printerId, jobId);
         String message = failedFiles.isEmpty()
-                ? "camera_archive_job_deleted"
-                : "camera_archive_job_deleted_with_file_errors";
+                ? "camera_snapshot_job_deleted"
+                : "camera_snapshot_job_deleted_with_file_errors";
 
-        return new CameraArchiveDeletionReport(
+        return new CameraSnapshotDeletionReport(
                 jobId,
                 deletedFiles,
                 deletedBytes,
