@@ -244,7 +244,7 @@ export function renderCameraSettingsCard(settings) {
   `;
 }
 
-export function renderCameraSnapshotCard(printerId, status, settings) {
+export function renderCameraLatestSnapshotCard(printerId, status, settings) {
   const captureIntervalSeconds = positiveInteger(settings?.captureIntervalSeconds, 10);
 
   return `
@@ -480,7 +480,7 @@ function renderSessionsList(sessions, selectedSession) {
   `;
 }
 
-export function renderCameraSnapshotCard(printerId, files, snapshotRange = {}) {
+export function renderCameraSnapshotFilesCard(printerId, files, snapshotRange = {}) {
   const safeFiles = Array.isArray(files) ? files : [];
 
   return `
@@ -640,7 +640,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
 
       <section class="two-column-grid">
         ${renderCameraStatusCard(status)}
-        ${renderCameraSnapshotCard(printerId, status, settings)}
+        ${renderCameraLatestSnapshotCard(printerId, status, settings)}
       </section>
 
       <section class="two-column-grid">
@@ -653,7 +653,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
       </section>
 
       <section>
-        ${renderCameraSnapshotCard(printerId, snapshotFiles, snapshotRange)}
+        ${renderCameraSnapshotFilesCard(printerId, snapshotFiles, snapshotRange)}
       </section>
     </div>
   `;

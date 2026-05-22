@@ -36,6 +36,10 @@ public final class DatabaseInitializer {
             createCameraSnapshotMetadataTable(statement);
             createCameraJobsTable(statement);
             createCameraSnapshotEntriesTable(statement);
+            createCameraDeltaSetsTable(statement);
+            createCameraDeltaFramesTable(statement);
+            createCameraCalculationRunsTable(statement);
+            createCameraCalculationResultsTable(statement);
             createCameraAnalysisSessionsTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
@@ -313,6 +317,81 @@ public final class DatabaseInitializer {
                     message TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraDeltaSetsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_delta_sets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    delta_snapshot_step INTEGER NOT NULL,
+                    source_snapshot_count INTEGER NOT NULL,
+                    generated_delta_count INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    message TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraDeltaFramesTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_delta_frames (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    delta_set_id INTEGER NOT NULL,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    from_snapshot_id INTEGER NOT NULL,
+                    to_snapshot_id INTEGER NOT NULL,
+                    from_captured_at TEXT NOT NULL,
+                    to_captured_at TEXT NOT NULL,
+                    delta_path TEXT NOT NULL,
+                    delta_score REAL NOT NULL,
+                    changed_pixel_ratio REAL NOT NULL,
+                    average_pixel_delta REAL NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraCalculationRunsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_calculation_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER NOT NULL,
+                    delta_set_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    parameter_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    result_count INTEGER NOT NULL,
+                    message TEXT
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
+    private void createCameraCalculationResultsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_calculation_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    calculation_run_id INTEGER NOT NULL,
+                    delta_frame_id INTEGER NOT NULL,
+                    confidence REAL NOT NULL,
+                    suspected INTEGER NOT NULL,
+                    reason_codes TEXT,
+                    message TEXT,
+                    created_at TEXT NOT NULL
                 );
                 """;
 

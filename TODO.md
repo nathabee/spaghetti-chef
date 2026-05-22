@@ -478,7 +478,7 @@ DELETE /admin/camera/snapshot/jobs/{cameraJobId}?printerId=p1
 
 ## Status
 
-Planned after 0.4.9.
+Done.
 
 This phase depends on the CameraJob model.
 

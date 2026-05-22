@@ -63,6 +63,9 @@ import printerhub.security.DangerousActionGuard;
 import printerhub.camera.CameraSnapshotDeletionReport;
 import printerhub.camera.CameraSnapshotManagementService;
 import printerhub.camera.CameraCaptureService;
+import printerhub.camera.CameraCalculationRunService;
+import printerhub.camera.CameraDeltaSetGenerationResult;
+import printerhub.camera.CameraDeltaSetService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSafetyDecisionService;
 import printerhub.camera.CameraSettingsService;
@@ -70,6 +73,14 @@ import printerhub.camera.CameraStoragePaths;
 import printerhub.persistence.CameraSnapshotEntry;
 import printerhub.persistence.CameraSnapshotEntryStore;
 import printerhub.persistence.CameraSnapshotJobSummary;
+import printerhub.persistence.CameraDeltaFrame;
+import printerhub.persistence.CameraDeltaFrameStore;
+import printerhub.persistence.CameraDeltaSet;
+import printerhub.persistence.CameraDeltaSetStore;
+import printerhub.persistence.CameraCalculationResult;
+import printerhub.persistence.CameraCalculationResultStore;
+import printerhub.persistence.CameraCalculationRun;
+import printerhub.persistence.CameraCalculationRunStore;
 import printerhub.persistence.CameraAnalysisSampleStore;
 import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
@@ -125,6 +136,12 @@ public final class RemoteApiServer {
     private final DangerousActionGuard dangerousActionGuard;
     private final CameraApiHandler cameraApiHandler;
     private final CameraSnapshotManagementService cameraSnapshotManagementService;
+    private final CameraDeltaSetService cameraDeltaSetService;
+    private final CameraDeltaSetStore cameraDeltaSetStore;
+    private final CameraDeltaFrameStore cameraDeltaFrameStore;
+    private final CameraCalculationRunService cameraCalculationRunService;
+    private final CameraCalculationRunStore cameraCalculationRunStore;
+    private final CameraCalculationResultStore cameraCalculationResultStore;
     private final Path cameraStorageDirectory;
 
     private HttpServer server;
@@ -257,6 +274,12 @@ public final class RemoteApiServer {
         this.cameraSnapshotManagementService = new CameraSnapshotManagementService(
                 cameraSettingsService,
                 cameraSnapshotEntryStore);
+        this.cameraDeltaSetService = new CameraDeltaSetService();
+        this.cameraDeltaSetStore = new CameraDeltaSetStore();
+        this.cameraDeltaFrameStore = new CameraDeltaFrameStore();
+        this.cameraCalculationRunService = new CameraCalculationRunService();
+        this.cameraCalculationRunStore = new CameraCalculationRunStore();
+        this.cameraCalculationResultStore = new CameraCalculationResultStore();
 
         CameraAnalysisSampleStore cameraAnalysisSampleStore = new CameraAnalysisSampleStore();
         CameraSafetyDecisionService cameraSafetyDecisionService = new CameraSafetyDecisionService(
@@ -766,6 +789,16 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (path.startsWith("/admin/camera/delta-sets/")) {
+            handleAdminCameraDeltaSet(exchange, path);
+            return;
+        }
+
+        if (path.startsWith("/admin/camera/calculation-runs/")) {
+            handleAdminCameraCalculationRun(exchange, path);
+            return;
+        }
+
         if (!path.startsWith(prefix)) {
             sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
             return;
@@ -816,6 +849,37 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (parts.length == 2 && "delta-sets".equals(parts[1])) {
+            long cameraJobId = parsePositiveLong(jobId, "cameraJobId");
+
+            if ("GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 200, cameraDeltaSetsJson(cameraDeltaSetStore.findByCameraJobId(cameraJobId)));
+                return;
+            }
+
+            if ("POST".equalsIgnoreCase(method)) {
+                String body = readBody(exchange);
+                String requestedPrinterId = printerId == null || printerId.isBlank()
+                        ? requiredJsonString(body, "printerId")
+                        : printerId;
+                int deltaSnapshotStep = optionalJsonInteger(body, "deltaSnapshotStep", 1);
+                String methodName = optionalJsonString(body, "methodName", null);
+                String message = optionalJsonString(body, "message", null);
+
+                CameraDeltaSetGenerationResult result = cameraDeltaSetService.generate(
+                        requestedPrinterId,
+                        cameraJobId,
+                        deltaSnapshotStep,
+                        methodName,
+                        message);
+                sendJson(exchange, 201, cameraDeltaSetGenerationResultJson(result));
+                return;
+            }
+
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
         if (parts.length == 2 && "recalculate-preview".equals(parts[1])) {
             if (!"POST".equalsIgnoreCase(method)) {
                 sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
@@ -827,6 +891,104 @@ public final class RemoteApiServer {
                     + "\"state\":\"placeholder\","
                     + "\"message\":\"camera_recalculate_preview_not_implemented\""
                     + "}");
+            return;
+        }
+
+        sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+    }
+
+    private void handleAdminCameraDeltaSet(HttpExchange exchange, String path) throws IOException {
+        String method = exchange.getRequestMethod();
+        String remaining = path.substring("/admin/camera/delta-sets/".length());
+        String[] parts = remaining.split("/");
+        if (parts.length < 1 || parts[0].isBlank()) {
+            sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+            return;
+        }
+
+        long deltaSetId = parsePositiveLong(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), "deltaSetId");
+
+        if (parts.length == 1 && "GET".equalsIgnoreCase(method)) {
+            Optional<CameraDeltaSet> deltaSet = cameraDeltaSetStore.findById(deltaSetId);
+            if (deltaSet.isEmpty()) {
+                sendJson(exchange, 404, errorJson("camera_delta_set_not_found"));
+                return;
+            }
+
+            sendJson(exchange, 200, "{\"deltaSet\":" + cameraDeltaSetJson(deltaSet.get()) + "}");
+            return;
+        }
+
+        if (parts.length == 2 && "frames".equals(parts[1])) {
+            if (!"GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            sendJson(exchange, 200, cameraDeltaFramesJson(deltaSetId, cameraDeltaFrameStore.findByDeltaSetId(deltaSetId)));
+            return;
+        }
+
+        if (parts.length == 2 && "calculation-runs".equals(parts[1])) {
+            if ("GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 200, cameraCalculationRunsJson(
+                        deltaSetId,
+                        cameraCalculationRunStore.findByDeltaSetId(deltaSetId)));
+                return;
+            }
+
+            if ("POST".equalsIgnoreCase(method)) {
+                String body = readBody(exchange);
+                CameraCalculationRun run = cameraCalculationRunService.run(
+                        deltaSetId,
+                        optionalJsonString(body, "methodName", null),
+                        optionalJsonDoubleObject(body, "confidenceThreshold"),
+                        optionalJsonString(body, "parameterJson", null),
+                        optionalJsonString(body, "message", null));
+                sendJson(exchange, 201, "{\"calculationRun\":" + cameraCalculationRunJson(run) + "}");
+                return;
+            }
+
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+    }
+
+    private void handleAdminCameraCalculationRun(HttpExchange exchange, String path) throws IOException {
+        String method = exchange.getRequestMethod();
+        String remaining = path.substring("/admin/camera/calculation-runs/".length());
+        String[] parts = remaining.split("/");
+        if (parts.length < 1 || parts[0].isBlank()) {
+            sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+            return;
+        }
+
+        long calculationRunId = parsePositiveLong(
+                URLDecoder.decode(parts[0], StandardCharsets.UTF_8),
+                "calculationRunId");
+
+        if (parts.length == 1 && "GET".equalsIgnoreCase(method)) {
+            Optional<CameraCalculationRun> run = cameraCalculationRunStore.findById(calculationRunId);
+            if (run.isEmpty()) {
+                sendJson(exchange, 404, errorJson("camera_calculation_run_not_found"));
+                return;
+            }
+
+            sendJson(exchange, 200, "{\"calculationRun\":" + cameraCalculationRunJson(run.get()) + "}");
+            return;
+        }
+
+        if (parts.length == 2 && "results".equals(parts[1])) {
+            if (!"GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            sendJson(exchange, 200, cameraCalculationResultsJson(
+                    calculationRunId,
+                    cameraCalculationResultStore.findByCalculationRunId(calculationRunId)));
             return;
         }
 
@@ -2342,6 +2504,140 @@ public final class RemoteApiServer {
         return json.toString();
     }
 
+    private String cameraDeltaSetGenerationResultJson(CameraDeltaSetGenerationResult result) {
+        return "{"
+                + "\"deltaSet\":" + cameraDeltaSetJson(result.deltaSet()) + ","
+                + "\"sourceSnapshotCount\":" + result.sourceSnapshotCount() + ","
+                + "\"generatedDeltaCount\":" + result.generatedDeltaCount() + ","
+                + "\"skippedIntermediateSnapshotCount\":" + result.skippedIntermediateSnapshotCount()
+                + "}";
+    }
+
+    private String cameraDeltaSetsJson(List<CameraDeltaSet> deltaSets) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"deltaSets\":[");
+
+        boolean first = true;
+        for (CameraDeltaSet deltaSet : deltaSets) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append(cameraDeltaSetJson(deltaSet));
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraDeltaSetJson(CameraDeltaSet deltaSet) {
+        return "{"
+                + "\"id\":" + nullableLong(deltaSet.id()) + ","
+                + "\"printerId\":\"" + escapeJson(deltaSet.printerId()) + "\","
+                + "\"cameraJobId\":" + deltaSet.cameraJobId() + ","
+                + "\"methodName\":\"" + escapeJson(deltaSet.methodName()) + "\","
+                + "\"deltaSnapshotStep\":" + deltaSet.deltaSnapshotStep() + ","
+                + "\"sourceSnapshotCount\":" + deltaSet.sourceSnapshotCount() + ","
+                + "\"generatedDeltaCount\":" + deltaSet.generatedDeltaCount() + ","
+                + "\"createdAt\":\"" + escapeJson(deltaSet.createdAt().toString()) + "\","
+                + "\"message\":" + nullableString(deltaSet.message())
+                + "}";
+    }
+
+    private String cameraDeltaFramesJson(long deltaSetId, List<CameraDeltaFrame> frames) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"deltaSetId\":").append(deltaSetId).append(",\"frames\":[");
+
+        boolean first = true;
+        for (CameraDeltaFrame frame : frames) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append("{")
+                    .append("\"id\":").append(nullableLong(frame.id())).append(",")
+                    .append("\"deltaSetId\":").append(frame.deltaSetId()).append(",")
+                    .append("\"printerId\":\"").append(escapeJson(frame.printerId())).append("\",")
+                    .append("\"cameraJobId\":").append(frame.cameraJobId()).append(",")
+                    .append("\"fromSnapshotId\":").append(frame.fromSnapshotId()).append(",")
+                    .append("\"toSnapshotId\":").append(frame.toSnapshotId()).append(",")
+                    .append("\"fromCapturedAt\":\"").append(escapeJson(frame.fromCapturedAt().toString())).append("\",")
+                    .append("\"toCapturedAt\":\"").append(escapeJson(frame.toCapturedAt().toString())).append("\",")
+                    .append("\"deltaPath\":\"").append(escapeJson(frame.deltaPath())).append("\",")
+                    .append("\"deltaScore\":").append(frame.deltaScore()).append(",")
+                    .append("\"changedPixelRatio\":").append(frame.changedPixelRatio()).append(",")
+                    .append("\"averagePixelDelta\":").append(frame.averagePixelDelta()).append(",")
+                    .append("\"createdAt\":\"").append(escapeJson(frame.createdAt().toString())).append("\"")
+                    .append("}");
+
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraCalculationRunsJson(long deltaSetId, List<CameraCalculationRun> runs) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"deltaSetId\":").append(deltaSetId).append(",\"calculationRuns\":[");
+
+        boolean first = true;
+        for (CameraCalculationRun run : runs) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append(cameraCalculationRunJson(run));
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraCalculationRunJson(CameraCalculationRun run) {
+        return "{"
+                + "\"id\":" + nullableLong(run.id()) + ","
+                + "\"printerId\":\"" + escapeJson(run.printerId()) + "\","
+                + "\"cameraJobId\":" + run.cameraJobId() + ","
+                + "\"deltaSetId\":" + run.deltaSetId() + ","
+                + "\"methodName\":\"" + escapeJson(run.methodName()) + "\","
+                + "\"parameterJson\":\"" + escapeJson(run.parameterJson()) + "\","
+                + "\"createdAt\":\"" + escapeJson(run.createdAt().toString()) + "\","
+                + "\"resultCount\":" + run.resultCount() + ","
+                + "\"message\":" + nullableString(run.message())
+                + "}";
+    }
+
+    private String cameraCalculationResultsJson(long calculationRunId, List<CameraCalculationResult> results) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"calculationRunId\":").append(calculationRunId).append(",\"results\":[");
+
+        boolean first = true;
+        for (CameraCalculationResult result : results) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append("{")
+                    .append("\"id\":").append(nullableLong(result.id())).append(",")
+                    .append("\"calculationRunId\":").append(result.calculationRunId()).append(",")
+                    .append("\"deltaFrameId\":").append(result.deltaFrameId()).append(",")
+                    .append("\"confidence\":").append(result.confidence()).append(",")
+                    .append("\"suspected\":").append(result.suspected()).append(",")
+                    .append("\"reasonCodes\":").append(nullableString(result.reasonCodes())).append(",")
+                    .append("\"message\":").append(nullableString(result.message())).append(",")
+                    .append("\"createdAt\":\"").append(escapeJson(result.createdAt().toString())).append("\"")
+                    .append("}");
+
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
     private String cameraSnapshotDeletionReportJson(CameraSnapshotDeletionReport report) {
         StringBuilder failedFiles = new StringBuilder();
         failedFiles.append("[");
@@ -2698,6 +2994,18 @@ public final class RemoteApiServer {
         }
 
         return Long.parseLong(matcher.group(1));
+    }
+
+    private long parsePositiveLong(String value, String fieldName) {
+        try {
+            long parsed = Long.parseLong(value);
+            if (parsed <= 0L) {
+                throw new IllegalArgumentException(fieldName + " must be greater than zero");
+            }
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(fieldName + " must be a number");
+        }
     }
 
     private int optionalJsonInteger(String body, String fieldName, int fallback) {

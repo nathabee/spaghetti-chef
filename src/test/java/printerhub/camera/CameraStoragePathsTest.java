@@ -98,4 +98,45 @@ class CameraStoragePathsTest {
 
         assertEquals("cameraJobId must be greater than zero", exception.getMessage());
     }
+
+    @Test
+    void deltaFramePathUsesCameraJobAndDeltaSetFolders() {
+        Path storageDirectory = tempDir.resolve("absolute-camera-storage");
+
+        Path path = CameraStoragePaths.deltaFramePath(
+                storageDirectory.toString(),
+                "printer 1",
+                42L,
+                9L,
+                1,
+                11);
+
+        assertEquals(
+                storageDirectory
+                        .resolve("printer_1")
+                        .resolve("deltas")
+                        .resolve("42")
+                        .resolve("9")
+                        .resolve("000001_000011_delta.jpg")
+                        .toAbsolutePath()
+                        .normalize(),
+                path.toAbsolutePath().normalize());
+    }
+
+    @Test
+    void deltaFramePathRejectsInvalidDeltaSetId() {
+        Path storageDirectory = tempDir.resolve("absolute-camera-storage");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> CameraStoragePaths.deltaFramePath(
+                        storageDirectory.toString(),
+                        "printer-1",
+                        42L,
+                        0L,
+                        1,
+                        2));
+
+        assertEquals("deltaSetId must be greater than zero", exception.getMessage());
+    }
 }

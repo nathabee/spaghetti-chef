@@ -2933,7 +2933,7 @@ Out of scope:
 
 ### 0.4.9 — Camera Job Storage Model And Snapshot Ownership
 
-status: in progress
+status: done
 
 Purpose:
 
@@ -3049,6 +3049,10 @@ Acceptance checklist:
 * deleting a camera job deletes only that camera job's snapshot files and metadata
 * `mvn test` passes
 
+Completion note:
+
+0.4.9 is complete. The camera snapshot ownership model now uses database-backed camera jobs, retained source snapshots are stored under `snapshots/<cameraJobId>/`, admin snapshot jobs are real camera jobs, and the full Maven test suite passes.
+
 Out of scope:
 
 * delta set generation
@@ -3063,7 +3067,7 @@ Out of scope:
 
 ### 0.4.10 — Camera Delta Sets And Calculation Runs
 
-status: planned
+status: done
 
 Purpose:
 
@@ -3185,6 +3189,10 @@ Out of scope:
 * automatic pause/abort
 * replay UI polish
 * archive/compression
+
+Completion note:
+
+0.4.10 is complete. Admin can generate reusable delta sets from a selected camera job, source snapshot step sampling uses the configured delta snapshot step, delta files are stored under `deltas/<cameraJobId>/<deltaSetId>/`, calculation runs are persisted from selected delta sets, and repeated calculation runs do not overwrite previous runs.
 
 ---
 

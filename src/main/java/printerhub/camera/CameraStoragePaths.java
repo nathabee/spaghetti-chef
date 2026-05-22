@@ -59,6 +59,35 @@ public final class CameraStoragePaths {
                 .normalize();
     }
 
+    public static Path deltasDirectory(
+            String configuredStorageDirectory,
+            String printerId,
+            long cameraJobId,
+            long deltaSetId) {
+        return printerDirectory(configuredStorageDirectory, printerId)
+                .resolve("deltas")
+                .resolve(cameraJobSegment(cameraJobId))
+                .resolve(deltaSetSegment(deltaSetId))
+                .normalize();
+    }
+
+    public static Path deltaFramePath(
+            String configuredStorageDirectory,
+            String printerId,
+            long cameraJobId,
+            long deltaSetId,
+            int fromSequence,
+            int toSequence) {
+        if (fromSequence <= 0 || toSequence <= 0) {
+            throw new IllegalArgumentException("delta frame sequence values must be greater than zero");
+        }
+
+        String fileName = "%06d_%06d_delta.jpg".formatted(fromSequence, toSequence);
+        return deltasDirectory(configuredStorageDirectory, printerId, cameraJobId, deltaSetId)
+                .resolve(fileName)
+                .normalize();
+    }
+
     private static boolean isLegacyWorkingDirectoryDefault(String value) {
         String normalized = value.replace('\\', '/');
         return "data/camera".equals(normalized);
@@ -70,6 +99,14 @@ public final class CameraStoragePaths {
         }
 
         return Long.toString(cameraJobId);
+    }
+
+    private static String deltaSetSegment(long deltaSetId) {
+        if (deltaSetId <= 0L) {
+            throw new IllegalArgumentException("deltaSetId must be greater than zero");
+        }
+
+        return Long.toString(deltaSetId);
     }
 
     private static String normalizeExtension(String extension) {

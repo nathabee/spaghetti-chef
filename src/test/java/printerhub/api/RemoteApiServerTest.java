@@ -1128,6 +1128,111 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void cameraDeltaSetAdminEndpointsGenerateAndListFrames() throws Exception {
+        Path cameraStorageDirectory = tempDir.resolve("camera-delta-storage");
+
+        TestContext context = createContext("camera-delta-admin.db");
+
+        try {
+            context.configurationStore.save(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+            context.printerRegistry.register(
+                    PrinterRuntimeNodeFactory.create("printer-1", "Printer 1", "SIM_PORT", "sim", true));
+
+            HttpResponse<String> settingsResponse = context.request(
+                    "PUT",
+                    "/printers/printer-1/camera/settings",
+                    """
+                            {"enabled":true,"sourceType":"simulated","sourceValue":"default","storageDirectory":"%s","retentionSnapshotCount":20}
+                            """.formatted(cameraStorageDirectory));
+            assertEquals(200, settingsResponse.statusCode());
+
+            for (int i = 0; i < 3; i++) {
+                HttpResponse<String> captureResponse = context.request(
+                        "POST",
+                        "/printers/printer-1/camera/snapshot",
+                        null);
+                assertEquals(200, captureResponse.statusCode());
+            }
+
+            HttpResponse<String> jobsResponse = context.get("/admin/camera/snapshot/jobs?printerId=printer-1");
+            assertEquals(200, jobsResponse.statusCode());
+            String cameraJobId = extractJsonString(jobsResponse.body(), "jobId");
+            assertNotNull(cameraJobId);
+
+            HttpResponse<String> createDeltaSetResponse = context.request(
+                    "POST",
+                    "/admin/camera/snapshot/jobs/" + cameraJobId + "/delta-sets?printerId=printer-1",
+                    """
+                            {"deltaSnapshotStep":1,"methodName":"image-delta","message":"api test"}
+                            """);
+
+            assertEquals(201, createDeltaSetResponse.statusCode());
+            assertTrue(createDeltaSetResponse.body().contains("\"sourceSnapshotCount\":3"));
+            assertTrue(createDeltaSetResponse.body().contains("\"generatedDeltaCount\":2"));
+            assertTrue(createDeltaSetResponse.body().contains("\"deltaSnapshotStep\":1"));
+
+            Integer deltaSetId = extractJsonInteger(createDeltaSetResponse.body(), "id");
+            assertNotNull(deltaSetId);
+
+            HttpResponse<String> deltaSetsResponse = context.get(
+                    "/admin/camera/snapshot/jobs/" + cameraJobId + "/delta-sets?printerId=printer-1");
+            assertEquals(200, deltaSetsResponse.statusCode());
+            assertTrue(deltaSetsResponse.body().contains("\"deltaSets\":["));
+            assertTrue(deltaSetsResponse.body().contains("\"generatedDeltaCount\":2"));
+
+            HttpResponse<String> framesResponse = context.get("/admin/camera/delta-sets/" + deltaSetId + "/frames");
+            assertEquals(200, framesResponse.statusCode());
+            assertTrue(framesResponse.body().contains("\"frames\":["));
+            assertTrue(framesResponse.body().contains("\"fromSnapshotId\":1"));
+            assertTrue(framesResponse.body().contains("\"toSnapshotId\":2"));
+            assertTrue(framesResponse.body().contains("\"fromSnapshotId\":2"));
+            assertTrue(framesResponse.body().contains("\"toSnapshotId\":3"));
+            assertTrue(framesResponse.body().contains("deltas/" + cameraJobId + "/" + deltaSetId + "/"));
+
+            HttpResponse<String> firstRunResponse = context.request(
+                    "POST",
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs",
+                    """
+                            {"methodName":"threshold-v1","confidenceThreshold":0.25,"message":"first run"}
+                            """);
+            HttpResponse<String> secondRunResponse = context.request(
+                    "POST",
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs",
+                    """
+                            {"methodName":"threshold-v1","confidenceThreshold":0.75,"message":"second run"}
+                            """);
+
+            assertEquals(201, firstRunResponse.statusCode());
+            assertEquals(201, secondRunResponse.statusCode());
+            assertTrue(firstRunResponse.body().contains("\"resultCount\":2"));
+            assertTrue(secondRunResponse.body().contains("\"resultCount\":2"));
+
+            Integer firstRunId = extractJsonInteger(firstRunResponse.body(), "id");
+            Integer secondRunId = extractJsonInteger(secondRunResponse.body(), "id");
+            assertNotNull(firstRunId);
+            assertNotNull(secondRunId);
+
+            HttpResponse<String> runsResponse = context.get(
+                    "/admin/camera/delta-sets/" + deltaSetId + "/calculation-runs");
+            assertEquals(200, runsResponse.statusCode());
+            assertTrue(runsResponse.body().contains("\"calculationRuns\":["));
+            assertTrue(runsResponse.body().contains("\"id\":" + firstRunId));
+            assertTrue(runsResponse.body().contains("\"id\":" + secondRunId));
+
+            HttpResponse<String> resultsResponse = context.get(
+                    "/admin/camera/calculation-runs/" + firstRunId + "/results");
+            assertEquals(200, resultsResponse.statusCode());
+            assertTrue(resultsResponse.body().contains("\"results\":["));
+            assertTrue(resultsResponse.body().contains("\"calculationRunId\":" + firstRunId));
+            assertTrue(resultsResponse.body().contains("\"deltaFrameId\":1"));
+            assertTrue(resultsResponse.body().contains("\"deltaFrameId\":2"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void cameraSnapshotAdminEndpointsExposeTimelineAndDeleteJobSnapshot() throws Exception {
         Path cameraStorageDirectory = tempDir.resolve("camera-snapshot-admin-storage");
 
