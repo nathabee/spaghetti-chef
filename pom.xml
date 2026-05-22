@@ -7,7 +7,7 @@
 
     <groupId>printerhub</groupId>
     <artifactId>printer-hub</artifactId>
-    <version>0.4.8</version>
+    <version>0.4.9</version>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>

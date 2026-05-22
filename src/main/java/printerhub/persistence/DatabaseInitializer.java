@@ -30,12 +30,13 @@ public final class DatabaseInitializer {
             createSerialTransferSettingsTable(statement);
             createCameraSettingsTable(statement);
             createCameraEventsTable(statement);
-            createCameraSnapshotMetadataTable(statement);
-            createCameraSnapshotEntriesTable(statement);
-            createCameraAnalysisSessionsTable(statement);
             createCameraAnalysisSamplesTable(statement);
             createSecuritySettingsTable(statement);
             createRoleProfilesTable(statement);
+            createCameraSnapshotMetadataTable(statement);
+            createCameraJobsTable(statement);
+            createCameraSnapshotEntriesTable(statement);
+            createCameraAnalysisSessionsTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
             ensureColumn(connection, "print_jobs", "printer_sd_file_id", "TEXT");
@@ -112,6 +113,9 @@ public final class DatabaseInitializer {
                     "INTEGER NOT NULL DEFAULT " + RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY);
             ensureColumn(connection, "camera_settings", "storage_directory",
                     "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY + "'");
+            ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
+            ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
+            ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
 
             ensureBuiltInRoleProfiles(connection);
 
@@ -291,6 +295,30 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
+    private void createCameraJobsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    printer_id TEXT NOT NULL,
+                    linked_print_job_id TEXT,
+                    analysis_session_id TEXT,
+                    state TEXT NOT NULL,
+                    started_at TEXT NOT NULL,
+                    stopped_at TEXT,
+                    capture_interval_seconds INTEGER NOT NULL,
+                    retained_snapshots INTEGER NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_description TEXT,
+                    snapshot_directory TEXT NOT NULL,
+                    message TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
     private void createOperatorAuditEventsTable(Statement statement) throws SQLException {
         String sql = """
                 CREATE TABLE IF NOT EXISTS operator_audit_events (
@@ -455,12 +483,13 @@ public final class DatabaseInitializer {
                 CREATE TABLE IF NOT EXISTS camera_snapshot_entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     printer_id TEXT NOT NULL,
-                    job_id TEXT,
+                    camera_job_id INTEGER,
+                    linked_print_job_id TEXT,
                     snapshot_path TEXT NOT NULL,
                     content_type TEXT NOT NULL,
                     size_bytes INTEGER NOT NULL DEFAULT 0,
                     captured_at TEXT NOT NULL,
-                    snapshotd_at TEXT NOT NULL,
+                    retained_at TEXT NOT NULL,
                     source_type TEXT,
                     message TEXT
                 );
