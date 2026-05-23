@@ -2966,8 +2966,8 @@ data/camera/<printerId>/
 
   snapshots/
     <cameraJobId>/
-      <sequence>_<timestamp>.jpg
-      <sequence>_<timestamp>.jpg
+      <snapshotEntryId>_snapshot.jpg
+      <snapshotEntryId>_snapshot.jpg
 ```
 
 Database direction:
@@ -3233,7 +3233,7 @@ Out of scope:
 
 ### 0.4.11 — Live Camera Job Delta Pipeline
 
-status: in progress
+status: done
 
 Purpose:
 
@@ -3296,7 +3296,7 @@ Live camera job pipeline:
 1. Camera job reads camera settings.
 2. Camera job captures a frame at the configured capture interval.
 3. The frame is saved as a retained source snapshot under:
-   data/camera/<printerId>/snapshots/<cameraJobId>/<sequence>_<timestamp>.jpg
+   data/camera/<printerId>/snapshots/<cameraJobId>/<snapshotEntryId>_snapshot.jpg
 4. The snapshot metadata is saved in camera_snapshot_entries.
 5. If at least two source snapshots exist, a delta frame is generated from persisted source snapshots.
 6. The delta frame is saved under:
@@ -3452,6 +3452,10 @@ Acceptance checklist:
 * tests verify `Files.exists(deltaPath)`
 * tests verify delta file size is greater than zero
 * `mvn test` passes
+
+Completion note:
+
+0.4.11 is complete. Running camera jobs now persist id-named source snapshots, generate physical delta images from persisted source snapshot pairs, persist delta frame metadata only for real readable delta files, create live calculation results under the active live calculation run, and keep analysis-session history away from volatile `latest.jpg`, `previous.jpg`, and `delta.jpg`. Stopping an analysis session completes the active camera job, so a later start creates a new camera job id.
 
 Out of scope:
 
