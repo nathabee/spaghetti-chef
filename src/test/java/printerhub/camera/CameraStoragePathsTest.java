@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.file.Path;
-import java.time.Instant;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,11 +63,11 @@ class CameraStoragePathsTest {
     void snapshotPathUsesCameraJobIdAsFolderOwner() {
         Path storageDirectory = tempDir.resolve("absolute-camera-storage");
 
-        Path path = CameraStoragePaths.snapshotPath(
+        Path path = CameraStoragePaths.snapshotPathForEntryId(
                 storageDirectory.toString(),
                 "printer 1",
                 42L,
-                Instant.parse("2026-05-22T11:23:40.512051086Z"),
+                65L,
                 ".jpg");
 
         assertEquals(
@@ -77,7 +75,7 @@ class CameraStoragePathsTest {
                         .resolve("printer_1")
                         .resolve("snapshots")
                         .resolve("42")
-                        .resolve("2026-05-22T11-23-40.512051086Z_42.jpg")
+                        .resolve("000065_snapshot.jpg")
                         .toAbsolutePath()
                         .normalize(),
                 path.toAbsolutePath().normalize());
@@ -89,14 +87,30 @@ class CameraStoragePathsTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> CameraStoragePaths.snapshotPath(
+                () -> CameraStoragePaths.snapshotPathForEntryId(
                         storageDirectory.toString(),
                         "printer-1",
                         0L,
-                        Instant.parse("2026-05-22T11:23:40Z"),
+                        1L,
                         ".jpg"));
 
         assertEquals("cameraJobId must be greater than zero", exception.getMessage());
+    }
+
+    @Test
+    void snapshotPathRejectsInvalidSnapshotEntryId() {
+        Path storageDirectory = tempDir.resolve("absolute-camera-storage");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> CameraStoragePaths.snapshotPathForEntryId(
+                        storageDirectory.toString(),
+                        "printer-1",
+                        42L,
+                        0L,
+                        ".jpg"));
+
+        assertEquals("snapshotEntryId must be greater than zero", exception.getMessage());
     }
 
     @Test

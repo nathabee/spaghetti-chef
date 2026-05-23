@@ -15,6 +15,7 @@ next:
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
+- 0.4.11 — Live Camera Job Delta Pipeline
 - 0.4.10 — Camera Delta Sets And Calculation Runs
 - 0.4.9 — Camera Job Storage Model And Snapshot Ownership
 - 0.4.8 — Camera Dashboard Printer-Scoped Administration

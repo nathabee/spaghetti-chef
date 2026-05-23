@@ -1463,6 +1463,20 @@ class RemoteApiServerTest {
             assertTrue(samplesResponse.body().contains("\"sessionId\":\"" + sessionId + "\""));
             assertTrue(samplesResponse.body().contains("\"deltaScore\":"));
             assertTrue(samplesResponse.body().contains("\"confidence\":"));
+            assertTrue(samplesResponse.body().contains("/snapshots/1/000001_snapshot.jpg"));
+            assertFalse(samplesResponse.body().contains("/snapshots/previous.jpg"));
+            assertFalse(samplesResponse.body().contains("/snapshots/delta.jpg"));
+
+            HttpResponse<String> secondSampleResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/analysis-sessions/" + sessionId + "/samples",
+                    null);
+            assertEquals(201, secondSampleResponse.statusCode());
+            assertTrue(secondSampleResponse.body().contains("/snapshots/1/000002_snapshot.jpg"));
+            assertTrue(secondSampleResponse.body().contains("/snapshots/1/000001_snapshot.jpg"));
+            assertTrue(secondSampleResponse.body().contains("/deltas/1/1/000001_000002_delta.jpg"));
+            assertFalse(secondSampleResponse.body().contains("/snapshots/previous.jpg"));
+            assertFalse(secondSampleResponse.body().contains("/snapshots/delta.jpg"));
 
             HttpResponse<String> listResponse = context.get("/printers/printer-1/camera/analysis-sessions");
             assertEquals(200, listResponse.statusCode());
@@ -1476,6 +1490,15 @@ class RemoteApiServerTest {
             assertEquals(200, stopResponse.statusCode());
             assertTrue(stopResponse.body().contains("\"state\":\"COMPLETED\""));
             assertTrue(stopResponse.body().contains("\"stoppedAt\":"));
+            assertEquals("COMPLETED", new CameraJobStore().findById(1L).orElseThrow().state().name());
+
+            HttpResponse<String> restartedResponse = context.request(
+                    "POST",
+                    "/printers/printer-1/camera/analysis-sessions",
+                    null);
+            assertEquals(201, restartedResponse.statusCode());
+            assertTrue(restartedResponse.body().contains("\"state\":\"RUNNING\""));
+            assertEquals("RUNNING", new CameraJobStore().findById(2L).orElseThrow().state().name());
         } finally {
             context.close();
         }

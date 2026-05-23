@@ -100,6 +100,36 @@ public final class CameraDeltaFrameStore {
         }
     }
 
+    public Optional<CameraDeltaFrame> findBySnapshotPair(long cameraJobId, long fromSnapshotId, long toSnapshotId) {
+        String sql = selectColumns() + """
+                FROM camera_delta_frames
+                WHERE camera_job_id = ?
+                    AND from_snapshot_id = ?
+                    AND to_snapshot_id = ?
+                ORDER BY id DESC
+                LIMIT 1;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(cameraJobId, "cameraJobId"));
+            statement.setLong(2, requirePositive(fromSnapshotId, "fromSnapshotId"));
+            statement.setLong(3, requirePositive(toSnapshotId, "toSnapshotId"));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera delta frame", exception);
+        }
+    }
+
     private static void bind(PreparedStatement statement, CameraDeltaFrame frame) throws SQLException {
         statement.setLong(1, frame.deltaSetId());
         statement.setString(2, frame.printerId());

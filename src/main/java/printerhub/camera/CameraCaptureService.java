@@ -32,6 +32,7 @@ public final class CameraCaptureService {
     private final SpaghettiDetectionService spaghettiDetectionService;
     private final CameraSnapshotEntryStore snapshotEntryStore;
     private final CameraJobService cameraJobService;
+    private final CameraLiveDeltaPipelineService liveDeltaPipelineService;
 
     public CameraCaptureService(
             CameraSettingsService settingsService,
@@ -61,7 +62,8 @@ public final class CameraCaptureService {
                 new ImageDeltaFrameAnalyzer(),
                 new SpaghettiDetectionService(),
                 new CameraSnapshotEntryStore(),
-                new CameraJobService());
+                new CameraJobService(),
+                new CameraLiveDeltaPipelineService());
     }
 
     public CameraCaptureService(
@@ -81,7 +83,8 @@ public final class CameraCaptureService {
                 frameAnalyzer,
                 spaghettiDetectionService,
                 new CameraSnapshotEntryStore(),
-                new CameraJobService());
+                new CameraJobService(),
+                new CameraLiveDeltaPipelineService());
     }
 
     public CameraCaptureService(
@@ -94,6 +97,30 @@ public final class CameraCaptureService {
             SpaghettiDetectionService spaghettiDetectionService,
             CameraSnapshotEntryStore snapshotEntryStore,
             CameraJobService cameraJobService) {
+        this(
+                settingsService,
+                eventStore,
+                snapshotMetadataStore,
+                storageDirectory,
+                clock,
+                frameAnalyzer,
+                spaghettiDetectionService,
+                snapshotEntryStore,
+                cameraJobService,
+                new CameraLiveDeltaPipelineService());
+    }
+
+    public CameraCaptureService(
+            CameraSettingsService settingsService,
+            CameraEventStore eventStore,
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            Path storageDirectory,
+            Clock clock,
+            FrameAnalyzer frameAnalyzer,
+            SpaghettiDetectionService spaghettiDetectionService,
+            CameraSnapshotEntryStore snapshotEntryStore,
+            CameraJobService cameraJobService,
+            CameraLiveDeltaPipelineService liveDeltaPipelineService) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
@@ -103,6 +130,7 @@ public final class CameraCaptureService {
         this.spaghettiDetectionService = Objects.requireNonNull(spaghettiDetectionService, "spaghettiDetectionService");
         this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
         this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
+        this.liveDeltaPipelineService = Objects.requireNonNull(liveDeltaPipelineService, "liveDeltaPipelineService");
     }
 
     public CameraStatus status(String printerId) {
@@ -212,6 +240,7 @@ public final class CameraCaptureService {
                     OperationMessages.CAMERA_FRAME_CAPTURED);
 
             analyzeCapturedFrame(settings, persistedPaths);
+            processLiveDeltaPipeline(settings, persistedPaths.cameraJobId());
 
             return CameraCaptureResult.captured(frame.get());
         } catch (RuntimeException exception) {
@@ -277,8 +306,6 @@ public final class CameraCaptureService {
         Path printerDirectory = CameraStoragePaths.printerDirectory(settings.storageDirectory(), frame.printerId());
         Path snapshotsDirectory = CameraStoragePaths
                 .snapshotsDirectory(settings.storageDirectory(), frame.printerId(), cameraJob.requireId());
-        Path snapshotPath = CameraStoragePaths
-                .snapshotPath(settings.storageDirectory(), frame.printerId(), cameraJob.requireId(), frame.capturedAt(), extension);
         Path latestPath = printerDirectory.resolve("latest" + extension);
         Path previousPath = printerDirectory.resolve("previous" + extension);
         Path deltaPath = printerDirectory.resolve("delta.jpg");
@@ -291,8 +318,30 @@ public final class CameraCaptureService {
                 Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            Files.write(snapshotPath, frame.bytes());
+            Path pendingSnapshotPath = Files.createTempFile(snapshotsDirectory, "pending-snapshot-", extension);
+            Files.write(pendingSnapshotPath, frame.bytes());
             Files.write(latestPath, frame.bytes());
+
+            CameraSnapshotEntry snapshotEntry = snapshotEntryStore.save(CameraSnapshotEntry.captured(
+                    frame.printerId(),
+                    cameraJob.requireId(),
+                    cameraJob.linkedPrintJobId().orElse(null),
+                    pendingSnapshotPath.toString(),
+                    frame.contentType(),
+                    Files.size(pendingSnapshotPath),
+                    frame.capturedAt(),
+                    clock.instant(),
+                    settings.sourceType().wireValue(),
+                    frame.sourceDescription().orElse(null)));
+            long snapshotEntryId = requireSnapshotEntryId(snapshotEntry);
+            Path snapshotPath = CameraStoragePaths.snapshotPathForEntryId(
+                    settings.storageDirectory(),
+                    frame.printerId(),
+                    cameraJob.requireId(),
+                    snapshotEntryId,
+                    extension);
+            Files.move(pendingSnapshotPath, snapshotPath, StandardCopyOption.REPLACE_EXISTING);
+            snapshotEntry = snapshotEntryStore.updateSnapshotPath(snapshotEntryId, snapshotPath.toString());
 
             enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
 
@@ -305,25 +354,38 @@ public final class CameraCaptureService {
                     frame.height().isPresent() ? frame.height().getAsInt() : null,
                     frame.sourceDescription().orElse(null)));
 
-            snapshotEntryStore.save(CameraSnapshotEntry.captured(
-                    frame.printerId(),
-                    cameraJob.requireId(),
-                    cameraJob.linkedPrintJobId().orElse(null),
-                    snapshotPath.toString(),
-                    frame.contentType(),
-                    Files.size(snapshotPath),
-                    frame.capturedAt(),
-                    clock.instant(),
-                    settings.sourceType().wireValue(),
-                    frame.sourceDescription().orElse(null)));
-
             return new PersistedCameraFramePaths(
+                    cameraJob.requireId(),
+                    snapshotEntry,
                     snapshotPath,
                     latestPath,
                     previousPath,
                     deltaPath);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist camera frame", exception);
+        }
+    }
+
+    private static long requireSnapshotEntryId(CameraSnapshotEntry snapshotEntry) {
+        if (snapshotEntry.id() == null || snapshotEntry.id() <= 0L) {
+            throw new IllegalStateException("camera snapshot entry id is required");
+        }
+
+        return snapshotEntry.id();
+    }
+
+    private void processLiveDeltaPipeline(CameraSettings settings, long cameraJobId) {
+        if (!settings.analysisEnabled()) {
+            return;
+        }
+
+        try {
+            liveDeltaPipelineService.processLatestSnapshot(settings, cameraJobId);
+        } catch (RuntimeException exception) {
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
+                    OperationMessages.cameraAnalysisFailed(exception.getMessage()));
         }
     }
 
@@ -434,6 +496,8 @@ public final class CameraCaptureService {
     }
 
     private record PersistedCameraFramePaths(
+            long cameraJobId,
+            CameraSnapshotEntry snapshotEntry,
             Path snapshotPath,
             Path latestPath,
             Path previousPath,

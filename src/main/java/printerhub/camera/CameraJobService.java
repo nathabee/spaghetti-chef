@@ -68,6 +68,23 @@ public final class CameraJobService {
                 now);
     }
 
+    public Optional<CameraJob> findActive(String printerId) {
+        return cameraJobStore.findActiveByPrinterId(requireText(printerId, "printerId"));
+    }
+
+    public Optional<CameraJob> completeActive(String printerId, String message) {
+        Optional<CameraJob> active = findActive(printerId);
+        if (active.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(cameraJobStore.markStopped(
+                active.get().requireId(),
+                printerhub.persistence.CameraJobState.COMPLETED,
+                clock.instant(),
+                message));
+    }
+
     private Optional<String> activePrintJobId(String printerId) {
         try {
             return printJobStore
