@@ -8,6 +8,12 @@ export function renderAdminCameraDataPage(
   selectedJobId = null,
   timeline = [],
   selectedEntryId = null,
+  deltaSets = [],
+  deltaFrames = [],
+  calculationRuns = [],
+  traceRows = [],
+  selectedDeltaSetId = null,
+  selectedCalculationRunId = null,
   actionResult = null,
   snapshotEntryUrl = () => ""
 ) {
@@ -88,6 +94,30 @@ export function renderAdminCameraDataPage(
           <span class="badge badge-real">preview</span>
         </div>
         ${renderSelectedEntry(timeline, selectedEntryId, snapshotEntryUrl)}
+      </article>
+    </section>
+
+    <section class="two-column-grid">
+      <article class="placeholder-card">
+        <div class="section-header compact">
+          <div>
+            <h3>Recalculation</h3>
+            <p class="placeholder-caption">Create reusable delta sets and run persisted spaghetti calculations without replacing older runs.</p>
+          </div>
+          <span class="badge badge-real">0.4.12</span>
+        </div>
+        ${renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, selectedDeltaSetId, selectedCalculationRunId)}
+      </article>
+
+      <article class="placeholder-card">
+        <div class="section-header compact">
+          <div>
+            <h3>Spaghetti trace review</h3>
+            <p class="placeholder-caption">Rows are backed by persisted source snapshots, delta frames, and calculation results.</p>
+          </div>
+          <span class="badge badge-real">${escapeHtml(String(traceRows?.length ?? 0))} rows</span>
+        </div>
+        ${renderTraceReview(deltaFrames, traceRows)}
       </article>
     </section>
   `;
@@ -179,6 +209,145 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
   `;
 }
 
+function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, selectedDeltaSetId, selectedCalculationRunId) {
+  if (!selectedJobId) {
+    return `<p class="muted">Load a camera job before generating deltas or running calculations.</p>`;
+  }
+
+  const safeDeltaSets = Array.isArray(deltaSets) ? deltaSets : [];
+  const safeRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
+
+  return `
+    <div class="form-grid compact-form">
+      <label>
+        Existing delta set
+        <select data-admin-camera-delta-set>
+          <option value="">No delta set selected</option>
+          ${safeDeltaSets.map((deltaSet) => `
+            <option value="${escapeHtml(String(deltaSet.id))}" ${Number(deltaSet.id) === Number(selectedDeltaSetId) ? "selected" : ""}>
+              #${escapeHtml(String(deltaSet.id))} step ${escapeHtml(String(deltaSet.deltaSnapshotStep ?? "-"))} - ${escapeHtml(String(deltaSet.generatedDeltaCount ?? 0))} deltas
+            </option>
+          `).join("")}
+        </select>
+      </label>
+      <label>
+        Calculation run
+        <select data-admin-camera-calculation-run ${selectedDeltaSetId ? "" : "disabled"}>
+          <option value="">No calculation run selected</option>
+          ${safeRuns.map((run) => `
+            <option value="${escapeHtml(String(run.id))}" ${Number(run.id) === Number(selectedCalculationRunId) ? "selected" : ""}>
+              #${escapeHtml(String(run.id))} - ${escapeHtml(run.methodName ?? "-")} - ${escapeHtml(String(run.resultCount ?? 0))} results
+            </option>
+          `).join("")}
+        </select>
+      </label>
+      <label>
+        Calculation method
+        <input id="adminCameraCalculationMethodInput" type="text" value="spaghetti-heuristic">
+      </label>
+      <label>
+        Confidence threshold
+        <input id="adminCameraCalculationConfidenceInput" type="number" min="0" max="1" step="0.01" value="0.85">
+      </label>
+      <label>
+        Parameters JSON
+        <input id="adminCameraCalculationParamsInput" type="text" value="{&quot;source&quot;:&quot;dashboard&quot;}">
+      </label>
+    </div>
+    <div class="inline-actions">
+      <button type="button" class="button-secondary" data-admin-camera-run-calculation="${escapeHtml(String(selectedDeltaSetId || ""))}" ${selectedDeltaSetId ? "" : "disabled"}>
+        Run calculation
+      </button>
+    </div>
+    ${renderRunComparison(safeRuns)}
+  `;
+}
+
+function renderRunComparison(calculationRuns) {
+  if (calculationRuns.length === 0) {
+    return `<p class="muted">No calculation runs exist for the selected delta set yet.</p>`;
+  }
+
+  return `
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Method</th>
+            <th>Results</th>
+            <th>Created</th>
+            <th>Parameters</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${calculationRuns.map((run) => `
+            <tr>
+              <td>${escapeHtml(String(run.id ?? "-"))}</td>
+              <td>${escapeHtml(run.methodName ?? "-")}</td>
+              <td>${escapeHtml(String(run.resultCount ?? 0))}</td>
+              <td>${escapeHtml(run.createdAt ?? "-")}</td>
+              <td><code>${escapeHtml(run.parameterJson ?? "{}")}</code></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderTraceReview(deltaFrames, traceRows) {
+  const safeFrames = Array.isArray(deltaFrames) ? deltaFrames : [];
+  const safeTraceRows = Array.isArray(traceRows) ? traceRows : [];
+  if (safeTraceRows.length === 0) {
+    return `
+      <p class="muted">Select a calculation run to review persisted spaghetti trace rows.</p>
+      ${safeFrames.length === 0 ? "" : `<p class="muted">${escapeHtml(String(safeFrames.length))} delta frames are available for the selected delta set.</p>`}
+    `;
+  }
+
+  return `
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Created</th>
+            <th>Camera job</th>
+            <th>Delta set</th>
+            <th>Delta frame</th>
+            <th>Run</th>
+            <th>Result</th>
+            <th>From snapshot</th>
+            <th>To snapshot</th>
+            <th>Delta file</th>
+            <th>Confidence</th>
+            <th>State</th>
+            <th>Reason codes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${safeTraceRows.map((row) => `
+            <tr class="${row.suspected ? "analysis-suspected" : "analysis-good"}">
+              <td>${escapeHtml(row.createdAt ?? "-")}</td>
+              <td>${escapeHtml(String(row.cameraJobId ?? "-"))}</td>
+              <td>${escapeHtml(String(row.deltaSetId ?? "-"))}</td>
+              <td>${escapeHtml(String(row.deltaFrameId ?? "-"))}</td>
+              <td>${escapeHtml(String(row.calculationRunId ?? "-"))}</td>
+              <td>${escapeHtml(String(row.calculationResultId ?? "-"))}</td>
+              <td><code title="${escapeHtml(row.fromSnapshotPath ?? "")}">${escapeHtml(fileName(row.fromSnapshotPath))}</code></td>
+              <td><code title="${escapeHtml(row.toSnapshotPath ?? "")}">${escapeHtml(fileName(row.toSnapshotPath))}</code></td>
+              <td><code title="${escapeHtml(row.deltaPath ?? "")}">${escapeHtml(fileName(row.deltaPath))}</code></td>
+              <td>${formatPercent(row.confidence)}</td>
+              <td>${row.suspected ? '<span class="badge status-error">Suspicious</span>' : '<span class="badge badge-enabled">Good</span>'}</td>
+              <td>${escapeHtml(row.reasonCodes ?? "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderTimelineTable(timeline, selectedEntryId) {
   if (!Array.isArray(timeline) || timeline.length === 0) {
     return `<p class="muted">No timeline loaded yet.</p>`;
@@ -251,6 +420,24 @@ function cameraJobKey(job) {
     return String(job.jobId);
   }
   return "";
+}
+
+function fileName(path) {
+  if (!path) {
+    return "-";
+  }
+
+  const normalized = String(path).replaceAll("\\", "/");
+  return normalized.split("/").filter(Boolean).pop() || normalized;
+}
+
+function formatPercent(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  return `${Math.round(parsed * 100)}%`;
 }
 
 function renderActionResult(result) {

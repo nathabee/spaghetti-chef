@@ -3,7 +3,12 @@ import {
   captureCameraAnalysisSample,
   getCameraAnalysisSamples,
   getCameraAnalysisSessions,
+  getCameraCalculationRuns,
+  getCameraCalculationTrace,
+  getCameraDeltaFrames,
+  getCameraDeltaSets,
   getCameraSnapshotFiles,
+  getCameraSnapshotJobs,
   getCameraEvents,
   getCameraSettings,
   getCameraStatus,
@@ -60,8 +65,9 @@ export async function renderPrinterCamera(printer, snapshotRange = defaultSnapsh
     const samples = selectedSession
       ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
       : [];
+    const analysisReview = await loadAnalysisReview(printer.id);
 
-    return renderCameraPage(printer.id, status, settings, events, sessions, samples, snapshotFiles, snapshotRange);
+    return renderCameraPage(printer.id, status, settings, events, sessions, samples, snapshotFiles, snapshotRange, analysisReview);
   } catch (error) {
     return `
       <div class="empty-state error-state">
@@ -85,8 +91,38 @@ export async function renderPrinterCameraAnalysisPanel(printer) {
   const samples = selectedSession
     ? await getCameraAnalysisSamples(printer.id, selectedSession.id)
     : [];
+  const analysisReview = await loadAnalysisReview(printer.id);
 
-  return renderCameraAnalysisCard(printer.id, sessions, samples, settings.captureIntervalSeconds);
+  return renderCameraAnalysisCard(printer.id, sessions, samples, settings.captureIntervalSeconds, analysisReview);
+}
+
+async function loadAnalysisReview(printerId) {
+  try {
+    const jobs = await getCameraSnapshotJobs(printerId);
+    const cameraJob = jobs.find((job) => job.state === "ACTIVE" || job.state === "RUNNING") || jobs[0] || null;
+    const cameraJobId = cameraJob?.cameraJobId ?? cameraJob?.cameraJobKey ?? cameraJob?.jobId ?? null;
+    const deltaSets = cameraJobId ? await getCameraDeltaSets(cameraJobId, printerId) : [];
+    const deltaSet = deltaSets[0] || null;
+    const deltaFrames = deltaSet?.id ? await getCameraDeltaFrames(deltaSet.id, printerId) : [];
+    const calculationRuns = deltaSet?.id ? await getCameraCalculationRuns(deltaSet.id, printerId) : [];
+    const calculationRun = calculationRuns[0] || null;
+    const traceRows = calculationRun?.id ? await getCameraCalculationTrace(calculationRun.id, printerId) : [];
+
+    return {
+      cameraJob,
+      cameraJobId,
+      sourceSnapshotCount: cameraJob?.fileCount ?? 0,
+      deltaSet,
+      deltaFrameCount: deltaFrames.length,
+      calculationRun,
+      traceRows
+    };
+  } catch (error) {
+    return {
+      error: error.message || "Unable to load analysis trace review.",
+      traceRows: []
+    };
+  }
 }
 
 export async function capturePrinterCameraSnapshot(printerId) {

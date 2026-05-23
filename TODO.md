@@ -784,7 +784,7 @@ Completion note:
 
 ## Status
 
-Planned after 0.4.11
+Done
 
 ## Purpose
 
@@ -852,6 +852,10 @@ createdAt
 * model training
 * real compression/archive deletion
 * replacing the current image-delta heuristic
+
+## Completion note
+
+0.4.12 is complete. The dashboard Analysis Session view shows persisted camera job status, source snapshot count, active live delta set, active live calculation run, and spaghetti trace rows backed by calculation results. Admin Picture/Data Management can select camera jobs, delta sets, and calculation runs, generate more delta sets, run new calculations with different parameters, keep older runs, compare runs for the same job, and inspect source snapshot plus delta frame file names without using `latest.jpg`, `previous.jpg`, or `delta.jpg` as persisted history.
 
 
  

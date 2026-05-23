@@ -14,6 +14,10 @@ import {
   getAppVersion,
   adminCameraSnapshotEntryUrl,
   deleteCameraSnapshotJob,
+  getCameraCalculationRuns,
+  getCameraCalculationTrace,
+  getCameraDeltaFrames,
+  getCameraDeltaSets,
   getCameraSnapshotJobs,
   getCameraSnapshotJobTimeline,
   generateCameraDeltaSet,
@@ -38,6 +42,7 @@ import {
   previewCameraSnapshotRecalculation,
   restartJob,
   resumeJob, 
+  runCameraCalculation,
   saveMonitoringRules,
   savePrintFileSettings,
   saveSerialTransferSettings,
@@ -90,7 +95,10 @@ import {
   setJobs,
   setAppVersion,
   setAdminCameraPrinter,
+  setAdminCameraAnalysisData,
   setAdminCameraActionResult,
+  setAdminCameraSelectedCalculationRun,
+  setAdminCameraSelectedDeltaSet,
   setAdminCameraSelectedEntry,
   setAdminCameraTimeline,
   setCameraSnapshotJobs,
@@ -251,10 +259,52 @@ async function loadAdminCameraTimeline(jobId) {
   try {
     const timeline = await getCameraSnapshotJobTimeline(jobId, state.adminCameraPrinterId);
     setAdminCameraTimeline(jobId, timeline);
+    await loadAdminCameraAnalysisData(jobId);
     setAdminCameraActionResult({ message: `Loaded ${timeline.length} camera snapshot entries for ${jobId}.` });
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to load camera snapshot timeline: ${error.message}` });
   }
+}
+
+async function loadAdminCameraAnalysisData(jobId, preferredDeltaSetId = null, preferredCalculationRunId = null) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    setAdminCameraAnalysisData([], [], [], [], null, null);
+    return;
+  }
+
+  const deltaSets = await getCameraDeltaSets(jobId, state.adminCameraPrinterId);
+  const selectedDeltaSet = selectById(deltaSets, preferredDeltaSetId) || deltaSets[0] || null;
+  const selectedDeltaSetId = selectedDeltaSet?.id ?? null;
+  const deltaFrames = selectedDeltaSetId
+    ? await getCameraDeltaFrames(selectedDeltaSetId, state.adminCameraPrinterId)
+    : [];
+  const calculationRuns = selectedDeltaSetId
+    ? await getCameraCalculationRuns(selectedDeltaSetId, state.adminCameraPrinterId)
+    : [];
+  const selectedRun = selectById(calculationRuns, preferredCalculationRunId) || calculationRuns[0] || null;
+  const selectedCalculationRunId = selectedRun?.id ?? null;
+  const traceRows = selectedCalculationRunId
+    ? await getCameraCalculationTrace(selectedCalculationRunId, state.adminCameraPrinterId)
+    : [];
+
+  setAdminCameraAnalysisData(
+    deltaSets,
+    deltaFrames,
+    calculationRuns,
+    traceRows,
+    selectedDeltaSetId,
+    selectedCalculationRunId
+  );
+}
+
+function selectById(items, id) {
+  if (id == null || id === "") {
+    return null;
+  }
+
+  return Array.isArray(items)
+    ? items.find((item) => Number(item.id) === Number(id)) || null
+    : null;
 }
 
 async function handleAdminCameraRecalculate(jobId) {
@@ -286,9 +336,73 @@ async function handleAdminCameraGenerateDeltaSet(jobId) {
       methodName: methodInput?.value?.trim() || "image-delta",
       message: "dashboard generated delta set"
     });
+    await loadAdminCameraAnalysisData(jobId, result.deltaSet?.id ?? result.deltaSetId ?? null);
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to generate delta set: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraRunCalculation(deltaSetId) {
+  if (!state.adminCameraPrinterId || !state.adminCameraSelectedJobId || !deltaSetId) {
+    return;
+  }
+
+  const methodInput = document.getElementById("adminCameraCalculationMethodInput");
+  const confidenceInput = document.getElementById("adminCameraCalculationConfidenceInput");
+  const paramsInput = document.getElementById("adminCameraCalculationParamsInput");
+  const parsedConfidence = Number.parseFloat(confidenceInput?.value || "");
+
+  try {
+    const result = await runCameraCalculation(deltaSetId, {
+      methodName: methodInput?.value?.trim() || "spaghetti-heuristic",
+      confidenceThreshold: Number.isFinite(parsedConfidence) ? parsedConfidence : undefined,
+      parameterJson: paramsInput?.value?.trim() || "{}",
+      message: "dashboard calculation run"
+    });
+    const calculationRunId = result.calculationRun?.id ?? null;
+    await loadAdminCameraAnalysisData(state.adminCameraSelectedJobId, deltaSetId, calculationRunId);
+    setAdminCameraActionResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to run camera calculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraSelectDeltaSet(deltaSetId) {
+  setAdminCameraSelectedDeltaSet(deltaSetId);
+  if (!state.adminCameraPrinterId || !state.adminCameraSelectedJobId || !state.adminCameraSelectedDeltaSetId) {
+    setAdminCameraAnalysisData(state.adminCameraDeltaSets, [], [], [], null, null);
+    return;
+  }
+
+  try {
+    await loadAdminCameraAnalysisData(state.adminCameraSelectedJobId, state.adminCameraSelectedDeltaSetId);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to load delta set data: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraSelectCalculationRun(calculationRunId) {
+  setAdminCameraSelectedCalculationRun(calculationRunId);
+  if (!state.adminCameraPrinterId || !state.adminCameraSelectedCalculationRunId) {
+    return;
+  }
+
+  try {
+    const traceRows = await getCameraCalculationTrace(
+      state.adminCameraSelectedCalculationRunId,
+      state.adminCameraPrinterId
+    );
+    setAdminCameraAnalysisData(
+      state.adminCameraDeltaSets,
+      state.adminCameraDeltaFrames,
+      state.adminCameraCalculationRuns,
+      traceRows,
+      state.adminCameraSelectedDeltaSetId,
+      state.adminCameraSelectedCalculationRunId
+    );
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to load calculation trace: ${error.message}` });
   }
 }
 
@@ -439,6 +553,12 @@ function renderPage() {
       state.adminCameraSelectedJobId,
       state.adminCameraTimeline,
       state.adminCameraSelectedEntryId,
+      state.adminCameraDeltaSets,
+      state.adminCameraDeltaFrames,
+      state.adminCameraCalculationRuns,
+      state.adminCameraTraceRows,
+      state.adminCameraSelectedDeltaSetId,
+      state.adminCameraSelectedCalculationRunId,
       state.adminCameraActionResult,
       adminCameraSnapshotEntryUrl
     );
@@ -674,6 +794,13 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraRunCalculationButton = event.target.closest("[data-admin-camera-run-calculation]");
+    if (adminCameraRunCalculationButton) {
+      await handleAdminCameraRunCalculation(adminCameraRunCalculationButton.dataset.adminCameraRunCalculation);
+      renderApp();
+      return;
+    }
+
     const adminCameraDeleteJobButton = event.target.closest("[data-admin-camera-delete-job]");
     if (adminCameraDeleteJobButton) {
       await handleAdminCameraDeleteJob(adminCameraDeleteJobButton.dataset.adminCameraDeleteJob);
@@ -827,6 +954,18 @@ function bindGlobalListeners() {
     if (adminCameraPrinterSelect) {
       setAdminCameraPrinter(adminCameraPrinterSelect.value);
       refreshCameraSnapshotJobs().then(renderApp);
+      return;
+    }
+
+    const adminCameraDeltaSetSelect = event.target.closest("[data-admin-camera-delta-set]");
+    if (adminCameraDeltaSetSelect) {
+      handleAdminCameraSelectDeltaSet(adminCameraDeltaSetSelect.value).then(renderApp);
+      return;
+    }
+
+    const adminCameraCalculationRunSelect = event.target.closest("[data-admin-camera-calculation-run]");
+    if (adminCameraCalculationRunSelect) {
+      handleAdminCameraSelectCalculationRun(adminCameraCalculationRunSelect.value).then(renderApp);
       return;
     }
 

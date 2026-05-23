@@ -1227,6 +1227,24 @@ class RemoteApiServerTest {
             assertTrue(resultsResponse.body().contains("\"calculationRunId\":" + firstRunId));
             assertTrue(resultsResponse.body().contains("\"deltaFrameId\":1"));
             assertTrue(resultsResponse.body().contains("\"deltaFrameId\":2"));
+
+            HttpResponse<String> traceResponse = context.get(
+                    "/admin/camera/calculation-runs/" + firstRunId + "/trace?printerId=printer-1");
+            assertEquals(200, traceResponse.statusCode());
+            assertTrue(traceResponse.body().contains("\"trace\":["));
+            assertTrue(traceResponse.body().contains("\"cameraJobId\":" + cameraJobId));
+            assertTrue(traceResponse.body().contains("\"deltaSetId\":" + deltaSetId));
+            assertTrue(traceResponse.body().contains("\"calculationRunId\":" + firstRunId));
+            assertTrue(traceResponse.body().contains("\"calculationResultId\":1"));
+            assertTrue(traceResponse.body().contains("\"fromSnapshotPath\":"));
+            assertTrue(traceResponse.body().contains("\"toSnapshotPath\":"));
+            assertTrue(traceResponse.body().contains("\"deltaPath\":"));
+            assertTrue(traceResponse.body().contains("000001_snapshot.jpg"));
+            assertTrue(traceResponse.body().contains("000002_snapshot.jpg"));
+            assertTrue(traceResponse.body().contains("000001_000002_delta.jpg"));
+            assertFalse(traceResponse.body().contains("latest.jpg"));
+            assertFalse(traceResponse.body().contains("previous.jpg"));
+            assertFalse(traceResponse.body().contains("/delta.jpg"));
         } finally {
             context.close();
         }
