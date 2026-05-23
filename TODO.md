@@ -126,8 +126,8 @@ data/camera/<printerId>/
 
   snapshots/
     <cameraJobId>/
-      <sequence>_<timestamp>.jpg
-      <sequence>_<timestamp>.jpg
+      <snapshotEntryId>_snapshot.jpg
+      <snapshotEntryId>_snapshot.jpg
 ```
 
 If the branch currently uses singular `snapshot/`, do not fight the folder name during test stabilization. The important correction is the camera job id:
@@ -684,6 +684,8 @@ CameraCalculationResult
 
 # 0.4.11 — Live Camera Job Delta Pipeline
 
+Status: done
+
 Purpose:
 
 Extend the camera job so a running camera job can create persisted source snapshots, persisted delta frames, and live calculation samples while the job is running.
@@ -710,7 +712,7 @@ Live camera job pipeline:
 1. Camera job reads camera settings.
 2. Camera job captures a frame at the configured capture interval.
 3. The frame is saved as a retained source snapshot under:
-   data/camera/<printerId>/snapshots/<cameraJobId>/<sequence>_<timestamp>.jpg
+   data/camera/<printerId>/snapshots/<cameraJobId>/<snapshotEntryId>_snapshot.jpg
 4. The snapshot metadata is saved in camera_snapshot_entries.
 5. If enough source snapshots exist, a delta frame is generated from persisted source snapshots.
 6. The delta frame is saved under:
@@ -771,6 +773,10 @@ Acceptance checklist:
 * no delta is created before at least two source snapshots exist
 * admin can later regenerate another delta set from the same camera job using a different delta snapshot step
 * admin can later run another calculation with different parameters without overwriting the live calculation run
+
+Completion note:
+
+0.4.11 is complete. Running camera jobs persist source snapshots as id-named files, live delta frames are generated as physical files under `deltas/<cameraJobId>/<deltaSetId>/`, calculation results are stored under the active live calculation run, and analysis-session history no longer uses volatile `latest.jpg`, `previous.jpg`, or `delta.jpg` as persisted references.
 
 
 

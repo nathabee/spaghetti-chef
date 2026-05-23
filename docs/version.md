@@ -8,7 +8,7 @@ see ROADMAP.md
 
 next:
 
-0.4.11 — Replay, Compression, And Simulation Review
+0.4.12 — Analysis Session Review And Recalculation UI
 
 ## Version (done)
 
