@@ -38,7 +38,13 @@ export const state = {
   operatorAuditEvents: [],
   cameraSnapshotJobs: [],
   adminCameraTimeline: [],
+  adminCameraDeltaSets: [],
+  adminCameraDeltaFrames: [],
+  adminCameraCalculationRuns: [],
+  adminCameraTraceRows: [],
   adminCameraSelectedJobId: null,
+  adminCameraSelectedDeltaSetId: null,
+  adminCameraSelectedCalculationRunId: null,
   adminCameraSelectedEntryId: null,
   adminCameraActionResult: null,
   printerEvents: new Map(),
@@ -146,7 +152,13 @@ export function setAdminCameraPrinter(printerId) {
   const exists = state.printers.some((printer) => printer.id === printerId);
   state.adminCameraPrinterId = exists ? printerId : state.adminCameraPrinterId;
   state.adminCameraTimeline = [];
+  state.adminCameraDeltaSets = [];
+  state.adminCameraDeltaFrames = [];
+  state.adminCameraCalculationRuns = [];
+  state.adminCameraTraceRows = [];
   state.adminCameraSelectedJobId = null;
+  state.adminCameraSelectedDeltaSetId = null;
+  state.adminCameraSelectedCalculationRunId = null;
   state.adminCameraSelectedEntryId = null;
   state.adminCameraActionResult = null;
 }
@@ -155,6 +167,30 @@ export function setAdminCameraTimeline(jobId, timeline) {
   state.adminCameraSelectedJobId = jobId || null;
   state.adminCameraTimeline = Array.isArray(timeline) ? timeline : [];
   state.adminCameraSelectedEntryId = state.adminCameraTimeline[0]?.id ?? null;
+}
+
+export function setAdminCameraAnalysisData(deltaSets, deltaFrames, calculationRuns, traceRows, selectedDeltaSetId, selectedCalculationRunId) {
+  state.adminCameraDeltaSets = Array.isArray(deltaSets) ? deltaSets : [];
+  state.adminCameraDeltaFrames = Array.isArray(deltaFrames) ? deltaFrames : [];
+  state.adminCameraCalculationRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
+  state.adminCameraTraceRows = Array.isArray(traceRows) ? traceRows : [];
+  state.adminCameraSelectedDeltaSetId = selectedDeltaSetId == null ? null : Number(selectedDeltaSetId);
+  state.adminCameraSelectedCalculationRunId = selectedCalculationRunId == null ? null : Number(selectedCalculationRunId);
+}
+
+export function setAdminCameraSelectedDeltaSet(deltaSetId) {
+  state.adminCameraSelectedDeltaSetId = deltaSetId == null || deltaSetId === "" ? null : Number(deltaSetId);
+  state.adminCameraDeltaFrames = [];
+  state.adminCameraCalculationRuns = [];
+  state.adminCameraTraceRows = [];
+  state.adminCameraSelectedCalculationRunId = null;
+}
+
+export function setAdminCameraSelectedCalculationRun(calculationRunId) {
+  state.adminCameraSelectedCalculationRunId = calculationRunId == null || calculationRunId === ""
+    ? null
+    : Number(calculationRunId);
+  state.adminCameraTraceRows = [];
 }
 
 export function setAdminCameraSelectedEntry(entryId) {

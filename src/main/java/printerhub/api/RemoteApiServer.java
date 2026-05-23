@@ -66,6 +66,8 @@ import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraCalculationRunService;
 import printerhub.camera.CameraDeltaSetGenerationResult;
 import printerhub.camera.CameraDeltaSetService;
+import printerhub.camera.CameraAnalysisTraceRow;
+import printerhub.camera.CameraAnalysisTraceService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSafetyDecisionService;
 import printerhub.camera.CameraSettingsService;
@@ -142,6 +144,7 @@ public final class RemoteApiServer {
     private final CameraCalculationRunService cameraCalculationRunService;
     private final CameraCalculationRunStore cameraCalculationRunStore;
     private final CameraCalculationResultStore cameraCalculationResultStore;
+    private final CameraAnalysisTraceService cameraAnalysisTraceService;
     private final Path cameraStorageDirectory;
 
     private HttpServer server;
@@ -280,6 +283,11 @@ public final class RemoteApiServer {
         this.cameraCalculationRunService = new CameraCalculationRunService();
         this.cameraCalculationRunStore = new CameraCalculationRunStore();
         this.cameraCalculationResultStore = new CameraCalculationResultStore();
+        this.cameraAnalysisTraceService = new CameraAnalysisTraceService(
+                this.cameraCalculationRunStore,
+                this.cameraCalculationResultStore,
+                this.cameraDeltaFrameStore,
+                cameraSnapshotEntryStore);
 
         CameraAnalysisSampleStore cameraAnalysisSampleStore = new CameraAnalysisSampleStore();
         CameraSafetyDecisionService cameraSafetyDecisionService = new CameraSafetyDecisionService(
@@ -989,6 +997,19 @@ public final class RemoteApiServer {
             sendJson(exchange, 200, cameraCalculationResultsJson(
                     calculationRunId,
                     cameraCalculationResultStore.findByCalculationRunId(calculationRunId)));
+            return;
+        }
+
+        if (parts.length == 2 && "trace".equals(parts[1])) {
+            if (!"GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+            sendJson(exchange, 200, cameraAnalysisTraceJson(
+                    calculationRunId,
+                    cameraAnalysisTraceService.traceForCalculationRun(calculationRunId, printerId)));
             return;
         }
 
@@ -2629,6 +2650,39 @@ public final class RemoteApiServer {
                     .append("\"reasonCodes\":").append(nullableString(result.reasonCodes())).append(",")
                     .append("\"message\":").append(nullableString(result.message())).append(",")
                     .append("\"createdAt\":\"").append(escapeJson(result.createdAt().toString())).append("\"")
+                    .append("}");
+
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraAnalysisTraceJson(long calculationRunId, List<CameraAnalysisTraceRow> rows) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"calculationRunId\":").append(calculationRunId).append(",\"trace\":[");
+
+        boolean first = true;
+        for (CameraAnalysisTraceRow row : rows) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append("{")
+                    .append("\"cameraJobId\":").append(row.cameraJobId()).append(",")
+                    .append("\"deltaSetId\":").append(row.deltaSetId()).append(",")
+                    .append("\"deltaFrameId\":").append(row.deltaFrameId()).append(",")
+                    .append("\"calculationRunId\":").append(row.calculationRunId()).append(",")
+                    .append("\"calculationResultId\":").append(row.calculationResultId()).append(",")
+                    .append("\"fromSnapshotPath\":\"").append(escapeJson(row.fromSnapshotPath())).append("\",")
+                    .append("\"toSnapshotPath\":\"").append(escapeJson(row.toSnapshotPath())).append("\",")
+                    .append("\"deltaPath\":\"").append(escapeJson(row.deltaPath())).append("\",")
+                    .append("\"confidence\":").append(row.confidence()).append(",")
+                    .append("\"suspected\":").append(row.suspected()).append(",")
+                    .append("\"reasonCodes\":").append(nullableString(row.reasonCodes())).append(",")
+                    .append("\"message\":").append(nullableString(row.message())).append(",")
+                    .append("\"createdAt\":\"").append(escapeJson(row.createdAt().toString())).append("\"")
                     .append("}");
 
             first = false;

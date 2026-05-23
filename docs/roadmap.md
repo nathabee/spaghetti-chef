@@ -3471,7 +3471,7 @@ Out of scope:
 
 ### 0.4.12 — Analysis Session Review And Recalculation UI
 
-status: planned
+status: done
 
 Purpose:
 
@@ -3564,6 +3564,10 @@ Out of scope:
 * automatic printer abort
 * model training
 * replacing the current image-delta heuristic
+
+Completion note:
+
+0.4.12 is complete. The selected-printer Analysis Session card now shows persisted camera job, source snapshot count, live delta set, live calculation run, and spaghetti trace rows backed by calculation results. Admin Picture/Data Management can select camera jobs, delta sets, and calculation runs, generate additional delta sets, run new calculations with different parameters, compare persisted calculation runs, and review source snapshot and delta frame file names without using volatile `latest.jpg`, `previous.jpg`, or `delta.jpg` as history.
 
 ---
 

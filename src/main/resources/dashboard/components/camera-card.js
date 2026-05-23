@@ -318,12 +318,13 @@ export function renderCameraEventsCard(events) {
   `;
 }
 
-export function renderCameraAnalysisCard(printerId, sessions, samples, captureIntervalSeconds = 10) {
+export function renderCameraAnalysisCard(printerId, sessions, samples, captureIntervalSeconds = 10, analysisReview = {}) {
   const safeSessions = Array.isArray(sessions) ? sessions : [];
   const activeSession = safeSessions.find((session) => session.state === "RUNNING");
   const selectedSession = activeSession || safeSessions[0];
   const safeSamples = Array.isArray(samples) ? samples : [];
   const selectedSample = safeSamples[0];
+  const traceRows = Array.isArray(analysisReview?.traceRows) ? analysisReview.traceRows : [];
   const safeCaptureIntervalSeconds = positiveInteger(captureIntervalSeconds, 10);
 
   return `
@@ -361,8 +362,26 @@ export function renderCameraAnalysisCard(printerId, sessions, samples, captureIn
           <span class="metric-label">Delta score</span>
           <strong>${formatRatio(selectedSample?.deltaScore)}</strong>
         </div>
+        <div class="metric-card">
+          <span class="metric-label">Camera job</span>
+          <strong>${formatNullable(analysisReview?.cameraJobId)}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Source snapshots</span>
+          <strong>${formatNullable(analysisReview?.sourceSnapshotCount ?? 0)}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Live delta set</span>
+          <strong>${formatNullable(analysisReview?.deltaSet?.id)}</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Live calculation run</span>
+          <strong>${formatNullable(analysisReview?.calculationRun?.id)}</strong>
+        </div>
       </div>
 
+      ${analysisReview?.error ? `<p class="status-text status-error">${escapeHtml(analysisReview.error)}</p>` : ""}
+      ${renderPersistedTraceTable(traceRows)}
       ${renderAnalysisSamplesTable(safeSamples)}
 
       <dl class="detail-list">
@@ -397,6 +416,59 @@ export function renderCameraAnalysisCard(printerId, sessions, samples, captureIn
 
       ${renderSessionsList(safeSessions, selectedSession)}
     </article>
+  `;
+}
+
+function renderPersistedTraceTable(traceRows) {
+  if (traceRows.length === 0) {
+    return `
+      <div class="empty-state">
+        <h4>No persisted trace rows</h4>
+        <p class="muted">Capture at least two samples in a running camera job to create persisted delta frames and calculation results.</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="table-wrap">
+      <p class="muted table-note">Persisted trace rows use source snapshot ids and delta frame files, not volatile latest, previous, or delta working files.</p>
+      <table class="data-table camera-analysis-table">
+        <thead>
+          <tr>
+            <th>Created</th>
+            <th>Camera job</th>
+            <th>Delta set</th>
+            <th>Delta frame</th>
+            <th>Run</th>
+            <th>Result</th>
+            <th>From snapshot</th>
+            <th>To snapshot</th>
+            <th>Delta file</th>
+            <th>Confidence</th>
+            <th>State</th>
+            <th>Reason codes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${traceRows.map((row) => `
+            <tr class="${row.suspected ? "analysis-suspected" : "analysis-good"}">
+              <td>${row.createdAt ? escapeHtml(formatDateTime(row.createdAt)) : "—"}</td>
+              <td>${formatNullable(row.cameraJobId)}</td>
+              <td>${formatNullable(row.deltaSetId)}</td>
+              <td>${formatNullable(row.deltaFrameId)}</td>
+              <td>${formatNullable(row.calculationRunId)}</td>
+              <td>${formatNullable(row.calculationResultId)}</td>
+              <td><code title="${escapeHtml(row.fromSnapshotPath ?? "")}">${escapeHtml(fileName(row.fromSnapshotPath))}</code></td>
+              <td><code title="${escapeHtml(row.toSnapshotPath ?? "")}">${escapeHtml(fileName(row.toSnapshotPath))}</code></td>
+              <td><code title="${escapeHtml(row.deltaPath ?? "")}">${escapeHtml(fileName(row.deltaPath))}</code></td>
+              <td>${formatRatio(row.confidence)}</td>
+              <td>${row.suspected ? '<span class="badge status-error">Suspicious</span>' : '<span class="badge badge-enabled">Good</span>'}</td>
+              <td>${formatNullable(row.reasonCodes)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -444,6 +516,15 @@ function positiveInteger(value, fallback) {
     return fallback;
   }
   return parsed;
+}
+
+function fileName(path) {
+  if (!path) {
+    return "—";
+  }
+
+  const normalized = String(path).replaceAll("\\", "/");
+  return normalized.split("/").filter(Boolean).pop() || normalized;
 }
 
 function renderAnalysisSampleRow(sample) {
@@ -630,7 +711,17 @@ function renderCameraEvent(event) {
   `;
 }
 
-export function renderCameraPage(printerId, status, settings, events, sessions, samples, snapshotFiles, snapshotRange) {
+export function renderCameraPage(
+  printerId,
+  status,
+  settings,
+  events,
+  sessions,
+  samples,
+  snapshotFiles,
+  snapshotRange,
+  analysisReview = {}
+) {
   return `
     <div class="view printer-camera-view">
       <div class="section-header">
@@ -654,7 +745,7 @@ export function renderCameraPage(printerId, status, settings, events, sessions, 
       </section>
 
       <section>
-        ${renderCameraAnalysisCard(printerId, sessions, samples, settings?.captureIntervalSeconds)}
+        ${renderCameraAnalysisCard(printerId, sessions, samples, settings?.captureIntervalSeconds, analysisReview)}
       </section>
 
       <section>

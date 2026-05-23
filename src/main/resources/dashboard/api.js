@@ -446,6 +446,40 @@ export async function generateCameraDeltaSet(jobId, parameters = {}) {
   });
 }
 
+export async function getCameraDeltaSets(jobId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  const data = await requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/delta-sets${query}`);
+  return Array.isArray(data.deltaSets) ? data.deltaSets : [];
+}
+
+export async function getCameraDeltaFrames(deltaSetId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  const data = await requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}/frames${query}`);
+  return Array.isArray(data.frames) ? data.frames : [];
+}
+
+export async function getCameraCalculationRuns(deltaSetId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  const data = await requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}/calculation-runs${query}`);
+  return Array.isArray(data.calculationRuns) ? data.calculationRuns : [];
+}
+
+export async function runCameraCalculation(deltaSetId, parameters = {}) {
+  return requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}/calculation-runs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(parameters)
+  });
+}
+
+export async function getCameraCalculationTrace(calculationRunId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  const data = await requestJson(`/admin/camera/calculation-runs/${encodeURIComponent(calculationRunId)}/trace${query}`);
+  return Array.isArray(data.trace) ? data.trace : [];
+}
+
 export function adminCameraSnapshotEntryUrl(entryId) {
   return `/admin/camera/snapshot/files/${encodeURIComponent(entryId)}?t=${Date.now()}`;
 }
