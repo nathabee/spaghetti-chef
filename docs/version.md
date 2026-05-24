@@ -6,12 +6,15 @@
 planned :
 see ROADMAP.md 
 
-next:
+ 
 
-0.4.13 — Replay, Compression, And Simulation Review
+## 0.5.x Rust Image Analysis Track
 
-## Version (done)
+Goal: add Rust to PrinterHub as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
+
+- 0.5.0 — Standalone Rust Image Analyzer
+ 
 
 ## 0.4.x — Camera Monitoring & Visual Safety Layer
 
