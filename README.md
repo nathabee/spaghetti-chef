@@ -4,69 +4,515 @@
 
 # PrinterHub
 
-**PrinterHub** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, and controlled printer workflows.
+**PrinterHub** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, controlled printer workflows, and camera-based visual analysis.
 
-The project is currently in the **0.4.x camera and visual safety phase**. The active development focus is camera snapshot capture, frame comparison, and the foundation for later spaghetti detection.
+PrinterHub is local-first. One runtime supervises one local printer farm through USB-connected or simulated printers. The current hardware reference is a Marlin-compatible Creality Ender-series printer, while simulation support keeps the runtime testable without physical hardware.
 
-PrinterHub remains local-first: one PrinterHub runtime controls and observes a local printer farm through USB-connected or simulated printers. The current real-printer reference is a **Creality Ender-series Marlin-compatible printer**.
+The project currently combines:
 
-For the detailed version roadmap, see:
-
-* [`docs/roadmap.md`](docs/roadmap.md)
-
----
-
-## Current Focus
-
-PrinterHub is currently developing the camera monitoring layer:
-
-* per-printer camera configuration
-* latest snapshot capture and display
-* filesystem-based camera snapshot storage
-* provisional Linux and Windows camera capture helpers
-* preparation for frame delta analysis
-* preparation for spaghetti detection heuristics
-
-The camera work builds on the existing local runtime, dashboard, REST API, persistence, printer monitoring, job execution, SD-card handling, local security, and audit foundations.
-
----
-
-## Current Runtime Capabilities
-
-Implemented local runtime capabilities include:
-
-* local multi-printer dashboard
-* REST API and SQLite-backed runtime state
+* local multi-printer runtime management
+* embedded browser dashboard
+* REST API
+* SQLite-backed runtime state
 * background printer monitoring
-* simulated and USB-connected printer support
-* selected-printer workspaces for status, jobs, SD-card files, control, info, history, and camera views
-* guarded job execution and printer-side `PRINT_FILE` starts
-* host-to-printer SD-card upload with telemetry and diagnostics
-* role-aware local security for `VIEWER`, `OPERATOR`, and `ADMIN`
-* dangerous-action confirmation for heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths
-* operator audit records for accepted and rejected state-changing actions
-* remote Windows bootstrap and versioned update via OpenSSH and PowerShell helper scripts
+* controlled print-job and printer-action workflows
+* host-to-printer SD-card upload diagnostics
+* local role/security and operator audit records
+* camera capture and persisted image analysis
+* experimental Rust-based image analysis tooling
+
+For the detailed version plan, see [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 
-## Roadmap
+## What PrinterHub does
 
-The detailed roadmap is maintained separately:
+PrinterHub provides a structured local control layer around 3D printers.
 
-* [`docs/roadmap.md`](docs/roadmap.md)
+At the current stage, it can:
 
-Near-term direction:
+* register and monitor multiple printers
+* work with simulated and USB-connected printers
+* expose printer state through a REST API
+* serve an embedded dashboard from the same runtime
+* create and start controlled print jobs
+* upload `.gcode` files to printer-side SD storage
+* track upload progress and recovery behavior
+* persist printer events, job events, camera events, and audit history
+* configure camera capture per printer
+* capture live snapshots
+* retain source snapshots under camera jobs
+* generate persisted delta frames
+* run persisted calculation workflows
+* review camera analysis sessions
+* run a standalone Rust CLI image analyzer experiment
 
-* `0.4.x` — camera monitoring, frame analysis, and visual safety
-* `1.0.x` — central VPS multi-farm management
+PrinterHub does not currently try to replace a slicer or a full production MES. It focuses on the local runtime layer: printer communication, control, observation, persistence, and operator-facing diagnostics.
 
 ---
 
-## Real-printer Note
+## Current development focus
 
-PrinterHub is tested against physical USB-connected Marlin-style 3D printers. The SD-card upload path is real serial recovery work: checksummed upload sessions, pipelined transfer, resend recovery, adaptive batch sizing, live quality metrics, and browser-visible diagnostics are shaped by real printer behavior.
+The current technical focus is the camera and visual-analysis subsystem.
 
-Simulation remains important for automated tests, but the project is grounded in hardware-facing runtime behavior.
+The 0.4.x work established a persisted camera model:
+
+```text
+Camera Job
+    ↓
+Source Snapshots
+    ↓
+Delta Sets
+    ↓
+Calculation Runs
+    ↓
+Analysis Session Review
+```
+
+The 0.5.x work introduces an independent Rust image-analysis track. The Rust tool is developed first as a standalone CLI analyzer and is intentionally not coupled to the Java backend at the beginning.
+
+---
+
+## System overview
+
+```mermaid
+flowchart TB
+    dashboard["Embedded dashboard"]
+    api["Java REST API"]
+    runtime["PrinterHub runtime"]
+    db["SQLite persistence"]
+    monitoring["Monitoring scheduler"]
+    jobs["Job and action services"]
+    serial["Serial / simulated printer layer"]
+    camera["Camera capture and analysis"]
+    rust["Rust img-analyzer CLI<br/>(0.5.x experimental)"]
+    printers["3D printers"]
+
+    dashboard <--> api
+    api <--> runtime
+    runtime <--> db
+    runtime <--> monitoring
+    runtime <--> jobs
+    runtime <--> camera
+    jobs --> serial
+    monitoring --> serial
+    serial --> printers
+    camera -. future optional integration .-> rust
+```
+
+PrinterHub keeps the Java runtime as the owner of API, persistence, dashboard, scheduling, printer workflows, and camera-job state. External image analyzers are treated as optional calculation engines, not as replacement backends.
+
+---
+
+## Dashboard
+
+PrinterHub includes an embedded dashboard served by the local runtime.
+
+The dashboard separates global runtime administration from selected-printer operation.
+
+### Primary navigation
+
+```text
+PrinterHub
+├── Farm Home
+├── Printers
+├── Jobs
+├── Monitoring
+├── History
+└── Settings
+```
+
+### Selected-printer navigation
+
+```text
+Selected Printer
+├── Home
+├── Print
+├── SD Card
+├── Prepare
+├── Control
+├── Info
+├── History
+└── Camera / Analysis
+```
+
+### Admin and analysis areas
+
+The camera and admin views expose persisted camera data:
+
+```text
+Admin / Camera Data
+├── camera jobs
+├── retained source snapshots
+├── delta sets
+├── calculation runs
+└── recalculation workflows
+```
+
+The dashboard uses the API layer. It does not talk directly to serial devices or filesystem internals.
+
+---
+
+## Dashboard screenshots
+
+The screenshots below provide a visual overview of the current runtime, dashboard, camera analysis, and Rust analyzer work.
+
+<table>
+  <tr>
+    <td align="center">
+      <sub>Farm Home</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-farm-home.png" alt="PrinterHub dashboard farm home" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Selected Printer → Home</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-printer-home.png" alt="PrinterHub selected printer home view" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Selected Printer → Print</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-print.png" alt="PrinterHub selected printer print view" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>SD Card Management</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-sd-card.png" alt="PrinterHub SD card management" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Camera Analysis</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-camera-analysis.png" alt="PrinterHub camera analysis view" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Admin Camera Data</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-admin-camera-data.png" alt="PrinterHub admin camera data view" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Analysis Review</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-analysis-review.png" alt="PrinterHub camera analysis review" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <sub>Rust img-analyzer terminal output</sub><br>
+      <img src="docs/assets/media-src/screenshot-printerhub-rust-img-analyzer-terminal.png" alt="PrinterHub Rust img-analyzer terminal output" width="100%">
+    </td>
+  </tr>
+</table>
+ 
+
+---
+
+## Camera monitoring and visual analysis
+
+PrinterHub includes a camera pipeline for per-printer image capture and persisted analysis.
+
+The current camera model distinguishes live preview files from persisted analysis data.
+
+```text
+Live preview files
+├── latest.jpg
+├── previous.jpg
+└── delta.jpg
+
+Persisted analysis data
+├── camera jobs
+├── source snapshots
+├── delta sets
+├── delta frames
+├── calculation runs
+└── calculation results
+```
+
+Live files are volatile working files. Persisted review and recalculation use database-owned source snapshots, delta frames, and calculation results.
+
+### Camera analysis pipeline
+
+```mermaid
+flowchart TB
+    capture["Capture frame"]
+    live["Update live preview files<br/>latest / previous / delta"]
+    job["Camera job"]
+    snapshot["Retained source snapshot"]
+    entry["camera_snapshot_entries"]
+    deltaset["Delta set"]
+    deltaframe["Delta frame"]
+    calculationrun["Calculation run"]
+    result["Calculation result"]
+    review["Analysis session review"]
+
+    capture --> live
+    capture --> job
+    job --> snapshot
+    snapshot --> entry
+    entry --> deltaset
+    deltaset --> deltaframe
+    deltaframe --> calculationrun
+    calculationrun --> result
+    result --> review
+```
+
+### Camera job ownership
+
+A camera job owns retained source snapshots for one camera run.
+
+```text
+data/camera/<printerId>/
+├── latest.jpg
+├── previous.jpg
+├── delta.jpg
+├── snapshots/
+│   └── <cameraJobId>/
+│       ├── <snapshotEntryId>_snapshot.jpg
+│       └── ...
+└── deltas/
+    └── <cameraJobId>/
+        └── <deltaSetId>/
+            ├── <from>_<to>_delta.jpg
+            └── ...
+```
+
+A camera job may be linked to a print job, but it is not a print job. Camera jobs do not execute printer commands, movement, upload, pause, cancel, or print-start actions.
+
+### Delta sets and calculation runs
+
+A delta set is generated from the source snapshots of one camera job.
+
+A calculation run is generated from one selected delta set.
+
+This separation allows multiple analysis attempts over the same camera data:
+
+```text
+Camera Job 12
+├── Delta Set 1
+│   ├── Calculation Run 1
+│   └── Calculation Run 2
+└── Delta Set 2
+    └── Calculation Run 3
+```
+
+That makes recalculation and future engine comparison possible without overwriting previous analysis results.
+
+---
+
+## Rust image-analysis track
+
+The 0.5.x track adds an experimental Rust image-analysis component.
+
+The first Rust step is intentionally standalone:
+
+```text
+PrinterHub camera files
+        ↓
+rust/img-analyzer
+        ↓
+JSON result on stdout
+```
+
+The Rust analyzer currently lives under:
+
+```text
+rust/img-analyzer/
+```
+
+It can be built and run independently from the Java backend.
+
+Example:
+
+```bash
+cd rust/img-analyzer
+
+cargo run -- \
+  --from-snapshot ../../camera/p1/previous.jpg \
+  --to-snapshot ../../camera/p1/latest.jpg \
+  --method delta-basic \
+  --threshold 0.20
+```
+
+Example output:
+
+```json
+{
+  "engineName": "RUST_CLI_DELTA",
+  "engineVersion": "0.5.0",
+  "algorithmVariant": "FRAME_DELTA",
+  "confidence": 0.0148,
+  "suspected": false,
+  "reasonCodes": [],
+  "message": "No large visual difference detected between snapshots.",
+  "metrics": {
+    "changedPixelRatio": 0.00007,
+    "averagePixelDelta": 0.0148
+  }
+}
+```
+
+The Rust tool is not a second REST backend. The planned direction is a selectable calculation-engine model where Java remains the runtime owner and Rust can later be called as an optional external analyzer.
+
+```mermaid
+flowchart LR
+    data["Persisted camera data<br/>snapshots / deltas"]
+    javaEngine["Java calculation engine"]
+    rustEngine["Rust CLI analyzer<br/>(optional)"]
+    result["CameraCalculationResult"]
+    dashboard["Dashboard review"]
+
+    data --> javaEngine
+    data -. future selectable engine .-> rustEngine
+    javaEngine --> result
+    rustEngine --> result
+    result --> dashboard
+```
+
+---
+
+## Printer runtime and monitoring
+
+PrinterHub monitors each configured printer node through the runtime scheduler.
+
+The runtime state model is shared by simulated and USB-connected printers.
+
+```mermaid
+flowchart TB
+    configured["Configured printer"] --> enabled{"Enabled?"}
+
+    enabled -- "No" --> disconnected["DISCONNECTED"]
+
+    enabled -- "Yes" --> connecting["CONNECTING"]
+    connecting --> poll{"Poll outcome"}
+
+    poll -- "timeout / disconnect / failure" --> error["ERROR"]
+    poll -- "busy / printing" --> printing["PRINTING"]
+    poll -- "hotend above threshold" --> heating["HEATING"]
+    poll -- "ok / T:" --> idle["IDLE"]
+    poll -- "unclassified response" --> unknown["UNKNOWN"]
+
+    error --> connecting
+    printing --> connecting
+    heating --> connecting
+    idle --> connecting
+    unknown --> connecting
+```
+
+Defined states:
+
+```text
+DISCONNECTED
+CONNECTING
+IDLE
+HEATING
+PRINTING
+ERROR
+UNKNOWN
+```
+
+Monitoring data is persisted as runtime state and event history, so the dashboard can show current state and recent operational events.
+
+---
+
+## Jobs and controlled actions
+
+PrinterHub uses backend jobs for controlled runtime operations.
+
+Current job and action capabilities include:
+
+* job creation and listing
+* printer assignment
+* asynchronous controlled job start
+* job cancellation and deletion
+* job event visibility
+* execution-step diagnostics
+* registered printer-side SD targets
+* file-backed `PRINT_FILE` jobs
+* guarded printer action workflows
+
+Controlled action scope includes:
+
+```text
+READ_TEMPERATURE
+READ_POSITION
+READ_FIRMWARE_INFO
+HOME_AXES
+SET_NOZZLE_TEMPERATURE
+SET_BED_TEMPERATURE
+SET_FAN_SPEED
+TURN_FAN_OFF
+PRINT_FILE
+```
+
+A `PRINT_FILE` job references a registered printer-side SD target. PrinterHub can register a host-side `.gcode` file, upload it to printer-side SD storage through a guarded transfer session, and request a firmware-side print start.
+
+PrinterHub does not currently slice models, edit G-code, or line-stream a full print from the host as its main workflow.
+
+---
+
+## SD-card upload observability
+
+Host-to-printer SD-card upload is one of the main real-printer verification paths.
+
+PrinterHub exposes upload visibility through the API and dashboard.
+
+Upload diagnostics include:
+
+* upload state
+* file name
+* confirmed lines / total lines
+* confirmed bytes / total bytes
+* elapsed time
+* estimated remaining time
+* bytes per second
+* lines per second
+* rejected/resend count
+* transfer quality
+* current transfer mode
+* configured and active batch sizes
+* stability and recovery pressure
+* last adaptation reason
+
+This makes long serial transfers observable instead of opaque.
+
+---
+
+## Security, confirmation, and audit
+
+PrinterHub includes a local role model for runtime operations.
+
+Roles include:
+
+```text
+VIEWER
+OPERATOR
+ADMIN
+```
+
+Dangerous or state-changing actions can require confirmation, including heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths.
+
+PrinterHub persists operator audit records for accepted and rejected state-changing actions.
+
+---
+
+## Local storage model
+
+PrinterHub keeps runtime state in SQLite and filesystem-backed working directories.
+
+Typical local development data includes:
+
+```text
+printerhub.db
+data/
+camera/
+printerhub-print-files/
+```
+
+Development runtime data and generated camera files are ignored by Git.
 
 ---
 
@@ -87,344 +533,153 @@ mvn exec:java \
   -Dexec.mainClass="printerhub.Main"
 ```
 
-Then open:
+Open the dashboard:
 
 ```text
 http://localhost:18080/dashboard
 ```
 
-The dashboard uses relative API requests, so it follows the port used to serve the dashboard. Port `8080` is only the backend default when no `printerhub.api.port` property is provided.
+The dashboard uses relative API requests, so it follows the port used by the embedded server.
 
 ---
 
-## Monitoring and runtime settings
+## Running the Rust analyzer
 
-PrinterHub supports runtime-global monitoring rules and serial transfer settings.
+The Rust analyzer is currently independent from the Java runtime.
 
-Monitoring settings include:
+Build and test:
 
-```text
-poll interval
-snapshot minimum interval
-temperature delta threshold
-event deduplication window
-error persistence behavior
-debug wire tracing
+```bash
+cd rust/img-analyzer
+
+cargo fmt
+cargo test
+cargo build
 ```
 
-Serial transfer settings include upload and file-streaming parameters used by the SD-card upload path, including batch-size limits, recovery thresholds, retry limits, and read timing values.
+Run against two image files:
 
-These settings are currently global to the runtime and not yet printer-specific.
+```bash
+cargo run -- \
+  --from-snapshot ../../camera/p1/previous.jpg \
+  --to-snapshot ../../camera/p1/latest.jpg \
+  --method delta-basic \
+  --threshold 0.20
+```
 
-The dashboard auto-refresh is intentionally selective. Lightweight live fields can refresh automatically, while heavier actions such as SD-card file listing remain explicit user actions.
+For details, see:
+
+* [`rust/img-analyzer/README.md`](rust/img-analyzer/README.md)
 
 ---
 
-## Dashboard
+## API examples
 
-PrinterHub includes an embedded dashboard as part of the local runtime.
-
-The dashboard uses global navigation plus a selected-printer workspace.
-
-### Primary navigation
+Common local endpoints:
 
 ```text
-PrinterHub
-├── Farm Home
-├── Printers
-├── Jobs
-├── Monitoring
-├── History
-└── Settings
-```
-
-### Selected printer navigation
-
-```text
-Selected Printer
-├── Home
-├── Print
-├── SD Card
-├── Prepare
-├── Control
-├── Info
-└── History
-```
-
-The structure separates fleet-level administration from selected-printer operation.
-
-### Global Monitoring workspace
-
-The **Monitoring** page provides cross-printer runtime visibility.
-
-It shows:
-
-* fleet runtime summary
-* printer runtime states
-* active and recent jobs
-* active or last-known SD uploads
-* upload health
-* adaptive transfer diagnostics
-* follow actions for jobs and uploads
-
-From Monitoring, an operator can follow an active upload or job and jump into the relevant selected-printer workspace.
-
-### Selected-printer SD Card workspace
-
-The **SD Card** view owns:
-
-* printer-side SD file listing
-* registration of printer-side printable targets
-* enable / disable of registered printable targets
-* host-side `.gcode` registration and upload
-* guarded copy of a host-side `.gcode` file to the selected printer SD card
-* upload progress
-* upload quality
-* transfer performance
-* adaptive transfer diagnostics
-* manual or synchronized upload-status refresh
-
-### Selected-printer Print workspace
-
-The **Print** view creates `PRINT_FILE` jobs from already registered printer-side file targets.
-
-The dashboard is part of the local runtime architecture and reads through the API layer.
-
----
-
-## Dashboard screenshots
-
-<table>
-  <tr>
-    <td align="center">
-      <sub>Farm Home</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-01.png" alt="PrinterHub dashboard farm home" width="100%">
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <sub>Selected Printer → Print</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-02.png" alt="PrinterHub print view" width="100%">
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <sub>SD card management</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-03.png" alt="SD card management" width="100%">
-    </td>
-  </tr>
-</table>
-
----
-
-## Jobs and controlled actions
-
-PrinterHub uses the backend term **job** consistently across API, persistence, and dashboard.
-
-At the current stage, jobs are operational control records. They are not yet the full future production workflow of slicing, queueing, printing, supervising, and completing a manufactured part.
-
-What is already available:
-
-* job creation and listing
-* printer assignment
-* asynchronous controlled job start
-* job cancellation and deletion
-* job event visibility
-* job execution result visibility
-* structured execution-step diagnostics
-* host-side `.gcode` print-file registration
-* dashboard upload of host-side `.gcode` files
-* printer-side SD file discovery, registration, and enable/disable management
-* guarded host-to-printer SD-card `.gcode` upload
-* file-backed `PRINT_FILE` jobs created from registered printer-side SD targets
-* autonomous printer-side `PRINT_FILE` activation from registered SD targets
-* controlled real-printer action workflows for selected action types
-
-Current controlled action scope:
-
-```text
-READ_TEMPERATURE
-READ_POSITION
-READ_FIRMWARE_INFO
-HOME_AXES
-SET_NOZZLE_TEMPERATURE
-SET_BED_TEMPERATURE
-SET_FAN_SPEED
-TURN_FAN_OFF
-PRINT_FILE
-```
-
-`PRINT_FILE` jobs reference a registered printer-side SD target. PrinterHub can register an existing host path or save a dashboard-uploaded file into the configured print-file storage directory, copy that host-side file to the selected printer SD card through a guarded upload session, and then request a firmware-side print start.
-
-PrinterHub validates and persists file metadata, but it does not slice, edit, or line-stream a full print from the host in this version.
-
-Current limitation:
-
-* autonomous SD-print supervision is still early-stage
-* PrinterHub can start a printer-side file-backed print and detect completion in observable cases
-* richer pause, cancel, and print-progress controls remain future work
-
-Job start behavior:
-
-```text
+GET  /health
+GET  /printers
+GET  /printers/{id}
+GET  /printers/{id}/status
+POST /printers
+PUT  /printers/{id}
+POST /jobs
 POST /jobs/{id}/start
-├── validates the job and printer state
-├── marks the job RUNNING
-├── submits execution to the background job executor
-└── returns immediately with execution outcome QUEUED
+GET  /jobs
+GET  /jobs/{id}/events
+GET  /settings/monitoring
+PUT  /settings/monitoring
 ```
 
-The dashboard and API then use job state, events, and execution steps to observe progress:
+Camera endpoints include live snapshot access and admin camera-data workflows:
 
 ```text
-GET /jobs/{id}
-GET /jobs/{id}/events
-GET /jobs/{id}/execution-steps
+POST /printers/{printerId}/camera/snapshot
+GET  /printers/{printerId}/camera/snapshot
+
+GET  /admin/camera/snapshot/jobs?printerId=<printerId>
+GET  /admin/camera/snapshot/jobs/{cameraJobId}/timeline?printerId=<printerId>
+GET  /admin/camera/snapshot/files/{snapshotEntryId}
 ```
 
-For autonomous SD-backed `PRINT_FILE` jobs, PrinterHub also uses monitoring to help determine when a started printer-side file has completed on the firmware side.
+For the full API surface, see [`docs/rest-api.md`](docs/rest-api.md).
 
 ---
 
-## SD-card upload observability
-
-Host-to-printer SD-card upload is one of the main real-printer verification paths.
-
-PrinterHub exposes upload visibility through:
+## Repository structure
 
 ```text
-POST /printers/{id}/sd-card/uploads
-GET  /printers/{id}/sd-card/uploads/status
-```
-
-The dashboard displays:
-
-* upload state
-* file name
-* confirmed lines / total lines
-* confirmed bytes / total bytes
-* elapsed time
-* estimated remaining time
-* bytes per second
-* lines per second
-* rejected/resend count
-* transfer quality
-* current transfer mode
-* configured and active batch sizes
-* stability and recovery pressure
-* last adaptation reason
-
-The upload monitor is split into operator-facing progress and deeper adaptive diagnostics, so the user can either simply check that the upload works or inspect controller behavior during long transfers.
-
----
-
-## Audit and diagnostics
-
-PrinterHub exposes and persists operational information that makes local troubleshooting easier.
-
-Available diagnostic visibility includes:
-
-* printer event history
-* job history
-* job event history
-* monitoring-related runtime events
-* upload recovery and adaptation events
-* execution command and result details
-* workflow-step response, outcome, and failure detail records
-* dashboard and API review of operator-triggered actions
-
-This makes local runtime behavior easier to inspect after failures and during hardware tests.
-
----
-
-## Printer state machine
-
-Each monitored printer node follows the same runtime state model.
-
-```mermaid
-flowchart TB
-    A["Configured printer"] --> B{"Enabled?"}
-
-    B -- "No" --> C["DISCONNECTED"]
-
-    B -- "Yes" --> D["CONNECTING"]
-    D --> E{"Poll outcome"}
-
-    E -- "timeout / disconnect / failure" --> F["ERROR"]
-    E -- "busy / printing" --> G["PRINTING"]
-    E -- "hotend above threshold" --> H["HEATING"]
-    E -- "ok / T:" --> I["IDLE"]
-    E -- "unclassifiable response" --> J["UNKNOWN"]
-
-    F --> D
-    G --> D
-    H --> D
-    I --> D
-    J --> D
-```
-
-Defined states:
-
-```text
-DISCONNECTED
-CONNECTING
-IDLE
-HEATING
-PRINTING
-ERROR
-UNKNOWN
+printer-hub/
+├── README.md
+├── Jenkinsfile
+├── docs/
+│   ├── roadmap.md
+│   ├── camera.md
+│   ├── dashboard.md
+│   ├── quickstart.md
+│   ├── install.md
+│   ├── developer.md
+│   ├── devops.md
+│   └── TODOs/
+├── src/
+│   ├── main/
+│   │   ├── java/printerhub/
+│   │   │   ├── api/
+│   │   │   ├── camera/
+│   │   │   ├── command/
+│   │   │   ├── config/
+│   │   │   ├── job/
+│   │   │   ├── monitoring/
+│   │   │   ├── persistence/
+│   │   │   ├── runtime/
+│   │   │   ├── security/
+│   │   │   ├── serial/
+│   │   │   └── ...
+│   │   └── resources/
+│   │       └── dashboard/
+│   │           ├── components/
+│   │           ├── views/
+│   │           └── ...
+│   └── test/
+│       └── java/printerhub/
+├── rust/
+│   └── img-analyzer/
+├── ops/
+├── tools/
+├── pom.xml
+└── LICENSE
 ```
 
 ---
 
-## Industrial context
+## Roadmap
 
-PrinterHub is not just a single-printer control exercise.
+The detailed roadmap is maintained in:
 
-It models the transition from:
+* [`docs/roadmap.md`](docs/roadmap.md)
 
-```text
-single USB-connected printer
-```
-
-toward:
+Current direction:
 
 ```text
-structured multi-printer runtime monitoring and administration
+0.4.x  Camera jobs, persisted snapshots, delta sets, calculation runs, analysis review
+0.5.x  Rust image analyzer and future configurable calculation engines
+0.6.x  Replay, compression, and simulation review
+1.0.x  Central multi-farm architecture
 ```
-
-and later:
-
-```text
-centralized multi-site printer management
-```
-
-Related background:
-
-* [`docs/industrial-bio-printer-simulation.md`](docs/industrial-bio-printer-simulation.md)
 
 ---
 
-## Target architecture direction
+## Documentation
 
-The longer-term direction goes beyond a local runtime and moves toward centralized orchestration.
-
-```mermaid
-flowchart TB
-    ui["Central web UI"]
-    api["Backend API"]
-    db["Database"]
-    runtime["Printer runtime services"]
-    device["Device communication layer"]
-    printers["Printer devices / printer farms"]
-
-    ui <--> api
-    api <--> db
-    api <--> runtime
-    runtime <--> db
-    runtime --> device
-    device --> printers
-```
+* [`docs/roadmap.md`](docs/roadmap.md) — version roadmap
+* [`docs/camera.md`](docs/camera.md) — camera subsystem
+* [`docs/dashboard.md`](docs/dashboard.md) — dashboard structure
+* [`docs/rest-api.md`](docs/rest-api.md) — API reference
+* [`docs/quickstart.md`](docs/quickstart.md) — local usage
+* [`docs/install.md`](docs/install.md) — installation notes
+* [`docs/developer.md`](docs/developer.md) — developer reference
+* [`docs/devops.md`](docs/devops.md) — CI and release workflow
 
 ---
 
@@ -440,10 +695,6 @@ The current pipeline verifies:
 * JaCoCo coverage reporting
 * release bundle preparation
 
-Details:
-
-* [`docs/devops.md`](docs/devops.md)
-
 Useful local verification commands:
 
 ```bash
@@ -454,57 +705,15 @@ mvn -Dtest=SdCardUploadServiceTest test
 mvn -Dtest=AsyncPrintJobExecutorTest,PrintJobExecutionServiceTest test
 ```
 
----
+Rust analyzer verification:
 
-## Repository structure
-
-```text
-printer-hub/
-├── README.md
-├── Jenkinsfile
-├── docs/
-│   ├── roadmap.md
-│   ├── quickstart.md
-│   ├── install.md
-│   ├── developer.md
-│   ├── devops.md
-│   ├── version.md
-│   └── ...
-├── src/
-│   ├── main/
-│   │   ├── java/printerhub/
-│   │   │   ├── api/
-│   │   │   ├── command/
-│   │   │   ├── config/
-│   │   │   ├── job/
-│   │   │   ├── monitoring/
-│   │   │   ├── persistence/
-│   │   │   ├── runtime/
-│   │   │   ├── serial/
-│   │   │   └── ...
-│   │   └── resources/
-│   │       └── dashboard/
-│   │           ├── components/
-│   │           ├── views/
-│   │           └── ...
-│   └── test/
-│       └── java/printerhub/
-│           └── ...
-├── ops/
-├── tools/
-│   └── win/
-└── pom.xml
+```bash
+cd rust/img-analyzer
+cargo fmt
+cargo test
+cargo build
 ```
 
----
-
-## Documentation
-
-* Setup and prerequisites: [`docs/install.md`](docs/install.md)
-* Local usage: [`docs/quickstart.md`](docs/quickstart.md)
-* Developer reference: [`docs/developer.md`](docs/developer.md)
-* CI and release workflow: [`docs/devops.md`](docs/devops.md)
-* Planned evolution: [`docs/roadmap.md`](docs/roadmap.md)
 
 ---
 
@@ -512,5 +721,4 @@ printer-hub/
 
 MIT License
 
-* [`LICENSE`](LICENSE)
- 
+See [`LICENSE`](LICENSE).

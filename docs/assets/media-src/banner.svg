@@ -119,7 +119,7 @@
 
   <g filter="url(#shadow)"> 
     <rect x="960" y="5" width="550" height="450" rx="18" fill="#edf1f4"  opacity="0.42"/>
-    <image href="screenshot-printerhub-dashboard-01.png" xlink:href="screenshot-printerhub-dashboard-01.png"
+    <image href="screenshot-printerhub-dashboard-camera-analysis.png" xlink:href="screenshot-printerhub-dashboard-camera-analysis.png"
            x="960" y="5"
            width="550" height="450"
            preserveAspectRatio="xMidYMid meet"
