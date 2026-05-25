@@ -1,5 +1,27 @@
+// BEGIN ano #54
+export class ApiNetworkError extends Error {
+  constructor(path, cause) {
+    super(`Network error while requesting ${path}: ${cause?.message || "request failed"}`);
+    this.name = "ApiNetworkError";
+    this.path = path;
+    this.cause = cause;
+    this.networkError = true;
+  }
+}
+
+export function isApiNetworkError(error) {
+  return error instanceof ApiNetworkError || error?.networkError === true;
+}
+
 async function requestJson(path, options = {}) {
-  const response = await fetch(path, options);
+  let response;
+
+  try {
+    response = await fetch(path, options);
+  } catch (error) {
+    throw new ApiNetworkError(path, error);
+  }
+
   const body = await safeJson(response);
 
   if (!response.ok) {
@@ -9,6 +31,25 @@ async function requestJson(path, options = {}) {
 
   return body;
 }
+// END ano #54
+
+export async function getActiveCameraJob(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/jobs/active`);
+}
+
+export async function startCameraJob(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/jobs/start`, {
+    method: "POST"
+  });
+}
+
+export async function stopCameraJob(printerId) {
+  return requestJson(`/printers/${encodeURIComponent(printerId)}/camera/jobs/stop`, {
+    method: "POST"
+  });
+}
+
+
 
 async function safeJson(response) {
   try {
@@ -484,6 +525,7 @@ export function adminCameraSnapshotEntryUrl(entryId) {
   return `/admin/camera/snapshot/files/${encodeURIComponent(entryId)}?t=${Date.now()}`;
 }
 
-export function cameraSnapshotUrl(printerId) {
-  return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?t=${Date.now()}`;
+export function cameraSnapshotUrl(printerId, version = "") {
+  const cacheKey = version || Date.now();
+  return `/printers/${encodeURIComponent(printerId)}/camera/snapshot?v=${encodeURIComponent(cacheKey)}`;
 }

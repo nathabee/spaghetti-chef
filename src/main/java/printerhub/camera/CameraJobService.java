@@ -72,6 +72,42 @@ public final class CameraJobService {
         return cameraJobStore.findActiveByPrinterId(requireText(printerId, "printerId"));
     }
 
+    public CameraJob start(CameraSettings settings) {
+        Objects.requireNonNull(settings, "settings");
+
+        Optional<CameraJob> active = cameraJobStore.findActiveByPrinterId(settings.printerId());
+
+        if (active.isPresent()) {
+            return active.get();
+        }
+
+        Instant now = clock.instant();
+        Optional<String> linkedPrintJobId = activePrintJobId(settings.printerId());
+
+        CameraJob created = cameraJobStore.save(CameraJob.running(
+                settings.printerId(),
+                linkedPrintJobId.orElse(null),
+                null,
+                now,
+                settings.captureIntervalSeconds(),
+                settings.retentionSnapshotCount(),
+                settings.sourceType().wireValue(),
+                settings.sourceValue().orElse(null),
+                pendingSnapshotDirectory(settings.printerId()),
+                "Camera job started from dashboard"));
+
+        Path snapshotDirectory = CameraStoragePaths
+                .resolveBaseDirectory(settings.storageDirectory())
+                .resolve(safePathSegment(settings.printerId()))
+                .resolve("snapshots")
+                .resolve(Long.toString(created.requireId()));
+
+        return cameraJobStore.updateSnapshotDirectory(
+                created.requireId(),
+                snapshotDirectory.toString(),
+                now);
+    }
+
     public Optional<CameraJob> completeActive(String printerId, String message) {
         Optional<CameraJob> active = findActive(printerId);
         if (active.isEmpty()) {
@@ -84,6 +120,15 @@ public final class CameraJobService {
                 clock.instant(),
                 message));
     }
+
+    public Optional<CameraJob> findById(long cameraJobId) {
+    if (cameraJobId <= 0L) {
+        throw new IllegalArgumentException("cameraJobId must be greater than zero");
+    }
+
+    return cameraJobStore.findById(cameraJobId);
+}
+
 
     private Optional<String> activePrintJobId(String printerId) {
         try {

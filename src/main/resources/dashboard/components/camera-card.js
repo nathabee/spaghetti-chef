@@ -66,11 +66,10 @@ export function renderCameraStatusCard(status) {
         </div>
       </dl>
 
-      ${
-        status?.lastError
-          ? `<p class="error-text">${escapeHtml(status.lastError)}</p>`
-          : ""
-      }
+      ${status?.lastError
+      ? `<p class="error-text">${escapeHtml(status.lastError)}</p>`
+      : ""
+    }
     </article>
   `;
 }
@@ -249,8 +248,15 @@ export function renderCameraSettingsCard(settings) {
   `;
 }
 
-export function renderCameraLatestSnapshotCard(printerId, status, settings) {
+export function renderCameraLatestSnapshotCard(printerId, status, settings, activeCameraJob = {}) {
   const captureIntervalSeconds = positiveInteger(settings?.captureIntervalSeconds, 10);
+  const cameraJobActive = activeCameraJob?.active === true || activeCameraJob?.monitoring === true;
+  const jobLabel = activeCameraJob?.jobId ? `Camera job ${activeCameraJob.jobId}` : "Camera job";
+  const latestSnapshotVersion =
+    activeCameraJob?.latestSnapshotVersion
+    || activeCameraJob?.latestSnapshotId
+    || status?.lastCaptureAt
+    || "";
 
   return `
     <article class="section-card camera-snapshot-card">
@@ -258,32 +264,48 @@ export function renderCameraLatestSnapshotCard(printerId, status, settings) {
         <div>
           <div class="kicker">Snapshot</div>
           <h3>Latest camera frame</h3>
+          <p class="muted">
+            ${cameraJobActive
+      ? `${escapeHtml(jobLabel)} is running.`
+      : "No backend camera job is running."}
+          </p>
         </div>
         <div class="action-row">
           <button type="button" data-camera-capture="${escapeHtml(printerId)}">Capture now</button>
+          ${cameraJobActive
+      ? `<button type="button" class="secondary-button" data-camera-job-stop="${escapeHtml(printerId)}">Stop job</button>`
+      : `<button type="button" class="secondary-button" data-camera-job-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Start job</button>`
+
+    }
           <button type="button" class="secondary-button" data-camera-refresh="${escapeHtml(printerId)}">Refresh</button>
-          <button type="button" class="secondary-button" data-camera-sync-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Sync</button>
-          <button type="button" class="secondary-button" data-camera-sync-stop="${escapeHtml(printerId)}">Stop sync</button>
+          <button type="button" class="secondary-button" data-camera-sync-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Live view</button>
+          <button type="button" class="secondary-button" data-camera-sync-stop="${escapeHtml(printerId)}">Stop live</button>
         </div>
       </div>
 
-      ${
-        status?.lastCaptureAt
-          ? `
+      ${status?.lastCaptureAt
+      ? `
             <div class="camera-snapshot-frame">
               <img
-                src="${cameraSnapshotUrl(printerId)}"
+                data-camera-latest-image="${escapeHtml(printerId)}" 
+                src="${cameraSnapshotUrl(printerId, latestSnapshotVersion)}"
                 alt="Latest camera snapshot for ${escapeHtml(printerId)}"
                 loading="lazy">
+              <p class="muted">
+                Latest displayed:
+                <span data-camera-latest-updated-at="${escapeHtml(printerId)}">
+                  ${escapeHtml(formatDateTime(status.lastCaptureAt))}
+                </span>
+              </p>
             </div>
           `
-          : `
+      : `
             <div class="empty-state">
               <h4>No snapshot yet</h4>
               <p class="muted">Capture a frame to create the first camera snapshot for this printer.</p>
             </div>
           `
-      }
+    }
     </article>
   `;
 }
@@ -300,20 +322,19 @@ export function renderCameraEventsCard(events) {
         </div>
       </div>
 
-      ${
-        safeEvents.length === 0
-          ? `
+      ${safeEvents.length === 0
+      ? `
             <div class="empty-state">
               <h4>No camera events</h4>
               <p class="muted">Camera activity appears here after status checks or captures.</p>
             </div>
           `
-          : `
+      : `
             <div class="event-list">
               ${safeEvents.map(renderCameraEvent).join("")}
             </div>
           `
-      }
+    }
     </article>
   `;
 }
@@ -339,9 +360,9 @@ export function renderCameraAnalysisCard(printerId, sessions, samples, captureIn
           <h3>Spaghetti trace review</h3>
         </div>
         <div class="action-row">
-          <button type="button" data-camera-analysis-start="${escapeHtml(printerId)}" ${activeSession ? "disabled" : ""}>Start</button>
-          <button type="button" class="secondary-button" data-camera-analysis-sample="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Sample now</button>
-          <button type="button" class="secondary-button" data-camera-analysis-stop="${escapeHtml(printerId)}" data-session-id="${escapeHtml(activeSession?.id || "")}" ${activeSession ? "" : "disabled"}>Stop</button>
+          <span class="badge ${activeSession ? "badge-enabled" : "badge-disabled"}">
+            ${activeSession ? "Analysis active" : "Analysis idle"}
+          </span>
         </div>
       </div>
 
@@ -720,7 +741,8 @@ export function renderCameraPage(
   samples,
   snapshotFiles,
   snapshotRange,
-  analysisReview = {}
+  analysisReview = {},
+  activeCameraJob = {}
 ) {
   return `
     <div class="view printer-camera-view">
@@ -735,8 +757,8 @@ export function renderCameraPage(
       </div>
 
       <section class="two-column-grid">
-        ${renderCameraStatusCard(status)}
-        ${renderCameraLatestSnapshotCard(printerId, status, settings)}
+        ${renderCameraStatusCard(status)} 
+        ${renderCameraLatestSnapshotCard(printerId, status, settings, activeCameraJob)}
       </section>
 
       <section class="two-column-grid">

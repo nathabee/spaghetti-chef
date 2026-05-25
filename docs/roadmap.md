@@ -3576,6 +3576,17 @@ Goals:
 * return machine-readable JSON results
 * keep Java backend unchanged
 
+Anomalies :
+
+Keep this specification : 
+Camera job id is created only by Start job.
+Scheduler receives that exact cameraJobId.
+Each scheduled capture writes only into that cameraJobId.
+Manual capture never reads, creates, or reuses a cameraJobId.
+Stop job completes that cameraJobId and stops the scheduler.
+A late tick for a completed cameraJobId must fail/record an error, not create a new job.
+
+
 ---
 
 ### 0.5.1 — Rust Real Dataset Validation

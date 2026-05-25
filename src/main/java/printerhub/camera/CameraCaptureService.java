@@ -175,8 +175,33 @@ public final class CameraCaptureService {
 
     public CameraCaptureResult capture(String printerId) {
         CameraSettings settings = settingsService.load(requirePrinterId(printerId));
+        CameraJob cameraJob = cameraJobService.start(settings);
+        return captureForCameraJob(settings, cameraJob);
+    }
+
+    public CameraCaptureResult captureForCameraJob(String printerId, long cameraJobId) {
+        CameraSettings settings = settingsService.load(requirePrinterId(printerId));
+        CameraJob cameraJob = cameraJobService.findById(cameraJobId)
+                .orElseThrow(() -> new IllegalStateException("Camera job not found: " + cameraJobId));
+
+        if (!settings.printerId().equals(cameraJob.printerId())) {
+            throw new IllegalStateException("Camera job " + cameraJobId
+                    + " belongs to printer " + cameraJob.printerId()
+                    + " but capture was requested for " + settings.printerId());
+        }
+
+        if (!"RUNNING".equalsIgnoreCase(cameraJob.state().name())) {
+            throw new IllegalStateException("Camera job " + cameraJobId
+                    + " is not running: " + cameraJob.state().name());
+        }
+
+        return captureForCameraJob(settings, cameraJob);
+    }
+
+    private CameraCaptureResult captureForCameraJob(CameraSettings settings, CameraJob cameraJob) {
         if (settings.diagnosticLoggingEnabled()) {
             PrinterHubLog.info("Camera capture requested printerId=" + settings.printerId()
+                    + " cameraJobId=" + cameraJob.requireId()
                     + " enabled=" + settings.enabled()
                     + " sourceType=" + settings.sourceType().wireValue()
                     + " sourceValue=" + settings.sourceValue().orElse("")
@@ -200,6 +225,7 @@ public final class CameraCaptureService {
         try (CameraDevice device = createDevice(settings)) {
             if (settings.diagnosticLoggingEnabled()) {
                 PrinterHubLog.info("Camera capture device printerId=" + settings.printerId()
+                        + " cameraJobId=" + cameraJob.requireId()
                         + " description=" + device.describe()
                         + " available=" + device.isAvailable());
             }
@@ -218,6 +244,7 @@ public final class CameraCaptureService {
             if (frame.isEmpty()) {
                 PrinterHubLog.error("Camera capture returned no frame printerId="
                         + settings.printerId()
+                        + " cameraJobId=" + cameraJob.requireId()
                         + " device=" + device.describe());
                 eventStore.record(
                         settings.printerId(),
@@ -227,9 +254,11 @@ public final class CameraCaptureService {
                 return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
             }
 
-            PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get());
+            PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get(), cameraJob);
+
             if (settings.diagnosticLoggingEnabled()) {
                 PrinterHubLog.info("Camera capture persisted printerId=" + settings.printerId()
+                        + " cameraJobId=" + cameraJob.requireId()
                         + " latest=" + persistedPaths.latestPath()
                         + " snapshot=" + persistedPaths.snapshotPath());
             }
@@ -245,6 +274,95 @@ public final class CameraCaptureService {
             return CameraCaptureResult.captured(frame.get());
         } catch (RuntimeException exception) {
             PrinterHubLog.error("Camera capture failed printerId=" + settings.printerId()
+                    + " cameraJobId=" + cameraJob.requireId()
+                    + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                    OperationMessages.cameraCaptureFailed(exception.getMessage()));
+
+            return CameraCaptureResult.failed(OperationMessages.cameraCaptureFailed(exception.getMessage()));
+        }
+    }
+
+    public CameraCaptureResult captureDiagnostic(String printerId) {
+        CameraSettings settings = settingsService.load(requirePrinterId(printerId));
+
+        if (settings.diagnosticLoggingEnabled()) {
+            PrinterHubLog.info("Camera diagnostic capture requested printerId=" + settings.printerId()
+                    + " enabled=" + settings.enabled()
+                    + " sourceType=" + settings.sourceType().wireValue()
+                    + " sourceValue=" + settings.sourceValue().orElse("")
+                    + " storageDirectory=" + CameraStoragePaths.resolveBaseDirectory(settings.storageDirectory()));
+        }
+
+        if (!settings.enabled()) {
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED,
+                    OperationMessages.CAMERA_DISABLED);
+
+            return CameraCaptureResult.skipped(OperationMessages.CAMERA_DISABLED);
+        }
+
+        Optional<CameraJob> activeJob = cameraJobService.findActive(settings.printerId());
+        if (activeJob.isPresent()) {
+            String message = "Camera job is already active; diagnostic capture skipped.";
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED,
+                    message);
+
+            return CameraCaptureResult.skipped(message);
+        }
+
+        try (CameraDevice device = createDevice(settings)) {
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera diagnostic capture device printerId=" + settings.printerId()
+                        + " description=" + device.describe()
+                        + " available=" + device.isAvailable());
+            }
+
+            if (!device.isAvailable()) {
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                        OperationMessages.CAMERA_UNAVAILABLE);
+
+                return CameraCaptureResult.failed(OperationMessages.CAMERA_UNAVAILABLE);
+            }
+
+            Optional<CameraFrame> frame = device.captureFrame();
+
+            if (frame.isEmpty()) {
+                PrinterHubLog.error("Camera diagnostic capture returned no frame printerId="
+                        + settings.printerId()
+                        + " device=" + device.describe());
+                eventStore.record(
+                        settings.printerId(),
+                        OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
+                        OperationMessages.CAMERA_RETURNED_NO_FRAME);
+
+                return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
+            }
+
+            PersistedDiagnosticFramePaths persistedPaths = persistDiagnosticFrame(settings, frame.get());
+
+            if (settings.diagnosticLoggingEnabled()) {
+                PrinterHubLog.info("Camera diagnostic capture persisted printerId=" + settings.printerId()
+                        + " latest=" + persistedPaths.latestPath());
+            }
+
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_FRAME_CAPTURED,
+                    "Camera diagnostic frame captured");
+
+            updateDiagnosticDelta(settings, persistedPaths);
+
+            return CameraCaptureResult.captured(frame.get());
+        } catch (RuntimeException exception) {
+            PrinterHubLog.error("Camera diagnostic capture failed printerId=" + settings.printerId()
                     + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
             eventStore.record(
                     settings.printerId(),
@@ -299,8 +417,7 @@ public final class CameraCaptureService {
         return new NoopCameraDevice("unsupported-camera-source:" + settings.sourceType().wireValue());
     }
 
-    private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame) {
-        CameraJob cameraJob = cameraJobService.getOrCreateActive(settings);
+    private PersistedCameraFramePaths persistFrame(CameraSettings settings, CameraFrame frame, CameraJob cameraJob) {
 
         String extension = extensionFor(frame.contentType());
         Path printerDirectory = CameraStoragePaths.printerDirectory(settings.storageDirectory(), frame.printerId());
@@ -363,6 +480,63 @@ public final class CameraCaptureService {
                     deltaPath);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist camera frame", exception);
+        }
+    }
+
+    private PersistedDiagnosticFramePaths persistDiagnosticFrame(CameraSettings settings, CameraFrame frame) {
+        String extension = extensionFor(frame.contentType());
+        Path printerDirectory = CameraStoragePaths.printerDirectory(settings.storageDirectory(), frame.printerId());
+        Path latestPath = printerDirectory.resolve("latest" + extension);
+        Path previousPath = printerDirectory.resolve("previous" + extension);
+        Path deltaPath = printerDirectory.resolve("delta.jpg");
+
+        try {
+            Files.createDirectories(printerDirectory);
+
+            Path pendingDiagnosticPath = Files.createTempFile(printerDirectory, "pending-diagnostic-", extension);
+            Files.write(pendingDiagnosticPath, frame.bytes());
+
+            if (Files.isRegularFile(latestPath)) {
+                Files.copy(latestPath, previousPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            Files.move(pendingDiagnosticPath, latestPath, StandardCopyOption.REPLACE_EXISTING);
+
+            snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
+                    frame.printerId(),
+                    frame.capturedAt(),
+                    frame.contentType(),
+                    latestPath.toString(),
+                    frame.width().isPresent() ? frame.width().getAsInt() : null,
+                    frame.height().isPresent() ? frame.height().getAsInt() : null,
+                    frame.sourceDescription().orElse(null)));
+
+            return new PersistedDiagnosticFramePaths(
+                    latestPath,
+                    previousPath,
+                    deltaPath);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to persist diagnostic camera frame", exception);
+        }
+    }
+
+    private void updateDiagnosticDelta(CameraSettings settings, PersistedDiagnosticFramePaths persistedPaths) {
+        if (!Files.isRegularFile(persistedPaths.previousPath())
+                || !Files.isRegularFile(persistedPaths.latestPath())) {
+            return;
+        }
+
+        try {
+            frameAnalyzer.analyze(
+                    settings.printerId(),
+                    persistedPaths.previousPath(),
+                    persistedPaths.latestPath(),
+                    Optional.of(persistedPaths.deltaPath()));
+        } catch (RuntimeException exception) {
+            eventStore.record(
+                    settings.printerId(),
+                    OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
+                    "Diagnostic delta update failed: " + exception.getMessage());
         }
     }
 
@@ -503,4 +677,11 @@ public final class CameraCaptureService {
             Path previousPath,
             Path deltaPath) {
     }
+
+    private record PersistedDiagnosticFramePaths(
+            Path latestPath,
+            Path previousPath,
+            Path deltaPath) {
+    }
+
 }
