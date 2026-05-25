@@ -9,18 +9,24 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class CameraMonitoringTask implements Runnable {
 
     private final String printerId;
+    private final long cameraJobId;
     private final CameraMonitoringService monitoringService;
     private final Clock clock;
     private final AtomicReference<Instant> lastRunAt = new AtomicReference<>();
     private final AtomicReference<CameraCaptureResult> lastResult = new AtomicReference<>();
     private final AtomicReference<String> lastFailure = new AtomicReference<>();
 
-    public CameraMonitoringTask(String printerId, CameraMonitoringService monitoringService) {
-        this(printerId, monitoringService, Clock.systemUTC());
+    public CameraMonitoringTask(String printerId, long cameraJobId, CameraMonitoringService monitoringService) {
+        this(printerId, cameraJobId, monitoringService, Clock.systemUTC());
     }
 
-    public CameraMonitoringTask(String printerId, CameraMonitoringService monitoringService, Clock clock) {
+    public CameraMonitoringTask(
+            String printerId,
+            long cameraJobId,
+            CameraMonitoringService monitoringService,
+            Clock clock) {
         this.printerId = requirePrinterId(printerId);
+        this.cameraJobId = requireCameraJobId(cameraJobId);
         this.monitoringService = Objects.requireNonNull(monitoringService, "monitoringService");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -30,7 +36,7 @@ public final class CameraMonitoringTask implements Runnable {
         lastRunAt.set(Instant.now(clock));
 
         try {
-            CameraCaptureResult result = monitoringService.capture(printerId);
+            CameraCaptureResult result = monitoringService.captureForCameraJob(printerId, cameraJobId);
             lastResult.set(result);
             lastFailure.set(null);
         } catch (RuntimeException exception) {
@@ -40,6 +46,10 @@ public final class CameraMonitoringTask implements Runnable {
 
     public String printerId() {
         return printerId;
+    }
+
+    public long cameraJobId() {
+        return cameraJobId;
     }
 
     public Optional<Instant> lastRunAt() {
@@ -60,5 +70,13 @@ public final class CameraMonitoringTask implements Runnable {
         }
 
         return printerId.trim();
+    }
+
+    private static long requireCameraJobId(long cameraJobId) {
+        if (cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
+
+        return cameraJobId;
     }
 }

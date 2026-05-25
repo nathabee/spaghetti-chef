@@ -88,8 +88,10 @@ import printerhub.persistence.CameraAnalysisSessionStore;
 import printerhub.persistence.CameraEventStore;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
-import printerhub.persistence.PrintJobStore;
+// import printerhub.persistence.PrintJobStore;
 import printerhub.camera.CameraJobService;
+import printerhub.camera.CameraMonitoringScheduler;
+import printerhub.camera.CameraMonitoringService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -98,7 +100,6 @@ import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -137,6 +138,7 @@ public final class RemoteApiServer {
     private final ActionPermissionResolver actionPermissionResolver;
     private final DangerousActionGuard dangerousActionGuard;
     private final CameraApiHandler cameraApiHandler;
+    private final CameraMonitoringScheduler cameraMonitoringScheduler;
     private final CameraSnapshotManagementService cameraSnapshotManagementService;
     private final CameraDeltaSetService cameraDeltaSetService;
     private final CameraDeltaSetStore cameraDeltaSetStore;
@@ -264,6 +266,8 @@ public final class RemoteApiServer {
         PrinterHubLog.info("Default camera storage base: "
                 + this.cameraStorageDirectory.toAbsolutePath().normalize());
 
+        CameraJobService cameraJobService = new CameraJobService();
+
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
                 cameraSettingsService,
                 cameraEventStore,
@@ -273,7 +277,14 @@ public final class RemoteApiServer {
                 new printerhub.camera.ImageDeltaFrameAnalyzer(),
                 new printerhub.camera.SpaghettiDetectionService(),
                 cameraSnapshotEntryStore,
-                new CameraJobService());
+                cameraJobService);
+
+        CameraMonitoringService cameraMonitoringService = new CameraMonitoringService(cameraCaptureService);
+
+        this.cameraMonitoringScheduler = new CameraMonitoringScheduler(
+                cameraMonitoringService,
+                Executors.newScheduledThreadPool(2));
+
         this.cameraSnapshotManagementService = new CameraSnapshotManagementService(
                 cameraSettingsService,
                 cameraSnapshotEntryStore);
@@ -310,7 +321,9 @@ public final class RemoteApiServer {
                 cameraSettingsService,
                 cameraEventStore,
                 cameraSnapshotMetadataStore,
-                cameraAnalysisSessionService);
+                cameraAnalysisSessionService,
+                cameraJobService,
+                this.cameraMonitoringScheduler);
 
     }
 
@@ -354,6 +367,7 @@ public final class RemoteApiServer {
         if (server != null) {
             server.stop(0);
             server = null;
+            cameraMonitoringScheduler.close();
             asyncPrintJobExecutor.close();
             PrinterHubLog.info(OperationMessages.apiServerStopped());
         }
@@ -933,7 +947,8 @@ public final class RemoteApiServer {
                 return;
             }
 
-            sendJson(exchange, 200, cameraDeltaFramesJson(deltaSetId, cameraDeltaFrameStore.findByDeltaSetId(deltaSetId)));
+            sendJson(exchange, 200,
+                    cameraDeltaFramesJson(deltaSetId, cameraDeltaFrameStore.findByDeltaSetId(deltaSetId)));
             return;
         }
 
@@ -1873,6 +1888,33 @@ public final class RemoteApiServer {
             return;
         }
 
+        if ("jobs".equals(cameraResource)) {
+            if (parts.length != 4) {
+                sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));
+                return;
+            }
+
+            String cameraJobAction = parts[3];
+
+            if ("start".equals(cameraJobAction)) {
+                cameraApiHandler.handleStartCameraJob(exchange, printerId);
+                return;
+            }
+
+            if ("stop".equals(cameraJobAction)) {
+                cameraApiHandler.handleStopCameraJob(exchange, printerId);
+                return;
+            }
+
+            if ("active".equals(cameraJobAction)) {
+                cameraApiHandler.handleActiveCameraJob(exchange, printerId);
+                return;
+            }
+
+            sendJson(exchange, 404, errorJson(OperationMessages.PRINTER_ENDPOINT_NOT_FOUND));
+            return;
+        }
+
         if ("snapshot".equals(cameraResource)) {
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 cameraApiHandler.handleLatestSnapshot(exchange, printerId);
@@ -2460,7 +2502,8 @@ public final class RemoteApiServer {
                     .append("\"jobId\":\"").append(escapeJson(summary.jobId())).append("\",")
                     .append("\"printerId\":").append(nullableString(summary.printerId())).append(",")
                     .append("\"linkedPrintJobId\":").append(nullableString(summary.linkedPrintJobId())).append(",")
-                    .append("\"state\":").append(nullableString(summary.state() == null ? null : summary.state().name())).append(",")
+                    .append("\"state\":")
+                    .append(nullableString(summary.state() == null ? null : summary.state().name())).append(",")
                     .append("\"startedAt\":").append(nullableString(instantString(summary.startedAt()))).append(",")
                     .append("\"stoppedAt\":").append(nullableString(instantString(summary.stoppedAt()))).append(",")
                     .append("\"captureIntervalSeconds\":").append(summary.captureIntervalSeconds()).append(",")
@@ -2470,7 +2513,8 @@ public final class RemoteApiServer {
                     .append("\"snapshotDirectory\":").append(nullableString(summary.snapshotDirectory())).append(",")
                     .append("\"fileCount\":").append(summary.fileCount()).append(",")
                     .append("\"totalBytes\":").append(summary.totalBytes()).append(",")
-                    .append("\"firstCapturedAt\":").append(nullableString(instantString(summary.firstCapturedAt()))).append(",")
+                    .append("\"firstCapturedAt\":").append(nullableString(instantString(summary.firstCapturedAt())))
+                    .append(",")
                     .append("\"lastCapturedAt\":").append(nullableString(instantString(summary.lastCapturedAt())))
                     .append("}");
             first = false;

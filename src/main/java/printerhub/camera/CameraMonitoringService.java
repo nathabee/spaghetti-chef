@@ -10,16 +10,21 @@ public final class CameraMonitoringService {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
     }
 
-    public CameraCaptureResult capture(String printerId) {
-        return captureService.capture(requirePrinterId(printerId));
+    public CameraCaptureResult captureForCameraJob(String printerId, long cameraJobId) {
+        return captureService.captureForCameraJob(
+                requirePrinterId(printerId),
+                requireCameraJobId(cameraJobId));
     }
 
     public CameraStatus status(String printerId) {
         return captureService.status(requirePrinterId(printerId));
     }
 
-    public CameraMonitoringTask createTask(String printerId) {
-        return new CameraMonitoringTask(requirePrinterId(printerId), this);
+    public CameraMonitoringTask createTask(String printerId, long cameraJobId) {
+        return new CameraMonitoringTask(
+                requirePrinterId(printerId),
+                requireCameraJobId(cameraJobId),
+                this);
     }
 
     private static String requirePrinterId(String printerId) {
@@ -28,5 +33,13 @@ public final class CameraMonitoringService {
         }
 
         return printerId.trim();
+    }
+
+    private static long requireCameraJobId(long cameraJobId) {
+        if (cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
+
+        return cameraJobId;
     }
 }

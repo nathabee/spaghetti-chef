@@ -1,12 +1,12 @@
 import {
-  cancelJob, 
+  cancelJob,
   closePrinterSdUploadSession,
   createJob,
   deletePrinterSdFile,
   createPrinter,
   deleteJob,
   deletePrinter,
-  executePrinterCommand, 
+  executePrinterCommand,
   getJob,
   getJobEvents,
   getJobExecutionSteps,
@@ -36,12 +36,13 @@ import {
   getPrinterSdUploadStatus as fetchPrinterSdUploadStatus,
   uploadPrinterSdFile,
   getPrinters,
+  isApiNetworkError,
   registerPrinterSdFile,
   registerPrintFile,
   pauseJob,
   previewCameraSnapshotRecalculation,
   restartJob,
-  resumeJob, 
+  resumeJob,
   runCameraCalculation,
   saveMonitoringRules,
   savePrintFileSettings,
@@ -51,7 +52,11 @@ import {
   setPrinterEnabled,
   startJob,
   updatePrinter,
-  uploadPrintFile
+  uploadPrintFile,
+  getActiveCameraJob,
+  startCameraJob,
+  stopCameraJob,
+  cameraSnapshotUrl,
 } from "./api.js";
 
 import { renderNav } from "./components/nav.js";
@@ -69,14 +74,11 @@ import { renderPrinterSdCard } from "./views/printer-sd-card.js";
 import { renderSettingsPage } from "./views/settings.js";
 import {
   capturePrinterCameraSnapshot,
-  capturePrinterCameraAnalysisSample,
   cameraSnapshotRangeFromForm,
   renderPrinterCamera,
   renderPrinterCameraAnalysisPanel,
   renderPrinterCameraLoading,
-  savePrinterCameraSettings,
-  startPrinterCameraAnalysisSession,
-  stopPrinterCameraAnalysisSession
+  savePrinterCameraSettings
 } from "./views/printer-camera.js";
 
 import {
@@ -127,7 +129,7 @@ import {
 } from "./state.js";
 
 
-import { escapeHtml, formatDateTime , formatTemperature } from "./utils/format.js";
+import { escapeHtml, formatDateTime, formatTemperature } from "./utils/format.js";
 
 const pageTitleElement = document.getElementById("pageTitle");
 const pageLeadElement = document.getElementById("pageLead");
@@ -141,9 +143,16 @@ let pendingPrinterFormFill = null;
 const uploadStatusPollers = new Map();
 const jobStatusPollers = new Map();
 const cameraSnapshotSyncPollers = new Map();
-const cameraAnalysisSamplePollers = new Map();
+const cameraLiveViewState = new Map();
 const JOB_STATUS_POLLING_INTERVAL_MS = 2500;
+const DASHBOARD_AUTO_REFRESH_INTERVAL_MS = 3000;
+const DASHBOARD_AUTO_REFRESH_NETWORK_FAILURE_LIMIT = 3;
+
+let dashboardAutoRefreshInFlight = false;
+let dashboardAutoRefreshSuspended = false;
+let dashboardAutoRefreshConsecutiveNetworkFailures = 0;
 let cameraSnapshotScrollSelectionTimer = null;
+let activeCameraViewKey = null;
 
 async function boot() {
   bindGlobalListeners();
@@ -600,8 +609,14 @@ function renderPage() {
   }
 
   if (state.activePrinterView === PRINTER_VIEW_IDS.CAMERA) {
-    pageContentElement.innerHTML = renderPrinterCameraLoading(selectedPrinter);
-    void loadPrinterCameraIntoPage(selectedPrinter);
+    const cameraViewKey = `camera:${selectedPrinter.id}`;
+
+    if (activeCameraViewKey !== cameraViewKey || !pageContentElement.querySelector(".printer-camera-view")) {
+      activeCameraViewKey = cameraViewKey;
+      pageContentElement.innerHTML = renderPrinterCameraLoading(selectedPrinter);
+      void loadPrinterCameraIntoPage(selectedPrinter, undefined, { force: true });
+    }
+
     return;
   }
 
@@ -676,7 +691,14 @@ function renderGlobalMessage() {
 }
 
 function bindGlobalListeners() {
-  refreshButton.addEventListener("click", () => refreshAllData({ silent: false }));
+  refreshButton.addEventListener("click", async () => {
+    dashboardAutoRefreshSuspended = false;
+    dashboardAutoRefreshConsecutiveNetworkFailures = 0;
+    await refreshAllData({ silent: false });
+  });
+
+
+
 
   document.addEventListener("click", async (event) => {
     const navButton = event.target.closest("[data-nav-target]");
@@ -732,16 +754,41 @@ function bindGlobalListeners() {
     const cameraCaptureButton = event.target.closest("[data-camera-capture]");
     if (cameraCaptureButton) {
       await handleCameraCapture(cameraCaptureButton.dataset.cameraCapture);
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), undefined, { force: true });
       renderGlobalMessage();
       return;
     }
 
     const cameraRefreshButton = event.target.closest("[data-camera-refresh]");
     if (cameraRefreshButton) {
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), undefined, { force: true });
       return;
     }
+
+    const cameraJobStartButton = event.target.closest("[data-camera-job-start]");
+    if (cameraJobStartButton) {
+      const printerId = cameraJobStartButton.dataset.cameraJobStart;
+      const intervalSeconds = cameraJobStartButton.dataset.cameraCaptureInterval || "10";
+
+      await handleStartCameraJob(printerId);
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), undefined, { force: true });
+
+      startCameraSnapshotSync(printerId, intervalSeconds);
+      renderGlobalMessage();
+      return;
+    }
+
+    const cameraJobStopButton = event.target.closest("[data-camera-job-stop]");
+    if (cameraJobStopButton) {
+      const printerId = cameraJobStopButton.dataset.cameraJobStop;
+
+      await handleStopCameraJob(printerId);
+      stopCameraSnapshotSync(printerId);
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), undefined, { force: true });
+      renderGlobalMessage();
+      return;
+    }
+
 
     const cameraSyncStartButton = event.target.closest("[data-camera-sync-start]");
     if (cameraSyncStartButton) {
@@ -805,39 +852,6 @@ function bindGlobalListeners() {
     if (adminCameraDeleteJobButton) {
       await handleAdminCameraDeleteJob(adminCameraDeleteJobButton.dataset.adminCameraDeleteJob);
       renderApp();
-      return;
-    }
-
-    const cameraAnalysisStartButton = event.target.closest("[data-camera-analysis-start]");
-    if (cameraAnalysisStartButton) {
-      await handleStartCameraAnalysis(cameraAnalysisStartButton.dataset.cameraAnalysisStart);
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
-      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
-      renderGlobalMessage();
-      return;
-    }
-
-    const cameraAnalysisStopButton = event.target.closest("[data-camera-analysis-stop]");
-    if (cameraAnalysisStopButton) {
-      await handleStopCameraAnalysis(
-        cameraAnalysisStopButton.dataset.cameraAnalysisStop,
-        cameraAnalysisStopButton.dataset.sessionId
-      );
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
-      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
-      renderGlobalMessage();
-      return;
-    }
-
-    const cameraAnalysisSampleButton = event.target.closest("[data-camera-analysis-sample]");
-    if (cameraAnalysisSampleButton) {
-      await handleCaptureCameraAnalysisSample(
-        cameraAnalysisSampleButton.dataset.cameraAnalysisSample,
-        cameraAnalysisSampleButton.dataset.sessionId
-      );
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
-      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
-      renderGlobalMessage();
       return;
     }
 
@@ -1061,7 +1075,7 @@ function bindPageListeners() {
     cameraSettingsForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       await handleSaveCameraSettings(cameraSettingsForm);
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
+      await loadPrinterCameraIntoPage(getSelectedPrinter(), undefined, { force: true });
       renderGlobalMessage();
     });
   }
@@ -1070,7 +1084,11 @@ function bindPageListeners() {
   if (cameraSnapshotForm) {
     cameraSnapshotForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      await loadPrinterCameraIntoPage(getSelectedPrinter(), cameraSnapshotRangeFromForm(cameraSnapshotForm));
+      await loadPrinterCameraIntoPage(
+        getSelectedPrinter(),
+        cameraSnapshotRangeFromForm(cameraSnapshotForm),
+        { force: true }
+      );
     });
   }
 
@@ -1087,7 +1105,6 @@ function bindPageListeners() {
     }, { passive: true });
   }
 
-  bindCameraAnalysisAutoSampling();
   renderCameraSyncButtonState();
 
   const jobForm = document.getElementById("jobForm");
@@ -1168,6 +1185,34 @@ async function handleCameraCapture(printerId) {
   }
 }
 
+async function handleStartCameraJob(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  try {
+    const response = await startCameraJob(printerId);
+    const jobLabel = response.jobId || "active job";
+    setMessage(`Started camera job ${jobLabel} for ${printerId}.`);
+  } catch (error) {
+    setMessage(`Failed to start camera job for ${printerId}: ${error.message}`);
+  }
+}
+
+async function handleStopCameraJob(printerId) {
+  if (!printerId) {
+    return;
+  }
+
+  try {
+    const response = await stopCameraJob(printerId);
+    const jobLabel = response.jobId || "camera job";
+    setMessage(`Stopped camera job ${jobLabel} for ${printerId}.`);
+  } catch (error) {
+    setMessage(`Failed to stop camera job for ${printerId}: ${error.message}`);
+  }
+}
+
 async function handleSaveCameraSettings(form) {
   const selectedPrinter = getSelectedPrinter();
 
@@ -1184,44 +1229,8 @@ async function handleSaveCameraSettings(form) {
   }
 }
 
-async function handleStartCameraAnalysis(printerId) {
-  if (!printerId) {
-    return;
-  }
 
-  try {
-    await startPrinterCameraAnalysisSession(printerId);
-    setMessage(`Started camera analysis session for ${printerId}.`);
-  } catch (error) {
-    setMessage(`Failed to start camera analysis for ${printerId}: ${error.message}`);
-  }
-}
 
-async function handleStopCameraAnalysis(printerId, sessionId) {
-  if (!printerId || !sessionId) {
-    return;
-  }
-
-  try {
-    await stopPrinterCameraAnalysisSession(printerId, sessionId);
-    setMessage(`Stopped camera analysis session for ${printerId}.`);
-  } catch (error) {
-    setMessage(`Failed to stop camera analysis for ${printerId}: ${error.message}`);
-  }
-}
-
-async function handleCaptureCameraAnalysisSample(printerId, sessionId) {
-  if (!printerId || !sessionId) {
-    return;
-  }
-
-  try {
-    await capturePrinterCameraAnalysisSample(printerId, sessionId);
-    setMessage(`Captured camera analysis sample for ${printerId}.`);
-  } catch (error) {
-    setMessage(`Failed to capture camera analysis sample for ${printerId}: ${error.message}`);
-  }
-}
 
 
 async function handleSavePrinter(form) {
@@ -1659,126 +1668,72 @@ function startCameraSnapshotSync(printerId, intervalSeconds) {
 
   stopCameraSnapshotSync(printerId);
 
-  let running = false;
+  const liveState = {
+    inFlight: false,
+    latestSnapshotVersion: null
+  };
+
+  cameraLiveViewState.set(printerId, liveState);
+
   const intervalMs = intervalMilliseconds(intervalSeconds);
 
   const tick = async () => {
-    if (running) {
+    if (liveState.inFlight) {
       return;
     }
 
-    running = true;
+    liveState.inFlight = true;
+
     try {
-      await handleCameraCapture(printerId);
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
-      renderGlobalMessage();
+      const status = await getActiveCameraJob(printerId);
+
+      if (!status.active && !status.monitoring) {
+        setMessage(`No active camera job for ${printerId}. Start a camera job first.`);
+        stopCameraSnapshotSync(printerId);
+        renderGlobalMessage();
+        return;
+      }
+
+      const nextVersion = status.latestSnapshotVersion || status.latestSnapshotId || status.latestCaptureAt;
+
+      if (nextVersion && nextVersion !== liveState.latestSnapshotVersion) {
+        liveState.latestSnapshotVersion = nextVersion;
+        updateLatestCameraSnapshotImage(printerId, nextVersion, status.latestCaptureAt);
+      }
+
+      renderCameraSyncButtonState();
     } catch (error) {
-      setMessage(`Camera sync failed for ${printerId}: ${error.message}`);
+      setMessage(`Camera live view failed for ${printerId}: ${error.message}`);
       stopCameraSnapshotSync(printerId);
       renderGlobalMessage();
     } finally {
-      running = false;
+      liveState.inFlight = false;
     }
   };
 
   cameraSnapshotSyncPollers.set(printerId, window.setInterval(tick, intervalMs));
   tick();
-  setMessage(`Camera snapshot sync started for ${printerId}.`);
+  setMessage(`Camera live view started for ${printerId}.`);
 }
 
 function stopCameraSnapshotSync(printerId) {
   const intervalId = cameraSnapshotSyncPollers.get(printerId);
-  if (!intervalId) {
-    return;
+
+  if (intervalId) {
+    window.clearInterval(intervalId);
   }
 
-  window.clearInterval(intervalId);
   cameraSnapshotSyncPollers.delete(printerId);
-  setMessage(`Camera snapshot sync stopped for ${printerId}.`);
-}
+  cameraLiveViewState.delete(printerId);
 
-function bindCameraAnalysisAutoSampling() {
-  const activeCards = Array.from(document.querySelectorAll("[data-camera-analysis-active-session]"));
-  const activePrinterIds = new Set();
-
-  activeCards.forEach((card) => {
-    const printerId = card.dataset.cameraAnalysisPrinterId;
-    const sessionId = card.dataset.cameraAnalysisActiveSession;
-
-    if (!printerId) {
-      return;
-    }
-
-    if (!sessionId) {
-      stopCameraAnalysisAutoSampling(printerId);
-      return;
-    }
-
-    activePrinterIds.add(printerId);
-    startCameraAnalysisAutoSampling(printerId, sessionId, card.dataset.cameraCaptureInterval);
-  });
-
-  for (const printerId of Array.from(cameraAnalysisSamplePollers.keys())) {
-    if (!activePrinterIds.has(printerId)) {
-      stopCameraAnalysisAutoSampling(printerId);
-    }
+  if (printerId) {
+    setMessage(`Camera live view stopped for ${printerId}.`);
   }
-}
-
-function startCameraAnalysisAutoSampling(printerId, sessionId, intervalSeconds) {
-  const existing = cameraAnalysisSamplePollers.get(printerId);
-  if (existing?.sessionId === sessionId && existing?.intervalSeconds === String(intervalSeconds || "")) {
-    return;
-  }
-
-  stopCameraAnalysisAutoSampling(printerId);
-
-  let running = false;
-  const intervalMs = intervalMilliseconds(intervalSeconds);
-
-  const tick = async () => {
-    if (running) {
-      return;
-    }
-
-    running = true;
-    try {
-      await capturePrinterCameraAnalysisSample(printerId, sessionId);
-      await loadPrinterCameraIntoPage(getSelectedPrinter());
-      await loadPrinterControlCameraAnalysisIntoPage(getSelectedPrinter());
-    } catch (error) {
-      stopCameraAnalysisAutoSampling(printerId);
-      setMessage(`Camera analysis auto-sample stopped for ${printerId}: ${error.message}`);
-      renderGlobalMessage();
-    } finally {
-      running = false;
-    }
-  };
-
-  cameraAnalysisSamplePollers.set(printerId, {
-    intervalId: window.setInterval(tick, intervalMs),
-    intervalSeconds: String(intervalSeconds || ""),
-    sessionId
-  });
-}
-
-function stopCameraAnalysisAutoSampling(printerId) {
-  const poller = cameraAnalysisSamplePollers.get(printerId);
-  if (!poller) {
-    return;
-  }
-
-  window.clearInterval(poller.intervalId);
-  cameraAnalysisSamplePollers.delete(printerId);
 }
 
 function stopCameraDashboardSyncTimers() {
   for (const printerId of Array.from(cameraSnapshotSyncPollers.keys())) {
     stopCameraSnapshotSync(printerId);
-  }
-
-  for (const printerId of Array.from(cameraAnalysisSamplePollers.keys())) {
-    stopCameraAnalysisAutoSampling(printerId);
   }
 }
 
@@ -1786,13 +1741,15 @@ function renderCameraSyncButtonState() {
   document.querySelectorAll("[data-camera-sync-start]").forEach((button) => {
     const active = cameraSnapshotSyncPollers.has(button.dataset.cameraSyncStart);
     button.disabled = active;
-    button.textContent = active ? "Syncing" : "Sync";
+    button.textContent = active ? "Live" : "Live view";
   });
 
   document.querySelectorAll("[data-camera-sync-stop]").forEach((button) => {
     button.disabled = !cameraSnapshotSyncPollers.has(button.dataset.cameraSyncStop);
   });
 }
+
+
 
 function intervalMilliseconds(intervalSeconds) {
   const parsed = Number.parseInt(intervalSeconds, 10);
@@ -2369,32 +2326,60 @@ function startAutoRefresh() {
     clearInterval(printerRefreshInterval);
   }
 
-  printerRefreshInterval = setInterval(async () => {
-    try {
-      const previousJobsSignature = jobsSignature(state.jobs);
-      const [printers, jobs] = await Promise.all([
-        getPrinters(),
-        getJobs()
-      ]);
-      const nextJobsSignature = jobsSignature(jobs);
+  printerRefreshInterval = setInterval(runDashboardAutoRefreshTick, DASHBOARD_AUTO_REFRESH_INTERVAL_MS);
+}
 
-      setPrinters(printers);
-      setJobs(jobs);
-      setLastRefreshLabel(new Date().toLocaleTimeString());
+async function runDashboardAutoRefreshTick() {
+  if (dashboardAutoRefreshSuspended || dashboardAutoRefreshInFlight) {
+    return;
+  }
 
-      if (nextJobsSignature !== previousJobsSignature) {
-        await refreshOpenJobDetails(jobs);
-        renderApp();
-        return;
+  dashboardAutoRefreshInFlight = true;
+
+  try {
+    const previousJobsSignature = jobsSignature(state.jobs);
+    const [printers, jobs] = await Promise.all([
+      getPrinters(),
+      getJobs()
+    ]);
+    const nextJobsSignature = jobsSignature(jobs);
+
+    dashboardAutoRefreshConsecutiveNetworkFailures = 0;
+
+    setPrinters(printers);
+    setJobs(jobs);
+    setLastRefreshLabel(new Date().toLocaleTimeString());
+
+    if (nextJobsSignature !== previousJobsSignature) {
+      await refreshOpenJobDetails(jobs);
+      renderApp();
+      return;
+    }
+
+    renderLivePrinterRefresh(printers);
+    lastRefreshElement.textContent = state.lastRefreshLabel;
+  } catch (error) {
+    if (isApiNetworkError(error)) {
+      dashboardAutoRefreshConsecutiveNetworkFailures += 1;
+
+      if (dashboardAutoRefreshConsecutiveNetworkFailures >= DASHBOARD_AUTO_REFRESH_NETWORK_FAILURE_LIMIT) {
+        dashboardAutoRefreshSuspended = true;
+        setMessage(
+          `PrinterHub server is unreachable. Automatic refresh stopped after ${dashboardAutoRefreshConsecutiveNetworkFailures} failed attempts. Use Refresh to retry.`
+        );
+        renderGlobalMessage();
       }
 
-      renderLivePrinterRefresh(printers);
-      lastRefreshElement.textContent = state.lastRefreshLabel;
-    } catch {
-      // keep current state visible
+      return;
     }
-  }, 3000);
+
+    setMessage(`Dashboard auto-refresh failed: ${error.message}`);
+    renderGlobalMessage();
+  } finally {
+    dashboardAutoRefreshInFlight = false;
+  }
 }
+
 
 async function refreshOpenJobDetails(jobs) {
   const openJobs = jobs.filter((job) =>
@@ -2678,13 +2663,36 @@ function updateCameraSnapshotPreview(items) {
   });
 }
 
+function updateLatestCameraSnapshotImage(printerId, version, capturedAt) {
+  const image = document.querySelector(`[data-camera-latest-image="${cssEscape(printerId)}"]`);
+  const timestamp = document.querySelector(`[data-camera-latest-updated-at="${cssEscape(printerId)}"]`);
 
-async function loadPrinterCameraIntoPage(printer, snapshotRange) {
+  if (image) {
+    const nextUrl = cameraSnapshotUrl(printerId, version);
+    if (image.getAttribute("src") !== nextUrl) {
+      image.setAttribute("src", nextUrl);
+    }
+  }
+
+  if (timestamp) {
+    timestamp.textContent = capturedAt ? formatDateTime(capturedAt) : new Date().toLocaleTimeString();
+  }
+}
+
+async function loadPrinterCameraIntoPage(printer, snapshotRange, options = {}) {
   if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CAMERA) {
     return;
   }
 
+  const force = options.force === true;
   const expectedPrinterId = printer.id;
+  const cameraViewKey = `camera:${expectedPrinterId}`;
+
+  if (!force && activeCameraViewKey === cameraViewKey && pageContentElement.querySelector(".printer-camera-view")) {
+    return;
+  }
+
+  activeCameraViewKey = cameraViewKey;
 
   try {
     const html = await renderPrinterCamera(printer, snapshotRange);
@@ -2714,6 +2722,7 @@ async function loadPrinterCameraIntoPage(printer, snapshotRange) {
     `;
   }
 }
+
 
 async function loadPrinterControlCameraAnalysisIntoPage(printer) {
   if (!printer || state.activePrinterView !== PRINTER_VIEW_IDS.CONTROL) {

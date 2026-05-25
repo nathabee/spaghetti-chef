@@ -23,13 +23,14 @@ public final class CameraMonitoringScheduler implements AutoCloseable {
         this.executorService = Objects.requireNonNull(executorService, "executorService");
     }
 
-    public void startMonitoring(String printerId, long intervalSeconds) {
+    public void startMonitoring(String printerId, long cameraJobId, long intervalSeconds) {
         String normalizedPrinterId = requirePrinterId(printerId);
+        long safeCameraJobId = requireCameraJobId(cameraJobId);
         long safeIntervalSeconds = requirePositiveInterval(intervalSeconds);
 
         stopMonitoring(normalizedPrinterId);
 
-        CameraMonitoringTask task = monitoringService.createTask(normalizedPrinterId);
+        CameraMonitoringTask task = monitoringService.createTask(normalizedPrinterId, safeCameraJobId);
 
         ScheduledFuture<?> future = executorService.scheduleWithFixedDelay(
                 task,
@@ -45,7 +46,7 @@ public final class CameraMonitoringScheduler implements AutoCloseable {
 
         ScheduledFuture<?> future = scheduledTasks.remove(normalizedPrinterId);
         if (future != null) {
-            future.cancel(false);
+            future.cancel(true);
         }
     }
 
@@ -78,6 +79,14 @@ public final class CameraMonitoringScheduler implements AutoCloseable {
         }
 
         return intervalSeconds;
+    }
+
+    private static long requireCameraJobId(long cameraJobId) {
+        if (cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
+
+        return cameraJobId;
     }
 
     private static String requirePrinterId(String printerId) {

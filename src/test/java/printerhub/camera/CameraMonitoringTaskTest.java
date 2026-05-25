@@ -1,6 +1,7 @@
 package printerhub.camera;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import printerhub.persistence.CameraEventStore;
+import printerhub.persistence.CameraJob;
+import printerhub.persistence.CameraJobStore;
 import printerhub.persistence.CameraSettings;
 import printerhub.persistence.CameraSettingsStore;
 import printerhub.persistence.CameraSnapshotMetadataStore;
@@ -37,15 +40,18 @@ class CameraMonitoringTaskTest {
 
         CameraSettingsService settingsService = settingsService();
         settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
+        long cameraJobId = createRunningCameraJob("printer-1");
 
         CameraMonitoringTask task = new CameraMonitoringTask(
                 "printer-1",
+                cameraJobId,
                 monitoringService(settingsService),
                 FIXED_CLOCK);
 
         task.run();
 
         assertEquals("printer-1", task.printerId());
+        assertEquals(cameraJobId, task.cameraJobId());
         assertEquals(FIXED_INSTANT, task.lastRunAt().orElseThrow());
         assertTrue(task.lastResult().orElseThrow().success());
         assertTrue(task.lastResult().orElseThrow().frame().isPresent());
@@ -58,9 +64,11 @@ class CameraMonitoringTaskTest {
 
         CameraSettingsService settingsService = settingsService();
         settingsService.disable("printer-1");
+        long cameraJobId = createRunningCameraJob("printer-1");
 
         CameraMonitoringTask task = new CameraMonitoringTask(
                 "printer-1",
+                cameraJobId,
                 monitoringService(settingsService),
                 FIXED_CLOCK);
 
@@ -76,12 +84,31 @@ class CameraMonitoringTaskTest {
     void constructorTrimsPrinterId() {
         useDatabase("camera-monitoring-task-trim.db");
 
+        long cameraJobId = createRunningCameraJob("printer-1");
+
         CameraMonitoringTask task = new CameraMonitoringTask(
                 "  printer-1  ",
+                cameraJobId,
                 monitoringService(settingsService()),
                 FIXED_CLOCK);
 
         assertEquals("printer-1", task.printerId());
+        assertEquals(cameraJobId, task.cameraJobId());
+    }
+
+    @Test
+    void constructorRejectsNonPositiveCameraJobId() {
+        useDatabase("camera-monitoring-task-invalid-job-id.db");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new CameraMonitoringTask(
+                        "printer-1",
+                        0L,
+                        monitoringService(settingsService()),
+                        FIXED_CLOCK));
+
+        assertEquals("cameraJobId must be greater than zero", exception.getMessage());
     }
 
     @Test
@@ -96,6 +123,7 @@ class CameraMonitoringTaskTest {
 
         CameraMonitoringTask task = new CameraMonitoringTask(
                 "printer-1",
+                1L,
                 monitoringService(settingsService()),
                 FIXED_CLOCK);
 
@@ -119,6 +147,26 @@ class CameraMonitoringTaskTest {
                 FIXED_CLOCK);
 
         return new CameraMonitoringService(captureService);
+    }
+
+    private long createRunningCameraJob(String printerId) {
+        CameraJob job = new CameraJobStore().save(CameraJob.running(
+                printerId,
+                null,
+                null,
+                FIXED_INSTANT,
+                10,
+                20,
+                "simulated",
+                "default",
+                tempDir.resolve("camera-storage")
+                        .resolve(printerId)
+                        .resolve("snapshots")
+                        .resolve("pending")
+                        .toString(),
+                "test camera job"));
+
+        return job.requireId();
     }
 
     private CameraSettings withTestStorage(CameraSettings settings) {

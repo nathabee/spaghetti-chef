@@ -9,6 +9,10 @@ import printerhub.camera.CameraCaptureService;
 import printerhub.camera.CameraAnalysisSessionService;
 import printerhub.camera.CameraSourceType;
 import printerhub.camera.CameraStatus;
+
+import printerhub.camera.CameraJobService;
+import printerhub.camera.CameraMonitoringScheduler;
+import printerhub.persistence.CameraJob;
 import printerhub.camera.ResolvedCameraSnapshotFile;
 import printerhub.persistence.CameraAnalysisSample;
 import printerhub.persistence.CameraAnalysisSession;
@@ -40,6 +44,8 @@ public final class CameraApiHandler {
     private final CameraSnapshotMetadataStore snapshotMetadataStore;
     private final CameraAnalysisSessionService analysisSessionService;
     private final CameraSnapshotService snapshotService;
+    private final CameraJobService cameraJobService;
+    private final CameraMonitoringScheduler cameraMonitoringScheduler;
 
     public CameraApiHandler(
             CameraCaptureService captureService,
@@ -47,11 +53,31 @@ public final class CameraApiHandler {
             CameraEventStore eventStore,
             CameraSnapshotMetadataStore snapshotMetadataStore,
             CameraAnalysisSessionService analysisSessionService) {
+        this(
+                captureService,
+                settingsService,
+                eventStore,
+                snapshotMetadataStore,
+                analysisSessionService,
+                new CameraJobService(),
+                null);
+    }
+
+    public CameraApiHandler(
+            CameraCaptureService captureService,
+            printerhub.camera.CameraSettingsService settingsService,
+            CameraEventStore eventStore,
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            CameraAnalysisSessionService analysisSessionService,
+            CameraJobService cameraJobService,
+            CameraMonitoringScheduler cameraMonitoringScheduler) {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
         this.snapshotMetadataStore = Objects.requireNonNull(snapshotMetadataStore, "snapshotMetadataStore");
         this.analysisSessionService = Objects.requireNonNull(analysisSessionService, "analysisSessionService");
+        this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
+        this.cameraMonitoringScheduler = cameraMonitoringScheduler;
         this.snapshotService = new CameraSnapshotService(this.settingsService);
     }
 
@@ -110,7 +136,7 @@ public final class CameraApiHandler {
         }
 
         try {
-            CameraCaptureResult result = captureService.capture(printerId);
+            CameraCaptureResult result = captureService.captureDiagnostic(printerId);
             sendJson(exchange, result.success() ? 200 : 409, captureResultJson(result));
         } catch (IllegalArgumentException exception) {
             sendError(exchange, 400, "invalid_camera_capture_request", exception.getMessage());
@@ -208,7 +234,8 @@ public final class CameraApiHandler {
         }
     }
 
-    public void handleStopAnalysisSession(HttpExchange exchange, String printerId, String sessionId) throws IOException {
+    public void handleStopAnalysisSession(HttpExchange exchange, String printerId, String sessionId)
+            throws IOException {
         if (!isMethod(exchange, "POST")) {
             sendMethodNotAllowed(exchange, "POST");
             return;
@@ -297,6 +324,165 @@ public final class CameraApiHandler {
         } catch (RuntimeException exception) {
             sendError(exchange, 500, "camera_snapshot_file_failed", exception.getMessage());
         }
+    }
+
+    public void handleStartCameraJob(HttpExchange exchange, String printerId) throws IOException {
+        if (!isMethod(exchange, "POST")) {
+            sendMethodNotAllowed(exchange, "POST");
+            return;
+        }
+
+        try {
+            CameraSettings settings = settingsService.load(printerId);
+
+            if (!settings.enabled()) {
+                sendError(exchange, 409, "camera_disabled", "Camera monitoring is disabled for this printer");
+                return;
+            }
+
+            CameraJob job = cameraJobService.start(settings);
+
+            if (cameraMonitoringScheduler != null) {
+                cameraMonitoringScheduler.startMonitoring(printerId, job.requireId(), settings.captureIntervalSeconds());
+            }
+
+            Optional<CameraSnapshotMetadata> latestSnapshot = snapshotMetadataStore.findLatestByPrinterId(printerId);
+
+            sendJson(exchange, 200, activeCameraJobJson(
+                    printerId,
+                    Optional.of(job),
+                    cameraMonitoringScheduler != null && cameraMonitoringScheduler.isMonitoring(printerId),
+                    latestSnapshot));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_job_start_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_job_start_failed", exception.getMessage());
+        }
+    }
+
+    public void handleStopCameraJob(HttpExchange exchange, String printerId) throws IOException {
+        if (!isMethod(exchange, "POST")) {
+            sendMethodNotAllowed(exchange, "POST");
+            return;
+        }
+
+        try {
+            if (cameraMonitoringScheduler != null) {
+                cameraMonitoringScheduler.stopMonitoring(printerId);
+            }
+
+            Optional<CameraJob> stopped = cameraJobService.completeActive(
+                    printerId,
+                    "Camera job stopped from dashboard");
+
+            Optional<CameraSnapshotMetadata> latestSnapshot = snapshotMetadataStore.findLatestByPrinterId(printerId);
+
+            sendJson(exchange, 200, activeCameraJobJson(
+                    printerId,
+                    stopped,
+                    false,
+                    latestSnapshot));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_job_stop_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_job_stop_failed", exception.getMessage());
+        }
+    }
+
+    public void handleActiveCameraJob(HttpExchange exchange, String printerId) throws IOException {
+        if (!isMethod(exchange, "GET")) {
+            sendMethodNotAllowed(exchange, "GET");
+            return;
+        }
+
+        try {
+            Optional<CameraJob> activeJob = cameraJobService.findActive(printerId);
+            Optional<CameraSnapshotMetadata> latestSnapshot = snapshotMetadataStore.findLatestByPrinterId(printerId);
+            boolean monitoring = cameraMonitoringScheduler != null && cameraMonitoringScheduler.isMonitoring(printerId);
+
+            sendJson(exchange, 200, activeCameraJobJson(
+                    printerId,
+                    activeJob,
+                    monitoring,
+                    latestSnapshot));
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, "invalid_camera_job_status_request", exception.getMessage());
+        } catch (RuntimeException exception) {
+            sendError(exchange, 500, "camera_job_status_failed", exception.getMessage());
+        }
+    }
+
+    private static String activeCameraJobJson(
+            String printerId,
+            Optional<CameraJob> cameraJob,
+            boolean monitoring,
+            Optional<CameraSnapshotMetadata> latestSnapshot) {
+        boolean runningJob = cameraJob
+                .map(job -> "RUNNING".equalsIgnoreCase(job.state().name()))
+                .orElse(false);
+
+        StringBuilder json = new StringBuilder();
+
+        json.append("{");
+        json.append(jsonField("printerId", printerId)).append(",");
+        json.append(jsonField("active", runningJob)).append(",");
+        json.append(jsonField("monitoring", monitoring)).append(",");
+
+        if (cameraJob.isPresent()) {
+            CameraJob job = cameraJob.get();
+            json.append(jsonField("jobId", Long.toString(job.requireId()))).append(",");
+            json.append(jsonField("state", job.state().name())).append(",");
+            json.append(jsonField("linkedPrintJobId", job.linkedPrintJobId().orElse(null))).append(",");
+            json.append(jsonField("analysisSessionId", job.analysisSessionId().orElse(null))).append(",");
+            json.append(jsonField("startedAt", job.startedAt().toString())).append(",");
+            json.append(jsonField("stoppedAt", job.stoppedAt().map(Instant::toString).orElse(null))).append(",");
+            json.append(jsonField("captureIntervalSeconds", job.captureIntervalSeconds())).append(",");
+            json.append(jsonField("retainedSnapshots", job.retainedSnapshots())).append(",");
+            json.append(jsonField("sourceType", job.sourceType())).append(",");
+            json.append(jsonField("sourceDescription", job.sourceDescription().orElse(null))).append(",");
+            json.append(jsonField("snapshotDirectory", job.snapshotDirectory())).append(",");
+            json.append(jsonField("message", job.message().orElse(null))).append(",");
+        } else {
+            json.append(jsonField("jobId", (String) null)).append(",");
+            json.append(jsonField("state", "IDLE")).append(",");
+            json.append(jsonField("linkedPrintJobId", (String) null)).append(",");
+            json.append(jsonField("analysisSessionId", (String) null)).append(",");
+            json.append(jsonField("startedAt", (String) null)).append(",");
+            json.append(jsonField("stoppedAt", (String) null)).append(",");
+            json.append(jsonField("captureIntervalSeconds", 0)).append(",");
+            json.append(jsonField("retainedSnapshots", 0)).append(",");
+            json.append(jsonField("sourceType", (String) null)).append(",");
+            json.append(jsonField("sourceDescription", (String) null)).append(",");
+            json.append(jsonField("snapshotDirectory", (String) null)).append(",");
+            json.append(jsonField("message", (String) null)).append(",");
+        }
+
+        if (latestSnapshot.isPresent()) {
+            CameraSnapshotMetadata snapshot = latestSnapshot.get();
+            String version = snapshot.id()
+                    .map(String::valueOf)
+                    .orElse(snapshot.capturedAt().toString());
+
+            json.append(jsonField("latestSnapshotAvailable", true)).append(",");
+            json.append(jsonField("latestSnapshotId", snapshot.id().map(String::valueOf).orElse(null))).append(",");
+            json.append(jsonField("latestSnapshotVersion", version)).append(",");
+            json.append(jsonField("latestCaptureAt", snapshot.capturedAt().toString())).append(",");
+            json.append(jsonField("latestContentType", snapshot.contentType())).append(",");
+            json.append(jsonField("latestWidth", snapshot.width().isPresent() ? snapshot.width().getAsInt() : 0))
+                    .append(",");
+            json.append(jsonField("latestHeight", snapshot.height().isPresent() ? snapshot.height().getAsInt() : 0));
+        } else {
+            json.append(jsonField("latestSnapshotAvailable", false)).append(",");
+            json.append(jsonField("latestSnapshotId", (String) null)).append(",");
+            json.append(jsonField("latestSnapshotVersion", (String) null)).append(",");
+            json.append(jsonField("latestCaptureAt", (String) null)).append(",");
+            json.append(jsonField("latestContentType", (String) null)).append(",");
+            json.append(jsonField("latestWidth", 0)).append(",");
+            json.append(jsonField("latestHeight", 0));
+        }
+
+        json.append("}");
+        return json.toString();
     }
 
     private CameraSettings mergeSettings(CameraSettings current, String body) {

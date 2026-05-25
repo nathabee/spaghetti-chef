@@ -48,7 +48,7 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("printer-1", 10);
+        scheduler.startMonitoring("printer-1", 1L, 10);
 
         assertTrue(scheduler.isMonitoring("printer-1"));
         assertEquals(1, scheduler.monitoredPrinterIds().size());
@@ -68,7 +68,7 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("  printer-1  ", 10);
+        scheduler.startMonitoring("  printer-1  ", 1L, 10);
 
         assertTrue(scheduler.isMonitoring("printer-1"));
         assertTrue(scheduler.monitoredPrinterIds().contains("printer-1"));
@@ -83,10 +83,10 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("printer-1", 10);
+        scheduler.startMonitoring("printer-1", 1L, 10);
         FakeScheduledFuture<?> firstFuture = executor.lastFuture;
 
-        scheduler.startMonitoring("printer-1", 20);
+        scheduler.startMonitoring("printer-1", 2L, 20);
 
         assertTrue(firstFuture.isCancelled());
         assertTrue(scheduler.isMonitoring("printer-1"));
@@ -104,7 +104,7 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("printer-1", 10);
+        scheduler.startMonitoring("printer-1", 1L, 10);
         FakeScheduledFuture<?> future = executor.lastFuture;
 
         scheduler.stopMonitoring("printer-1");
@@ -123,10 +123,10 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("printer-1", 10);
+        scheduler.startMonitoring("printer-1", 1L, 10);
         FakeScheduledFuture<?> firstFuture = executor.lastFuture;
 
-        scheduler.startMonitoring("printer-2", 10);
+        scheduler.startMonitoring("printer-2", 2L, 10);
         FakeScheduledFuture<?> secondFuture = executor.lastFuture;
 
         scheduler.stopAll();
@@ -145,7 +145,7 @@ class CameraMonitoringSchedulerTest {
                 monitoringService(),
                 executor);
 
-        scheduler.startMonitoring("printer-1", 10);
+        scheduler.startMonitoring("printer-1", 1L, 10);
         FakeScheduledFuture<?> future = executor.lastFuture;
 
         scheduler.close();
@@ -165,9 +165,24 @@ class CameraMonitoringSchedulerTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> scheduler.startMonitoring("   ", 10));
+                () -> scheduler.startMonitoring("   ", 1L, 10));
 
         assertEquals("printerId must not be blank", exception.getMessage());
+    }
+
+    @Test
+    void startMonitoringFailsForNonPositiveCameraJobId() {
+        useDatabase("camera-monitoring-scheduler-job-id.db");
+
+        CameraMonitoringScheduler scheduler = new CameraMonitoringScheduler(
+                monitoringService(),
+                new FakeScheduledExecutorService());
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> scheduler.startMonitoring("printer-1", 0L, 10));
+
+        assertEquals("cameraJobId must be greater than zero", exception.getMessage());
     }
 
     @Test
@@ -180,7 +195,7 @@ class CameraMonitoringSchedulerTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> scheduler.startMonitoring("printer-1", 0));
+                () -> scheduler.startMonitoring("printer-1", 1L, 0));
 
         assertEquals("camera monitoring intervalSeconds must be greater than zero", exception.getMessage());
     }

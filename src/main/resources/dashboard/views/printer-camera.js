@@ -14,7 +14,9 @@ import {
   getCameraStatus,
   saveCameraSettings,
   startCameraAnalysisSession,
-  stopCameraAnalysisSession
+  stopCameraAnalysisSession,
+  getActiveCameraJob,
+
 } from "../api.js";
 
 import { escapeHtml } from "../utils/format.js";
@@ -54,12 +56,13 @@ export async function renderPrinterCamera(printer, snapshotRange = defaultSnapsh
   }
 
   try {
-    const [status, settings, events, sessions, snapshotFiles] = await Promise.all([
+    const [status, settings, events, sessions, snapshotFiles, activeCameraJob] = await Promise.all([
       getCameraStatus(printer.id),
       getCameraSettings(printer.id),
       getCameraEvents(printer.id),
       getCameraAnalysisSessions(printer.id),
-      getCameraSnapshotFiles(printer.id, snapshotRange.from, snapshotRange.to)
+      getCameraSnapshotFiles(printer.id, snapshotRange.from, snapshotRange.to),
+      getActiveCameraJob(printer.id)
     ]);
     const selectedSession = sessions.find((session) => session.state === "RUNNING") || sessions[0];
     const samples = selectedSession
@@ -67,7 +70,18 @@ export async function renderPrinterCamera(printer, snapshotRange = defaultSnapsh
       : [];
     const analysisReview = await loadAnalysisReview(printer.id);
 
-    return renderCameraPage(printer.id, status, settings, events, sessions, samples, snapshotFiles, snapshotRange, analysisReview);
+    return renderCameraPage(
+      printer.id,
+      status,
+      settings,
+      events,
+      sessions,
+      samples,
+      snapshotFiles,
+      snapshotRange,
+      analysisReview,
+      activeCameraJob
+    );
   } catch (error) {
     return `
       <div class="empty-state error-state">
