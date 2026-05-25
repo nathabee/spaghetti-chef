@@ -3,7 +3,7 @@
 This roadmap describes the progressive hardening of the printer communication system from hardware discovery to CI/CD-ready automation.
 
 
-This roadmap separates the PrinterHub project into three architectural stages:
+This roadmap separates the SpaghettiChef project into three architectural stages:
 
 - `0.0.x` — prototype foundation
 - `0.1.x` — local farm runtime architecture
@@ -207,7 +207,7 @@ Runtime validation:
 
 ```bash
 mvn exec:java \
--Dexec.mainClass="printerhub.Main" \
+-Dexec.mainClass="spaghettichef.Main" \
 -Dexec.args="SIM_PORT M105 3 100 sim"
 ```
 
@@ -215,7 +215,7 @@ Release packaging:
 
 ```text
 release/
-├── printer-hub-<version>.jar
+├── spaghetti-chef-<version>.jar
 ├── jacoco/
 ├── operator-message-report.md
 ├── README.md
@@ -228,7 +228,7 @@ release/
 Release archive generation:
 
 ```text
-printer-hub-<version>-release.tar.gz
+spaghetti-chef-<version>-release.tar.gz
 ```
 
 Optional GitHub publication:
@@ -313,7 +313,7 @@ POST /printer/poll
 
 Expected result:
 
-* PrinterHub can run as a small service
+* SpaghettiChef can run as a small service
 * printer status is accessible through HTTP
 * later dashboard and automation features can rely on stable endpoints
 * project moves toward service-oriented architecture
@@ -334,7 +334,7 @@ Goals:
 
 Expected result:
 
-* PrinterHub behaves more like a monitoring service
+* SpaghettiChef behaves more like a monitoring service
 * printer status can update automatically while API mode is running
 * later dashboard features can read live-ish status without triggering hardware access directly
 
@@ -357,8 +357,8 @@ Example local run:
 
 ```bash
 mvn exec:java \
--Dprinterhub.api.port=18080 \
--Dexec.mainClass="printerhub.Main"
+-Dspaghettichef.api.port=18080 \
+-Dexec.mainClass="spaghettichef.Main"
 ```
 
 Example verification:
@@ -606,14 +606,14 @@ snapshot.storeOnStateChange = true
 
 Goal:
 
-Restructure PrinterHub into the correct local farm runtime architecture.
+Restructure SpaghettiChef into the correct local farm runtime architecture.
 
 The `0.1.x` line must first create the runtime backbone, then migrate existing features into it.
 
 Target architecture:
 
 ```text
-PrinterHub Java Runtime
+SpaghettiChef Java Runtime
 ├── Web server thread pool
 │   └── handles REST API / dashboard HTTP requests
 │
@@ -652,7 +652,7 @@ status: done
 Goals:
 
 * create a new branch in github develop where we remove the old src code in order to start from scratch
-* introduce the final local PrinterHub runtime structure
+* introduce the final local SpaghettiChef runtime structure
 * create the multi-threaded runtime backbone immediately
 * run one Java process containing:
 
@@ -668,7 +668,7 @@ Goals:
 Expected components:
 
 ```text
-PrinterHubRuntime
+SpaghettiChefRuntime
 PrinterRuntimeNode
 PrinterRegistry
 PrinterRuntimeStateCache
@@ -700,7 +700,7 @@ close database resources
 
 Expected result:
 
-* PrinterHub becomes a structured local farm runtime
+* SpaghettiChef becomes a structured local farm runtime
 * API, monitoring, database, and serial communication are separated internally
 * multiple printers can be monitored independently
 * one failing printer does not block the whole runtime
@@ -912,7 +912,7 @@ RemoteApiServer
 PrinterSnapshotStore
 PrinterEventStore
 PrinterConfigurationStore
-PrinterHubRuntime
+SpaghettiChefRuntime
 PrinterRuntimeNode
 PrinterRuntimeStateCache
 SerialConnection
@@ -954,7 +954,7 @@ Add JUnit tests for the runtime backbone:
 PrinterRegistryTest
 PrinterRuntimeStateCacheTest
 PrinterRuntimeNodeFactoryTest
-PrinterHubRuntimeTest
+SpaghettiChefRuntimeTest
 PrinterMonitoringTaskTest
 PrinterMonitoringSchedulerTest
 ```
@@ -990,7 +990,7 @@ schema creation
 printer configuration insert/update/delete/load
 snapshot persistence
 event persistence
-database file override with -Dprinterhub.databaseFile
+database file override with -Dspaghettichef.databaseFile
 safe behavior on invalid or unavailable database path
 ```
 
@@ -1055,7 +1055,7 @@ Lifecycle:
 
 ```text
 remove test database
-start PrinterHub runtime
+start SpaghettiChef runtime
 verify /health
 verify initial printer list
 add simulated printer
@@ -1371,7 +1371,7 @@ Goals:
 Dashboard as two-level UI:
 
 ```text
-PrinterHub
+SpaghettiChef
 ├── Farm Home
 ├── Printers
 ├── Jobs
@@ -1467,10 +1467,10 @@ Goals:
 
 * extend the job model so that jobs are no longer limited to one guarded semantic command
 * support file-backed print jobs as a first-class runtime concept
-* allow selection of an already prepared printable file stored on the PrinterHub host
+* allow selection of an already prepared printable file stored on the SpaghettiChef host
 * accept and validate printable file types, starting with `.gcode`
 * persist print-file metadata and association with the job
-* keep PrinterHub out of slicing logic:
+* keep SpaghettiChef out of slicing logic:
 
   * no model slicing
   * no G-code editing
@@ -1495,15 +1495,15 @@ Job model note:
 
 ```text
 A file-backed print job references an already prepared printable file.
-PrinterHub does not generate or edit slice data in 0.2.x.
-PrinterHub accepts an existing printable file, associates it with a job,
+SpaghettiChef does not generate or edit slice data in 0.2.x.
+SpaghettiChef accepts an existing printable file, associates it with a job,
 and later transfers or makes it available to the printer when execution starts.
 ```
  
 
 Expected result:
 
-* PrinterHub can represent a real print as a file-backed runtime job
+* SpaghettiChef can represent a real print as a file-backed runtime job
 * the Print area of the dashboard becomes tied to an actual printable artifact
 * the runtime is prepared for real print activation using host-side stored files
 * the job/workflow model is ready for richer verification-oriented actions beyond immediate command acceptance
@@ -1514,18 +1514,18 @@ Future local print execution mode split:
 
 ```text
 Mode 1 — streamed job
-PrinterHub owns the command stream.
+SpaghettiChef owns the command stream.
 PrintJobExecutionService sends G-code commands line by line,
 waits for firmware acceptance, records diagnostics, and controls the full flow.
 
 Mode 2 — autonomous printer job
-PrinterHub stores or exposes a prepared file, requests print start,
+SpaghettiChef stores or exposes a prepared file, requests print start,
 monitors printer state, and persists telemetry/events while the printer firmware
 owns the print execution.
 ```
 
 0.2.3 continues with Mode 2 first because it is the safer first real-print path
-for local PrinterHub operation. Mode 1 remains useful for mini jobs, calibration
+for local SpaghettiChef operation. Mode 1 remains useful for mini jobs, calibration
 jobs, controlled command sequences, and future streaming workflows, but it should
 not block the first autonomous print activation milestone.
 
@@ -1541,7 +1541,7 @@ Purpose:
 Make the selected-printer SD Card workflow real and usable:
 
 ```text
-PrinterHub can inspect printer-side SD files,
+SpaghettiChef can inspect printer-side SD files,
 register and manage printable targets,
 store host-side .gcode files,
 and copy a host-side file to a real printer SD card through
@@ -1585,10 +1585,10 @@ SD Card view scope:
 * automatically register newly discovered printer-side files when the SD-card list is refreshed, using the firmware-reported path as the printer-side path
 * keep registration separate from print availability:
 
-  * registered means PrinterHub knows that this printer-side path exists or existed
+  * registered means SpaghettiChef knows that this printer-side path exists or existed
   * enabled means the file is allowed to appear in `PRINT_FILE` job creation
   * disabled registered files remain in persistence/history but are hidden from normal print-job selection
-* register or upload a host-side `.gcode` file into the configured PrinterHub print-file storage directory
+* register or upload a host-side `.gcode` file into the configured SpaghettiChef print-file storage directory
 * show the relationship between host-side file metadata and printer-side firmware path when known
 * allow review/edit of the host-side registered `.gcode` file before it is copied to the printer SD card, where safe
 * upload/copy a registered host-side file to the printer SD card only when a reliable transfer path is confirmed
@@ -1647,13 +1647,13 @@ Expected result:
 * the selected-printer dashboard can inspect printer-side SD-card files
 * the SD Card page owns file preparation, host upload, SD-card registration, and guarded transfer actions
 * the Print page creates jobs only from registered printer-side printable targets
-* PrinterHub can copy a host-side `.gcode` file to the verified real printer SD card through a dedicated numbered/checksummed upload session
+* SpaghettiChef can copy a host-side `.gcode` file to the verified real printer SD card through a dedicated numbered/checksummed upload session
 * upload confirmation depends on the printer SD listing, not on optimistic fallback registration
 * Mode 2 print activation remains the next step
 
 Note:
 
-The upload path is currently verified and adapted against the Ender 2 Neo V3 style Marlin behavior. On that path, PrinterHub resets host line numbering, opens `M28` inside the numbered session, streams numbered/checksummed content lines, closes with numbered `M29`, and verifies with numbered `M20`.
+The upload path is currently verified and adapted against the Ender 2 Neo V3 style Marlin behavior. On that path, SpaghettiChef resets host line numbering, opens `M28` inside the numbered session, streams numbered/checksummed content lines, closes with numbered `M29`, and verifies with numbered `M20`.
 
 ---
 
@@ -1671,7 +1671,7 @@ hardening.
 Step G is about Mode 2:
 
 ```text
-PrinterHub selects a registered printer-side file target,
+SpaghettiChef selects a registered printer-side file target,
 asks the printer firmware to start printing it,
 then observes the printer through monitoring, events, and job diagnostics.
 ```
@@ -1812,7 +1812,7 @@ Goals:
 * gate dangerous or state-changing commands when the printer appears USB-powered only or otherwise not safely powered
 * extend printer state beyond `IDLE` where useful, for example power-limited, waiting for confirmation, cancelling, and recovery-needed states
 * add favicon/browser tab icon support for the dashboard
-* improve dashboard wording so operators understand whether an action controls the printer firmware or only the PrinterHub job record
+* improve dashboard wording so operators understand whether an action controls the printer firmware or only the SpaghettiChef job record
 
 Dashboard expectations:
 
@@ -1874,7 +1874,7 @@ Expected result for 0.2.3 overall:
 
 * audit and history views become useful for real diagnostics
 * controlled printer-side actions become more robust and reviewable
-* PrinterHub can manage a real print job based on an already prepared printable file
+* SpaghettiChef can manage a real print job based on an already prepared printable file
 * the dashboard reflects both Ender-like printer logic and browser-native reviewability
 * the runtime is ready for local real-printer print execution without becoming a slicer host
 
@@ -2201,7 +2201,7 @@ Abort only when:
 
 ##### Expected result
 
-PrinterHub should recover from resend instability safely, climb back up after stable stretches, and settle near a practical throughput level for the real printer instead of staying permanently slow after one recovery.
+SpaghettiChef should recover from resend instability safely, climb back up after stable stretches, and settle near a practical throughput level for the real printer instead of staying permanently slow after one recovery.
 
 
 ---
@@ -2421,7 +2421,7 @@ raw command execution
 
 Expected result:
 
-* PrinterHub becomes safer for real hardware operation
+* SpaghettiChef becomes safer for real hardware operation
 * operator actions are traceable
 * central VPS integration later has a clean local permission model
 
@@ -2459,7 +2459,7 @@ Goals:
 * keep dashboard visibility as UX only by checking permissions before endpoint handlers mutate runtime state
 * resolve endpoint permissions consistently for printer configuration, settings updates, jobs, SD-card actions, print files, security settings, and command execution
 * reject forbidden direct API calls with `403` and a clear permission-denied message
-* support a local `X-PrinterHub-Role` override for testing/admin tooling until full user authentication exists
+* support a local `X-SpaghettiChef-Role` override for testing/admin tooling until full user authentication exists
 
 #### 0.3.0.D — Dangerous action confirmation model
 
@@ -2506,7 +2506,7 @@ status: in progress
 
 Purpose:
 
-Add printer-side visual monitoring as a parallel subsystem of the local PrinterHub runtime. The camera layer observes configured printers, captures snapshots, exposes camera state through the REST API and dashboard, and later detects visual print anomalies such as spaghetti failures.
+Add printer-side visual monitoring as a parallel subsystem of the local SpaghettiChef runtime. The camera layer observes configured printers, captures snapshots, exposes camera state through the REST API and dashboard, and later detects visual print anomalies such as spaghetti failures.
 
 The camera subsystem must remain separate from serial communication, SD upload, and job execution internals. It may request safety actions only through controlled runtime services.
  
@@ -2516,7 +2516,7 @@ status: done
 
 Goals:
 
-- introduce a dedicated `printerhub.camera` package
+- introduce a dedicated `spaghettichef.camera` package
 - define `CameraDevice` abstraction
 - support simulated camera and snapshot-folder camera sources
 - persist camera settings per printer
@@ -2596,7 +2596,7 @@ data/camera/<printerId>/
 Windows runtime storage target:
 
 ```text
-C:\ph\data\camera\<printerId>\
+C:\spaghettichef\data\camera\<printerId>\
 ```
 
 Linux development storage target:
@@ -2617,7 +2617,7 @@ Out of scope:
 Notes:
 
 * scripts are a bridge/proving layer, not the final product architecture
-* real PrinterHub runtime should later manage capture through Java services
+* real SpaghettiChef runtime should later manage capture through Java services
 * image files should stay on filesystem
 * SQLite should only store metadata/events later
 * do not save every frame forever
@@ -2786,7 +2786,7 @@ Goals:
 * isolate native dependency handling
 * document installation and troubleshooting
 * keep camera backend replaceable behind the existing abstraction
-* keep camera settings configurable (printerhub.config.RuntimeDefaults : intialized with constante, persistet in database, changeable in the settings of the dashbord)
+* keep camera settings configurable (spaghettichef.config.RuntimeDefaults : intialized with constante, persistet in database, changeable in the settings of the dashbord)
 
 Out of scope:
 
@@ -3337,11 +3337,11 @@ Implementation slice 1 — physical delta image writer:
 Update / verify:
 
 ```text
-src/main/java/printerhub/camera/CameraDeltaSetService.java
-src/main/java/printerhub/camera/CameraStoragePaths.java
-src/main/java/printerhub/camera/ImageDeltaFrameAnalyzer.java
-src/main/java/printerhub/persistence/CameraDeltaFrame.java
-src/main/java/printerhub/persistence/CameraDeltaFrameStore.java
+src/main/java/spaghettichef/camera/CameraDeltaSetService.java
+src/main/java/spaghettichef/camera/CameraStoragePaths.java
+src/main/java/spaghettichef/camera/ImageDeltaFrameAnalyzer.java
+src/main/java/spaghettichef/persistence/CameraDeltaFrame.java
+src/main/java/spaghettichef/persistence/CameraDeltaFrameStore.java
 ```
 
 Target:
@@ -3364,12 +3364,12 @@ Implementation slice 2 — live camera job creates delta frames:
 Update / verify:
 
 ```text
-src/main/java/printerhub/camera/CameraCaptureService.java
-src/main/java/printerhub/camera/CameraJobService.java
-src/main/java/printerhub/camera/CameraDeltaSetService.java
-src/main/java/printerhub/camera/CameraCalculationRunService.java
-src/main/java/printerhub/camera/CameraMonitoringTask.java
-src/main/java/printerhub/camera/CameraAnalysisSessionService.java
+src/main/java/spaghettichef/camera/CameraCaptureService.java
+src/main/java/spaghettichef/camera/CameraJobService.java
+src/main/java/spaghettichef/camera/CameraDeltaSetService.java
+src/main/java/spaghettichef/camera/CameraCalculationRunService.java
+src/main/java/spaghettichef/camera/CameraMonitoringTask.java
+src/main/java/spaghettichef/camera/CameraAnalysisSessionService.java
 ```
 
 Target:
@@ -3561,7 +3561,7 @@ Completion note:
 
 ## 0.5.x Rust Image Analysis Track
 
-Goal: add Rust to PrinterHub as an independent image-analysis track first, without coupling it too early to the existing Java backend.
+Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
 
 ### 0.5.0 — Standalone Rust Image Analyzer
@@ -3571,7 +3571,7 @@ status: done
 Goals:
 
 * create an independent Rust CLI image analyzer
-* analyze PrinterHub camera snapshot files manually
+* analyze SpaghettiChef camera snapshot files manually
 * compare source snapshots using a simple delta-based algorithm
 * return machine-readable JSON results
 * keep Java backend unchanged
@@ -3595,7 +3595,7 @@ status: planned
 
 Goals:
 
-* validate the Rust analyzer against real PrinterHub camera-job files
+* validate the Rust analyzer against real SpaghettiChef camera-job files
 * test source snapshots and delta frames from the 0.4.x storage model
 * establish manual workflows and helper scripts
 * compare Rust output with existing Java calculation behavior

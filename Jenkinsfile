@@ -37,7 +37,7 @@ pipeline {
 
     environment {
         MAVEN_OPTS = '-Djava.awt.headless=true'
-        GITHUB_REPO = 'nathabee/printer-hub'
+        GITHUB_REPO = 'nathabee/spaghetti-chef'
     }
 
     stages {
@@ -47,7 +47,7 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: "*/${params.GIT_BRANCH}"]],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/nathabee/printer-hub.git'
+                        url: 'https://github.com/nathabee/spaghetti-chef.git'
                     ]]
                 ])
             }
@@ -83,7 +83,7 @@ pipeline {
                     set -eu
 
                     rm -rf target
-                    rm -f printerhub.db printerhub-real.db printerhub-test.db printerhub-ci.db
+                    rm -f spaghettichef.db spaghettichef-real.db spaghettichef-test.db spaghettichef-ci.db
 
                     mvn -B -ntp clean verify
                 '''
@@ -96,20 +96,20 @@ pipeline {
                     set -eu
 
                     API_PORT="${API_SMOKE_PORT:-18090}"
-                    DB_FILE="printerhub-ci.db"
+                    DB_FILE="spaghettichef-ci.db"
 
                     mkdir -p target
                     rm -f "${DB_FILE}"
 
                     start_runtime() {
-                      echo "Starting PrinterHub local runtime on port ${API_PORT}"
+                      echo "Starting SpaghettiChef local runtime on port ${API_PORT}"
                       echo "Using database file ${DB_FILE}"
 
                       mvn -B -ntp exec:java \
-                        -Dexec.mainClass="printerhub.Main" \
-                        -Dprinterhub.api.port="${API_PORT}" \
-                        -Dprinterhub.monitoring.intervalSeconds=1 \
-                        -Dprinterhub.databaseFile="${DB_FILE}" \
+                        -Dexec.mainClass="spaghettichef.Main" \
+                        -Dspaghettichef.api.port="${API_PORT}" \
+                        -Dspaghettichef.monitoring.intervalSeconds=1 \
+                        -Dspaghettichef.databaseFile="${DB_FILE}" \
                         > target/runtime-smoke.log 2>&1 &
 
                       APP_PID=$!
@@ -306,7 +306,7 @@ PY
                     curl -fsS "http://localhost:${API_PORT}/dashboard/views/farm-home.js" > target/dashboard-view-farm-home.js
                     curl -fsS "http://localhost:${API_PORT}/dashboard/components/nav.js" > target/dashboard-component-nav.js
 
-                    grep -q 'PrinterHub' target/dashboard.html
+                    grep -q 'SpaghettiChef' target/dashboard.html
                     grep -q 'app-shell' target/dashboard.css
                     grep -q 'renderFarmHome' target/dashboard.js
                     grep -q 'export async function getPrinters' target/dashboard-api.js
@@ -406,20 +406,20 @@ PY
 
                     API_PORT="${API_SMOKE_PORT:-18090}"
                     ROBUST_PORT=$((API_PORT + 1))
-                    DB_FILE="printerhub-robustness-ci.db"
+                    DB_FILE="spaghettichef-robustness-ci.db"
 
                     mkdir -p target
                     rm -f "${DB_FILE}"
 
                     start_runtime() {
-                      echo "Starting PrinterHub robustness runtime on port ${ROBUST_PORT}"
+                      echo "Starting SpaghettiChef robustness runtime on port ${ROBUST_PORT}"
                       echo "Using database file ${DB_FILE}"
 
                       mvn -B -ntp exec:java \
-                        -Dexec.mainClass="printerhub.Main" \
-                        -Dprinterhub.api.port="${ROBUST_PORT}" \
-                        -Dprinterhub.monitoring.intervalSeconds=1 \
-                        -Dprinterhub.databaseFile="${DB_FILE}" \
+                        -Dexec.mainClass="spaghettichef.Main" \
+                        -Dspaghettichef.api.port="${ROBUST_PORT}" \
+                        -Dspaghettichef.monitoring.intervalSeconds=1 \
+                        -Dspaghettichef.databaseFile="${DB_FILE}" \
                         > target/runtime-robustness.log 2>&1 &
 
                       APP_PID=$!
@@ -589,7 +589,7 @@ PY
                     curl -fsS "http://localhost:${ROBUST_PORT}/dashboard/components/nav.js" \
                       > target/robust-dashboard-component-nav.js
 
-                    grep -q 'PrinterHub' target/robust-dashboard.html
+                    grep -q 'SpaghettiChef' target/robust-dashboard.html
                     grep -q 'app-shell' target/robust-dashboard.css
                     grep -q 'renderFarmHome' target/robust-dashboard.js
                     grep -q 'export async function getPrinters' target/robust-dashboard-api.js
@@ -833,10 +833,10 @@ stage('Package Expert Distributions') {
     steps {
         script {
             def versionName = params.RELEASE_VERSION.trim()
-            env.RELEASE_ARCHIVE = "printer-hub-${versionName}-release.tar.gz"
-            env.LINUX_PACKAGE = "printer-hub-${versionName}-linux.tar.gz"
-            env.WINDOWS_PACKAGE = "printer-hub-${versionName}-windows.zip"
-            env.ADMIN_PACKAGE = "printer-hub-${versionName}-admin.zip"
+            env.RELEASE_ARCHIVE = "spaghetti-chef-${versionName}-release.tar.gz"
+            env.LINUX_PACKAGE = "spaghetti-chef-${versionName}-linux.tar.gz"
+            env.WINDOWS_PACKAGE = "spaghetti-chef-${versionName}-windows.zip"
+            env.ADMIN_PACKAGE = "spaghetti-chef-${versionName}-admin.zip"
         }
 
         sh '''
@@ -845,11 +845,11 @@ stage('Package Expert Distributions') {
             rm -rf dist package
             mkdir -p dist package/linux package/windows package/admin
 
-            JAR_FILE=$(find target -maxdepth 1 -name 'printer-hub-*-all.jar' | sort | tail -n 1)
+            JAR_FILE=$(find target -maxdepth 1 -name 'spaghetti-chef-*-all.jar' | sort | tail -n 1)
             test -n "${JAR_FILE}"
 
-            cp "${JAR_FILE}" package/linux/printer-hub.jar
-            cp "${JAR_FILE}" package/windows/printer-hub.jar
+            cp "${JAR_FILE}" package/linux/spaghetti-chef.jar
+            cp "${JAR_FILE}" package/windows/spaghetti-chef.jar
 
             cp README.md package/linux/README.md
             cp README.md package/windows/README.md
@@ -860,13 +860,13 @@ stage('Package Expert Distributions') {
         '''
 
         script {
-            writeFile file: 'package/windows/printerhub.bat', text: '''@echo off
+            writeFile file: 'package/windows/spaghettichef.bat', text: '''@echo off
 setlocal
 
 set API_PORT=%1
 set API_PORT_SOURCE=arg
 if "%API_PORT%"=="" (
-  set API_PORT=%PRINTERHUB_API_PORT%
+  set API_PORT=%SPAGHETTICHEF_API_PORT%
   set API_PORT_SOURCE=env
 )
 if "%API_PORT%"=="" (
@@ -874,47 +874,47 @@ if "%API_PORT%"=="" (
   set API_PORT_SOURCE=default
 )
 
-set DATABASE_FILE=%PRINTERHUB_DATABASE_FILE%
+set DATABASE_FILE=%SPAGHETTICHEF_DATABASE_FILE%
 set DATABASE_FILE_SOURCE=env
 if "%DATABASE_FILE%"=="" (
-  if exist "C:\\printerhub\\data" (
-    set "DATABASE_FILE=C:\\printerhub\\data\\printerhub.db"
+  if exist "C:\\spaghettichef\\data" (
+    set "DATABASE_FILE=C:\\spaghettichef\\data\\spaghettichef.db"
     set "DATABASE_FILE_SOURCE=managed-default"
   ) else (
-    set "DATABASE_FILE=printerhub.db"
+    set "DATABASE_FILE=spaghettichef.db"
     set "DATABASE_FILE_SOURCE=local-default"
   )
 )
 
-set JAVA_CMD=%PRINTERHUB_JAVA%
+set JAVA_CMD=%SPAGHETTICHEF_JAVA%
 set JAVA_CMD_SOURCE=env
 if "%JAVA_CMD%"=="" (
   set JAVA_CMD=java
   set JAVA_CMD_SOURCE=default
 )
 
-echo PrinterHub launcher configuration
+echo SpaghettiChef launcher configuration
 echo   java: %JAVA_CMD% [source=%JAVA_CMD_SOURCE%]
 echo   api port: %API_PORT% [source=%API_PORT_SOURCE%]
 echo   database file: %DATABASE_FILE% [source=%DATABASE_FILE_SOURCE%]
 
-"%JAVA_CMD%" -Dprinterhub.databaseFile="%DATABASE_FILE%" -Dprinterhub.api.port="%API_PORT%" -jar printer-hub.jar
+"%JAVA_CMD%" -Dspaghettichef.databaseFile="%DATABASE_FILE%" -Dspaghettichef.api.port="%API_PORT%" -jar spaghetti-chef.jar
 '''
         }
 
         sh '''
             set -eu
 
-            cat > package/linux/printerhub.sh <<'EOF'
+            cat > package/linux/spaghettichef.sh <<'EOF'
 #!/usr/bin/env sh
 set -eu
 
 API_PORT="${1:-18080}"
-DATABASE_FILE="${PRINTERHUB_DATABASE_FILE:-printerhub.db}"
+DATABASE_FILE="${SPAGHETTICHEF_DATABASE_FILE:-spaghettichef.db}"
 
-exec java -Dprinterhub.databaseFile="${DATABASE_FILE}" -Dprinterhub.api.port="${API_PORT}" -jar printer-hub.jar
+exec java -Dspaghettichef.databaseFile="${DATABASE_FILE}" -Dspaghettichef.api.port="${API_PORT}" -jar spaghetti-chef.jar
 EOF
-            chmod +x package/linux/printerhub.sh
+            chmod +x package/linux/spaghettichef.sh
 
             # BEGIN Platform tools
             mkdir -p package/linux/tools/camera
@@ -951,23 +951,23 @@ EOF
             cp docs/install-remote.md package/admin/INSTALL-REMOTE.md
 
             cat > package/admin/README.txt <<'EOF'
-PrinterHub Windows remote administration bootstrap package.
+SpaghettiChef Windows remote administration bootstrap package.
 
 Contents:
 - run.env.example : example local runtime configuration for the PowerShell helper layer
-- t.ps1 : register or refresh the PrinterHub scheduled task
+- t.ps1 : register or refresh the SpaghettiChef scheduled task
 - u.ps1 : remote update script
-- r.ps1 : start PrinterHub through Task Scheduler
-- s.ps1 : stop PrinterHub
+- r.ps1 : start SpaghettiChef through Task Scheduler
+- s.ps1 : stop SpaghettiChef
 - v.ps1 : status and health check
 - camera/ : Windows camera helper scripts for diagnostics and fallback capture
 - INSTALL-REMOTE.md : setup instructions
 - README-WINDOWS-TOOLS.md : Windows tool notes
 - TOOLS.md : general tool layout notes
 
-Copy the PowerShell scripts to C:\\printerhub\\bin on the Windows host.
-Copy the camera directory to C:\\printerhub\\bin\\camera on the Windows host.
-Copy run.env.example to C:\\printerhub\\data\\run.env and adjust values if needed.
+Copy the PowerShell scripts to C:\\spaghettichef\\bin on the Windows host.
+Copy the camera directory to C:\\spaghettichef\\bin\\camera on the Windows host.
+Copy run.env.example to C:\\spaghettichef\\data\\run.env and adjust values if needed.
 
 The Windows application package should contain the runtime app only.
 Camera PowerShell helper scripts belong in the admin/bin layer, not in app\\camera.
@@ -996,7 +996,7 @@ EOF
                         set -eu
 
                         TAG_NAME="v${RELEASE_VERSION}"
-                        RELEASE_NAME="PrinterHub ${RELEASE_VERSION}"
+                        RELEASE_NAME="SpaghettiChef ${RELEASE_VERSION}"
 
                         API_JSON=$(mktemp)
 
@@ -1142,7 +1142,7 @@ PY
         }
 
         success {
-            echo 'PrinterHub verification completed successfully.'
+            echo 'SpaghettiChef verification completed successfully.'
         }
 
         failure {

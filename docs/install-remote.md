@@ -1,7 +1,7 @@
 # Remote Windows Install and Update via OpenSSH
 
 This document describes the emergency remote administration setup for a Windows
-PrinterHub host reachable over Wi-Fi from a Linux admin machine.
+SpaghettiChef host reachable over Wi-Fi from a Linux admin machine.
 
 Scope of this setup:
 
@@ -19,17 +19,17 @@ dashboard and remote farm management scope.
 
 ## Goal
 
-Allow a Linux admin machine to remotely trigger a PrinterHub update on a Windows
+Allow a Linux admin machine to remotely trigger a SpaghettiChef update on a Windows
 10 laptop using OpenSSH and PowerShell.
 
 The update flow must:
 
 - verify Java 21 is installed on the Windows host
-- stop the running PrinterHub runtime
+- stop the running SpaghettiChef runtime
 - download a specific GitHub release asset
 - extract the new Windows package
 - preserve persisted data
-- restart PrinterHub
+- restart SpaghettiChef
 - expose short remote status and diagnostic commands
 
 ---
@@ -39,7 +39,7 @@ The update flow must:
 ### Repository
 
 ```text
-printer-hub/
+spaghetti-chef/
 ├── app source
 ├── docs/
 │   └── install-remote.md
@@ -60,15 +60,15 @@ printer-hub/
 │   │   └── v.ps1
 │   └── README.md
 └── ops/
-    ├── phdiag
-    ├── phu
-    └── phv
+    ├── schefdiag
+    ├── schefu
+    └── schefv
 ````
 
 ### Windows laptop
 
 ```text
-C:\printerhub\
+C:\spaghettichef\
 ├── app
 ├── bin
 ├── data
@@ -104,7 +104,7 @@ Windows runtime package.
 
 * `t.ps1`
 
-  * create or refresh the Windows Task Scheduler entry for PrinterHub
+  * create or refresh the Windows Task Scheduler entry for SpaghettiChef
   * prepare detached background start on the Windows host
 
 * `u.ps1`
@@ -112,19 +112,19 @@ Windows runtime package.
   * remote update entrypoint
   * verify Java 21
   * download a specific release asset
-  * stop PrinterHub
+  * stop SpaghettiChef
   * extract the package
   * replace app files
-  * restart PrinterHub through Task Scheduler
+  * restart SpaghettiChef through Task Scheduler
 
 * `r.ps1`
 
-  * start PrinterHub through the scheduled task
+  * start SpaghettiChef through the scheduled task
   * verify health after start
 
 * `s.ps1`
 
-  * stop PrinterHub
+  * stop SpaghettiChef
 
 * `v.ps1`
 
@@ -133,32 +133,32 @@ Windows runtime package.
 * `run.env.example`
 
   * example local runtime configuration file
-  * copied once to `C:\printerhub\data\run.env`
+  * copied once to `C:\spaghettichef\data\run.env`
 
 * `camera/`
 
   * optional Windows camera helper scripts
   * used for diagnostics and fallback ffmpeg capture
   * delivered with the admin/tool package
-  * copied to `C:\printerhub\bin\camera\`
+  * copied to `C:\spaghettichef\bin\camera\`
   * not part of the runtime app package
-  * not bundled into `printer-hub.jar`
+  * not bundled into `spaghetti-chef.jar`
 
 ### Linux helper commands
 
-* `phu`
+* `schefu`
 
   * remote update launcher
 
-* `phv`
+* `schefv`
 
   * remote status launcher
 
-* `phdiag`
+* `schefdiag`
 
   * remote diagnostic launcher
   * uploads and runs a temporary PowerShell diagnostic script on the Windows host
-  * retrieves `C:\printerhub\tmp\response.txt` back to the Linux machine
+  * retrieves `C:\spaghettichef\tmp\response.txt` back to the Linux machine
 
 ---
 
@@ -173,21 +173,21 @@ v<version>
 The Windows application asset file uses:
 
 ```text
-printer-hub-<version>-windows.zip
+spaghetti-chef-<version>-windows.zip
 ```
 
 The Windows administration asset file uses:
 
 ```text
-printer-hub-<version>-admin.zip
+spaghetti-chef-<version>-admin.zip
 ```
 
 Example:
 
 ```text
 tag: v1.0.0
-application asset: printer-hub-1.0.0-windows.zip
-admin asset:       printer-hub-1.0.0-admin.zip
+application asset: spaghetti-chef-1.0.0-windows.zip
+admin asset:       spaghetti-chef-1.0.0-admin.zip
 ```
 
 ---
@@ -198,8 +198,8 @@ The extracted Windows application package contains the runtime app files, for
 example:
 
 ```text
-printerhub.bat
-printer-hub.jar
+spaghettichef.bat
+spaghetti-chef.jar
 README.md
 INSTALL.md
 QUICKSTART.md
@@ -210,14 +210,14 @@ scripts such as camera capture scripts. Those belong in the admin/tool package.
 
 Current launcher behavior:
 
-* Java command: `PRINTERHUB_JAVA` from `C:\printerhub\data\run.env`, otherwise `java`
-* API port: `PRINTERHUB_API_PORT` from `C:\printerhub\data\run.env`, otherwise `18080`
-* database file: `PRINTERHUB_DATABASE_FILE` from `C:\printerhub\data\run.env`, otherwise `printerhub.db`
+* Java command: `SPAGHETTICHEF_JAVA` from `C:\spaghettichef\data\run.env`, otherwise `java`
+* API port: `SPAGHETTICHEF_API_PORT` from `C:\spaghettichef\data\run.env`, otherwise `18080`
+* database file: `SPAGHETTICHEF_DATABASE_FILE` from `C:\spaghettichef\data\run.env`, otherwise `spaghettichef.db`
 
-Use a full path for `PRINTERHUB_DATABASE_FILE`:
+Use a full path for `SPAGHETTICHEF_DATABASE_FILE`:
 
 ```text
-PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
+SPAGHETTICHEF_DATABASE_FILE=C:\spaghettichef\data\spaghettichef.db
 ```
 
 Current dashboard URL:
@@ -307,12 +307,12 @@ already works.
 Open PowerShell as Administrator:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path C:\printerhub\app
-New-Item -ItemType Directory -Force -Path C:\printerhub\bin
-New-Item -ItemType Directory -Force -Path C:\printerhub\data
-New-Item -ItemType Directory -Force -Path C:\printerhub\log
-New-Item -ItemType Directory -Force -Path C:\printerhub\rel
-New-Item -ItemType Directory -Force -Path C:\printerhub\tmp
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\app
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\bin
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\data
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\log
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\rel
+New-Item -ItemType Directory -Force -Path C:\spaghettichef\tmp
 ```
 
 ---
@@ -322,7 +322,7 @@ New-Item -ItemType Directory -Force -Path C:\printerhub\tmp
 Download:
 
 ```text
-printer-hub-<version>-admin.zip
+spaghetti-chef-<version>-admin.zip
 ```
 
 Extract the ZIP on the Windows laptop.
@@ -330,19 +330,19 @@ Extract the ZIP on the Windows laptop.
 Copy the extracted PowerShell scripts into:
 
 ```text
-C:\printerhub\bin\
+C:\spaghettichef\bin\
 ```
 
 Copy the extracted camera helper directory, if present, into:
 
 ```text
-C:\printerhub\bin\camera\
+C:\spaghettichef\bin\camera\
 ```
 
 Copy the extracted example environment file to:
 
 ```text
-C:\printerhub\data\run.env
+C:\spaghettichef\data\run.env
 ```
 
 The admin package is operational tooling. It is separate from the Windows
@@ -351,13 +351,13 @@ application package.
 Camera PowerShell helpers belong under:
 
 ```text
-C:\printerhub\bin\camera\
+C:\spaghettichef\bin\camera\
 ```
 
 They must not be placed under:
 
 ```text
-C:\printerhub\app\camera\
+C:\spaghettichef\app\camera\
 ```
 
 ---
@@ -367,15 +367,15 @@ C:\printerhub\app\camera\
 Open:
 
 ```text
-C:\printerhub\data\run.env
+C:\spaghettichef\data\run.env
 ```
 
 Initial example content:
 
 ```text
-PRINTERHUB_JAVA=
-PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
-PRINTERHUB_API_PORT=18080
+SPAGHETTICHEF_JAVA=
+SPAGHETTICHEF_DATABASE_FILE=C:\spaghettichef\data\spaghettichef.db
+SPAGHETTICHEF_API_PORT=18080
 ```
 
 Adjust values if needed for the target Windows laptop.
@@ -383,9 +383,9 @@ Adjust values if needed for the target Windows laptop.
 Example with explicit Java path:
 
 ```text
-PRINTERHUB_JAVA=C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot\bin\java.exe
-PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
-PRINTERHUB_API_PORT=18080
+SPAGHETTICHEF_JAVA=C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot\bin\java.exe
+SPAGHETTICHEF_DATABASE_FILE=C:\spaghettichef\data\spaghettichef.db
+SPAGHETTICHEF_API_PORT=18080
 ```
 
 ---
@@ -393,10 +393,10 @@ PRINTERHUB_API_PORT=18080
 ### 7. Register the scheduled task once
 
 Open a normal PowerShell window with the same Windows user that will run
-PrinterHub and execute:
+SpaghettiChef and execute:
 
 ```powershell
-C:\printerhub\bin\t.ps1
+C:\spaghettichef\bin\t.ps1
 ```
 
 The scheduled task should run as the intended local Windows user.
@@ -411,31 +411,31 @@ unless permissions are deliberately configured.
 If desired, install the first Windows application release manually before remote
 updates are used:
 
-1. Download `printer-hub-<version>-windows.zip`
-2. Extract it into `C:\printerhub\app`
+1. Download `spaghetti-chef-<version>-windows.zip`
+2. Extract it into `C:\spaghettichef\app`
 3. Verify these files exist:
 
 ```text
-C:\printerhub\app\printerhub.bat
-C:\printerhub\app\printer-hub.jar
+C:\spaghettichef\app\spaghettichef.bat
+C:\spaghettichef\app\spaghetti-chef.jar
 ```
 
 Then refresh the scheduled task:
 
 ```powershell
-C:\printerhub\bin\t.ps1
+C:\spaghettichef\bin\t.ps1
 ```
 
 Then test start:
 
 ```powershell
-C:\printerhub\bin\r.ps1
+C:\spaghettichef\bin\r.ps1
 ```
 
 Then test status:
 
 ```powershell
-C:\printerhub\bin\v.ps1
+C:\spaghettichef\bin\v.ps1
 ```
 
 ---
@@ -446,14 +446,14 @@ C:\printerhub\bin\v.ps1
 
 The repo contains:
 
-* `ops/phu`
-* `ops/phv`
-* `ops/phdiag`
+* `ops/schefu`
+* `ops/schefv`
+* `ops/schefdiag`
 
 Make them executable:
 
 ```bash
-chmod +x ops/phu ops/phv ops/phdiag
+chmod +x ops/schefu ops/schefv ops/schefdiag
 ```
 
 ---
@@ -462,40 +462,40 @@ chmod +x ops/phu ops/phv ops/phdiag
 
 The helper scripts use environment variables:
 
-* `PH_HOST`
-* `PH_USER`
+* `SCHEF_HOST`
+* `SCHEF_USER`
 
 Example:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefv
 ```
 
 or:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 1.0.0
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefu 1.0.0
 ```
 
 or:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phdiag
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefdiag
 ```
 
 If you want less typing, export them once in the shell:
 
 ```bash
-export PH_HOST=192.168.1.42
-export PH_USER=myadmin
+export SCHEF_HOST=192.168.1.42
+export SCHEF_USER=myadmin
 ```
 
 Then use:
 
 ```bash
-ops/phv
-ops/phu 1.0.0
-ops/phdiag
+ops/schefv
+ops/schefu 1.0.0
+ops/schefdiag
 ```
 
 ---
@@ -511,14 +511,14 @@ ssh myadmin@192.168.1.42
 If that works, test the status script:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefv
 ```
 
 ---
 
 ## Remote operation flow
 
-The remote start path uses Windows Task Scheduler so that PrinterHub continues
+The remote start path uses Windows Task Scheduler so that SpaghettiChef continues
 running after the SSH session disconnects.
 
 ---
@@ -528,13 +528,13 @@ running after the SSH session disconnects.
 From Linux:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefv
 ```
 
 This launches:
 
 ```text
-C:\printerhub\bin\v.ps1
+C:\spaghettichef\bin\v.ps1
 ```
 
 on the Windows host.
@@ -546,13 +546,13 @@ on the Windows host.
 From Linux:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phu 1.0.0
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefu 1.0.0
 ```
 
 This launches:
 
 ```text
-C:\printerhub\bin\u.ps1 -Version 1.0.0
+C:\spaghettichef\bin\u.ps1 -Version 1.0.0
 ```
 
 on the Windows host.
@@ -560,13 +560,13 @@ on the Windows host.
 The updater downloads:
 
 ```text
-https://github.com/<owner>/<repo>/releases/download/v<version>/printer-hub-<version>-windows.zip
+https://github.com/<owner>/<repo>/releases/download/v<version>/spaghetti-chef-<version>-windows.zip
 ```
 
 Example download URL:
 
 ```text
-https://github.com/nathabee/printer-hub/releases/download/v1.0.0/printer-hub-1.0.0-windows.zip
+https://github.com/nathabee/spaghetti-chef/releases/download/v1.0.0/spaghetti-chef-1.0.0-windows.zip
 ```
 
 ---
@@ -576,7 +576,7 @@ https://github.com/nathabee/printer-hub/releases/download/v1.0.0/printer-hub-1.0
 From Linux:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phdiag
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefdiag
 ```
 
 The diagnostic helper uploads and runs a temporary PowerShell diagnostic script
@@ -585,7 +585,7 @@ on the Windows host.
 The Windows host writes:
 
 ```text
-C:\printerhub\tmp\response.txt
+C:\spaghettichef\tmp\response.txt
 ```
 
 The Linux helper downloads the diagnostic result as:
@@ -604,7 +604,7 @@ manually copying logs.
 The updater must not replace persisted runtime data in:
 
 ```text
-C:\printerhub\data\
+C:\spaghettichef\data\
 ```
 
 In particular, database files must remain intact across updates.
@@ -612,34 +612,34 @@ In particular, database files must remain intact across updates.
 The updater must also preserve these operational directories:
 
 ```text
-C:\printerhub\bin\
-C:\printerhub\log\
-C:\printerhub\rel\
-C:\printerhub\tmp\
+C:\spaghettichef\bin\
+C:\spaghettichef\log\
+C:\spaghettichef\rel\
+C:\spaghettichef\tmp\
 ```
 
 The updater is responsible only for the application package in:
 
 ```text
-C:\printerhub\app\
+C:\spaghettichef\app\
 ```
 
 The admin/tool package is installed separately into:
 
 ```text
-C:\printerhub\bin\
+C:\spaghettichef\bin\
 ```
 
 Camera helper scripts belong in:
 
 ```text
-C:\printerhub\bin\camera\
+C:\spaghettichef\bin\camera\
 ```
 
 not in:
 
 ```text
-C:\printerhub\app\camera\
+C:\spaghettichef\app\camera\
 ```
 
 ---
@@ -650,8 +650,8 @@ The Windows application package should contain only runtime application files,
 for example:
 
 ```text
-printer-hub.jar
-printerhub.bat
+spaghetti-chef.jar
+spaghettichef.bat
 README.md
 INSTALL.md
 QUICKSTART.md
@@ -677,14 +677,14 @@ Rules:
 * `tools/win/**` is packaged into the Windows admin package.
 * `tools/win/camera/**` is packaged into the Windows admin package under `camera/`.
 * `tools/linux/**` is packaged into the Linux package tool area.
-* `tools/**` must not be bundled into `printer-hub.jar`.
+* `tools/**` must not be bundled into `spaghetti-chef.jar`.
 * Windows camera helper scripts must not be copied into the Windows app package.
 
 ---
 
 ## Camera helper notes
 
-PrinterHub supports direct ffmpeg webcam capture from the dashboard. The
+SpaghettiChef supports direct ffmpeg webcam capture from the dashboard. The
 external camera helper scripts are mainly diagnostic tools and fallback
 utilities.
 
@@ -711,8 +711,8 @@ The Windows source value usually needs the `video=` prefix.
 Example helper path after admin package installation:
 
 ```text
-C:\printerhub\bin\camera\camera-capture-once.ps1
-C:\printerhub\bin\camera\camera-capture-loop.ps1
+C:\spaghettichef\bin\camera\camera-capture-once.ps1
+C:\spaghettichef\bin\camera\camera-capture-loop.ps1
 ```
 
 ---
@@ -721,7 +721,7 @@ C:\printerhub\bin\camera\camera-capture-loop.ps1
 
 ### Scheduled task state
 
-After stopping PrinterHub manually, the scheduled task may show:
+After stopping SpaghettiChef manually, the scheduled task may show:
 
 ```text
 Ready
@@ -729,7 +729,7 @@ Ready
 
 This is normal. `Ready` means the task is registered and not currently running.
 
-When PrinterHub is started through the task, the state should become:
+When SpaghettiChef is started through the task, the state should become:
 
 ```text
 Running
@@ -767,7 +767,7 @@ Expected:
 From Linux, use:
 
 ```bash
-PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
+SCHEF_HOST=192.168.1.42 SCHEF_USER=myadmin ops/schefv
 ```
 
 ---
@@ -777,14 +777,14 @@ PH_HOST=192.168.1.42 PH_USER=myadmin ops/phv
 Runtime logs are expected under:
 
 ```text
-C:\printerhub\log\
+C:\spaghettichef\log\
 ```
 
 Common files:
 
 ```text
-printerhub-out.log
-printerhub-err.log
+spaghettichef-out.log
+spaghettichef-err.log
 start.log
 update.log
 ```
@@ -793,7 +793,7 @@ update.log
 
 ### Remote diagnostic response
 
-If `ops/phdiag` is used, the diagnostic result is downloaded to the Linux admin
+If `ops/schefdiag` is used, the diagnostic result is downloaded to the Linux admin
 machine as:
 
 ```text
@@ -803,7 +803,7 @@ machine as:
 The temporary remote result is written to:
 
 ```text
-C:\printerhub\tmp\response.txt
+C:\spaghettichef\tmp\response.txt
 ```
 
 ---

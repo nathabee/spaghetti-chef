@@ -1,0 +1,13 @@
+package spaghettichef.camera;
+
+import java.time.Instant;
+
+public record CameraSnapshotFile(
+        String id,
+        String type,
+        String fileName,
+        String relativePath,
+        String contentType,
+        long sizeBytes,
+        Instant modifiedAt) {
+}

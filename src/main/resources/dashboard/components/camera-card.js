@@ -130,7 +130,7 @@ export function renderCameraSettingsCard(settings) {
             name="storageDirectory"
             type="text"
             value="${escapeHtml(settings?.storageDirectory || "camera")}"
-            placeholder="camera or C:\\printerhub\\data\\camera">
+            placeholder="camera or C:\\spaghettichef\\data\\camera">
         </label>
 
         <label>

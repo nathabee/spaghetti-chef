@@ -3,7 +3,7 @@ param(
     [string]$Version,
 
     [string]$Owner = 'nathabee',
-    [string]$Repo = 'printer-hub'
+    [string]$Repo = 'spaghetti-chef'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,8 +60,8 @@ function Read-RunEnv {
 function Get-JavaCommand {
     param([hashtable]$EnvMap)
 
-    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
-        $configured = $EnvMap['PRINTERHUB_JAVA']
+    if ($EnvMap.ContainsKey('SPAGHETTICHEF_JAVA')) {
+        $configured = $EnvMap['SPAGHETTICHEF_JAVA']
         if (-not [string]::IsNullOrWhiteSpace($configured) -and (Test-Path -LiteralPath $configured)) {
             return $configured
         }
@@ -110,14 +110,14 @@ function Get-ConfiguredDatabaseFile {
         [string]$Root
     )
 
-    if ($EnvMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-        $configured = $EnvMap['PRINTERHUB_DATABASE_FILE']
+    if ($EnvMap.ContainsKey('SPAGHETTICHEF_DATABASE_FILE')) {
+        $configured = $EnvMap['SPAGHETTICHEF_DATABASE_FILE']
         if (-not [string]::IsNullOrWhiteSpace($configured)) {
             return $configured
         }
     }
 
-    return Join-Path (Join-Path $Root 'data') 'printerhub.db'
+    return Join-Path (Join-Path $Root 'data') 'spaghettichef.db'
 }
 
 function Assert-PersistentRuntimePaths {
@@ -128,11 +128,11 @@ function Assert-PersistentRuntimePaths {
     )
 
     if ([string]::IsNullOrWhiteSpace($DatabaseFile)) {
-        Fail "PRINTERHUB_DATABASE_FILE is empty. Refusing update because persistence location is undefined."
+        Fail "SPAGHETTICHEF_DATABASE_FILE is empty. Refusing update because persistence location is undefined."
     }
 
     if (-not [System.IO.Path]::IsPathRooted($DatabaseFile)) {
-        Fail "PRINTERHUB_DATABASE_FILE must be an absolute path. Current value: '$DatabaseFile'"
+        Fail "SPAGHETTICHEF_DATABASE_FILE must be an absolute path. Current value: '$DatabaseFile'"
     }
 
     $dbFullPath = [System.IO.Path]::GetFullPath($DatabaseFile)
@@ -140,7 +140,7 @@ function Assert-PersistentRuntimePaths {
     $dataFullPath = [System.IO.Path]::GetFullPath($DataDir)
 
     if ($dbFullPath.StartsWith($appFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Fail "Database is inside the replaceable app directory: '$dbFullPath'. Move it to '$dataFullPath\printerhub.db' before updating."
+        Fail "Database is inside the replaceable app directory: '$dbFullPath'. Move it to '$dataFullPath\spaghettichef.db' before updating."
     }
 
     if (-not $dbFullPath.StartsWith($dataFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -159,8 +159,8 @@ function Assert-ExtractedWindowsAppPackage {
     param([string]$SourceDir)
 
     $requiredFiles = @(
-        'printerhub.bat',
-        'printer-hub.jar'
+        'spaghettichef.bat',
+        'spaghetti-chef.jar'
     )
 
     foreach ($fileName in $requiredFiles) {
@@ -228,9 +228,9 @@ function Remove-AppOwnedItems {
     New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 
     $appOwnedItems = @(
-        'printer-hub.jar',
-        'printerhub.bat',
-        'printerhub-task.cmd',
+        'spaghetti-chef.jar',
+        'spaghettichef.bat',
+        'spaghettichef-task.cmd',
         'META-INF',
         'dashboard',
         'camera',
@@ -272,15 +272,15 @@ function Assert-InstalledJarMatchesSource {
         [string]$AppDir
     )
 
-    $sourceJar = Join-Path $SourceDir 'printer-hub.jar'
-    $targetJar = Join-Path $AppDir 'printer-hub.jar'
+    $sourceJar = Join-Path $SourceDir 'spaghetti-chef.jar'
+    $targetJar = Join-Path $AppDir 'spaghetti-chef.jar'
 
     if (-not (Test-Path -LiteralPath $sourceJar)) {
-        Fail "Source package does not contain printer-hub.jar: $sourceJar"
+        Fail "Source package does not contain spaghetti-chef.jar: $sourceJar"
     }
 
     if (-not (Test-Path -LiteralPath $targetJar)) {
-        Fail "Installed app does not contain printer-hub.jar after copy: $targetJar"
+        Fail "Installed app does not contain spaghetti-chef.jar after copy: $targetJar"
     }
 
     $sourceJarHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceJar).Hash
@@ -294,7 +294,7 @@ function Assert-InstalledJarMatchesSource {
     }
 }
 
-$root = 'C:\printerhub'
+$root = 'C:\spaghettichef'
 $appDir = "$root\app"
 $tmpDir = "$root\tmp"
 $relDir = "$root\rel"
@@ -315,7 +315,7 @@ $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 $databaseFile = Get-ConfiguredDatabaseFile -EnvMap $envMap -Root $root
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\printerhub\data\run.env"
+    Fail "Java was not found. Set SPAGHETTICHEF_JAVA in C:\spaghettichef\data\run.env"
 }
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
@@ -323,14 +323,14 @@ if ($javaMajor -ne 21) {
 
 Assert-PersistentRuntimePaths -DatabaseFile $databaseFile -AppDir $appDir -DataDir $dataDir
 
-if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\s.ps1')) {
-    Fail "Stop script not found: C:\printerhub\bin\s.ps1"
+if (-not (Test-Path -LiteralPath 'C:\spaghettichef\bin\s.ps1')) {
+    Fail "Stop script not found: C:\spaghettichef\bin\s.ps1"
 }
-if (-not (Test-Path -LiteralPath 'C:\printerhub\bin\r.ps1')) {
-    Fail "Start script not found: C:\printerhub\bin\r.ps1"
+if (-not (Test-Path -LiteralPath 'C:\spaghettichef\bin\r.ps1')) {
+    Fail "Start script not found: C:\spaghettichef\bin\r.ps1"
 }
 
-$assetName = "printer-hub-$Version-windows.zip"
+$assetName = "spaghetti-chef-$Version-windows.zip"
 $tagName = "v$Version"
 $zipPath = Join-Path $relDir $assetName
 $extractDir = Join-Path $tmpDir ("extract-" + $Version)
@@ -349,8 +349,8 @@ Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
 
 Copy-LightweightDataBackup -DataDir $dataDir -BackupDir $dataBackupDir
 
-Write-Host "Stopping current PrinterHub"
-& 'C:\printerhub\bin\s.ps1'
+Write-Host "Stopping current SpaghettiChef"
+& 'C:\spaghettichef\bin\s.ps1'
 
 if (Test-Path -LiteralPath $extractDir) {
     Remove-Item -LiteralPath $extractDir -Recurse -Force
@@ -379,8 +379,8 @@ Assert-InstalledJarMatchesSource -SourceDir $sourceDir -AppDir $appDir
 Write-Host "App directory content after copy:"
 Get-ChildItem -LiteralPath $appDir | Select-Object Name, Length, LastWriteTime
 
-Write-Host "Starting updated PrinterHub"
-& 'C:\printerhub\bin\r.ps1'
+Write-Host "Starting updated SpaghettiChef"
+& 'C:\spaghettichef\bin\r.ps1'
 
 Write-UpdateLog -Path $updateLog -Message "update success version=$Version tag=$tagName asset=$assetName"
 Write-Host "Update complete for version $Version"

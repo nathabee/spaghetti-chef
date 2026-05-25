@@ -1,9 +1,9 @@
 # Install
 
-This document describes how to install and run PrinterHub from the small expert
+This document describes how to install and run SpaghettiChef from the small expert
 packages produced by Jenkins.
 
-PrinterHub does not bundle a Java runtime. Install Java 21 first, then use the
+SpaghettiChef does not bundle a Java runtime. Install Java 21 first, then use the
 Linux or Windows package without recompiling the project.
 
 ---
@@ -29,33 +29,33 @@ Jenkins packages.
 Download:
 
 ```text
-printer-hub-<version>-linux.tar.gz
+spaghetti-chef-<version>-linux.tar.gz
 ```
 
 Extract:
 
 ```bash
-tar -xzf printer-hub-<version>-linux.tar.gz
+tar -xzf spaghetti-chef-<version>-linux.tar.gz
 cd linux
 ```
 
 Run with defaults:
 
 ```bash
-./printerhub.sh
+./spaghettichef.sh
 ```
 
 The default command uses:
 
 ```text 
 API port: 18080
-database: printerhub.db
+database: spaghettichef.db
 ```
 
 Run with explicit values:
 
 ```bash
-./printerhub.sh 18080
+./spaghettichef.sh 18080
 ```
 
 The launcher currently controls only the API port and database file.
@@ -64,7 +64,7 @@ Printer connection details and mode are configured later in the application and 
 Use a custom database file:
 
 ```bash
-PRINTERHUB_DATABASE_FILE=printerhub-prod.db ./printerhub.sh 18080
+SPAGHETTICHEF_DATABASE_FILE=spaghettichef-prod.db ./spaghettichef.sh 18080
 ```
 
 Open the dashboard:
@@ -101,7 +101,7 @@ Use the full `/dev/serial/by-id/...` value as the printer `portName`. Paths such
 
 ### Linux Webcam Capture
 
-PrinterHub real webcam capture uses ffmpeg behind the existing `CameraDevice` abstraction.
+SpaghettiChef real webcam capture uses ffmpeg behind the existing `CameraDevice` abstraction.
 Install ffmpeg first:
 
 ```bash
@@ -131,7 +131,7 @@ ffmpeg -f v4l2 -video_size 640x480 -i /dev/video0 -frames:v 1 test.jpg
 Download:
 
 ```text
-printer-hub-<version>-windows.zip
+spaghetti-chef-<version>-windows.zip
 ```
 
 Extract the zip and open a terminal in the extracted folder.
@@ -139,7 +139,7 @@ Extract the zip and open a terminal in the extracted folder.
 Run with defaults:
 
 ```bat
-printerhub.bat
+spaghettichef.bat
 ```
 
 The Windows launcher supports:
@@ -154,13 +154,13 @@ The default command uses:
 
 ```text
 API port: 18080
-database: printerhub.db
+database: spaghettichef.db
 ```
 
 Run with explicit values:
 
 ```bat
-printerhub.bat 18080
+spaghettichef.bat 18080
 ```
 
 The launcher currently uses the port value and database file. Printer
@@ -170,8 +170,8 @@ from the launcher arguments.
 Use a custom database file:
 
 ```bat
-set PRINTERHUB_DATABASE_FILE=printerhub-prod.db
-printerhub.bat 18080
+set SPAGHETTICHEF_DATABASE_FILE=spaghettichef-prod.db
+spaghettichef.bat 18080
 ```
 
 Open the dashboard:
@@ -213,22 +213,22 @@ ffmpeg -f dshow -video_size 640x480 -i "video=Integrated Camera" -frames:v 1 tes
 Both packages contain the same runnable jar:
 
 ```text
-printer-hub.jar
+spaghetti-chef.jar
 ```
 
 Linux example:
 
 ```bash
-java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
+java -Dspaghettichef.databaseFile=spaghettichef.db -Dspaghettichef.api.port=18080 -jar spaghetti-chef.jar
 ```
 
 Windows example:
 
 ```bat
-java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar printer-hub.jar
+java -Dspaghettichef.databaseFile=spaghettichef.db -Dspaghettichef.api.port=18080 -jar spaghetti-chef.jar
 ```
 
-If `-Dprinterhub.api.port` is omitted, PrinterHub uses its default API port `8080`.
+If `-Dspaghettichef.api.port` is omitted, SpaghettiChef uses its default API port `8080`.
 The dashboard will then be available at: 
 
 ```text
@@ -276,16 +276,16 @@ tar for the Linux package and release archive
 For release builds with `RELEASE_VERSION` set, Jenkins produces:
 
 ```text
-printer-hub-<version>-linux.tar.gz
+spaghetti-chef-<version>-linux.tar.gz
   Linux runtime package
 
-printer-hub-<version>-windows.zip
+spaghetti-chef-<version>-windows.zip
   Windows runtime package
 
-printer-hub-<version>-release.tar.gz
+spaghetti-chef-<version>-release.tar.gz
   CI evidence bundle with reports, smoke-test outputs, logs, and selected docs
 
-printer-hub-<version>-admin.zip
+spaghetti-chef-<version>-admin.zip
   Windows remote-administration bootstrap package for OpenSSH-based setup
 ```
 
@@ -296,7 +296,7 @@ artifacts such as reports, smoke-test outputs, logs, and selected
 documentation.
 
 The admin package contains the PowerShell helper scripts and example runtime
-configuration used to bootstrap and operate a remote Windows PrinterHub host
+configuration used to bootstrap and operate a remote Windows SpaghettiChef host
 through OpenSSH.
 
 

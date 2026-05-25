@@ -2,8 +2,8 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(name = "printerhub-image-analyzer")]
-#[command(about = "Standalone Rust image analyzer for PrinterHub camera snapshots")]
+#[command(name = "spaghettichef-image-analyzer")]
+#[command(about = "Standalone Rust image analyzer for SpaghettiChef camera snapshots")]
 pub struct Cli {
     #[arg(long)]
     pub from_snapshot: PathBuf,

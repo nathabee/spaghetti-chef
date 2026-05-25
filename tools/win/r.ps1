@@ -42,8 +42,8 @@ function Read-RunEnv {
 function Get-JavaCommand {
     param([hashtable]$EnvMap)
 
-    if ($EnvMap.ContainsKey('PRINTERHUB_JAVA')) {
-        $configured = $EnvMap['PRINTERHUB_JAVA']
+    if ($EnvMap.ContainsKey('SPAGHETTICHEF_JAVA')) {
+        $configured = $EnvMap['SPAGHETTICHEF_JAVA']
         if (-not [string]::IsNullOrWhiteSpace($configured) -and (Test-Path -LiteralPath $configured)) {
             return $configured
         }
@@ -86,44 +86,44 @@ function Get-JavaMajorVersion {
     return $null
 }
 
-$taskName = 'PrinterHub'
-$runEnvPath = 'C:\printerhub\data\run.env'
-$startLog = 'C:\printerhub\log\start.log'
+$taskName = 'SpaghettiChef'
+$runEnvPath = 'C:\spaghettichef\data\run.env'
+$startLog = 'C:\spaghettichef\log\start.log'
 $envMap = Read-RunEnv -Path $runEnvPath
 
 $apiPort = '18080'
-if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
-    $apiPort = $envMap['PRINTERHUB_API_PORT']
+if ($envMap.ContainsKey('SPAGHETTICHEF_API_PORT')) {
+    $apiPort = $envMap['SPAGHETTICHEF_API_PORT']
 }
 
-$databaseFile = 'C:\printerhub\data\printerhub.db'
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+$databaseFile = 'C:\spaghettichef\data\spaghettichef.db'
+if ($envMap.ContainsKey('SPAGHETTICHEF_DATABASE_FILE')) {
+    $databaseFile = $envMap['SPAGHETTICHEF_DATABASE_FILE']
 }
 
 $javaCommand = Get-JavaCommand -EnvMap $envMap
 $javaMajor = Get-JavaMajorVersion -JavaCommand $javaCommand
 
 if ($null -eq $javaCommand) {
-    Fail "Java was not found. Set PRINTERHUB_JAVA in C:\printerhub\data\run.env"
+    Fail "Java was not found. Set SPAGHETTICHEF_JAVA in C:\spaghettichef\data\run.env"
 }
 if ($javaMajor -ne 21) {
     Fail "Java 21 is required. javaCommand='$javaCommand' javaMajor='$javaMajor'"
 }
 
-if (-not (Test-Path -LiteralPath 'C:\printerhub\app\printerhub.bat')) {
-    Fail "Launcher not found: C:\printerhub\app\printerhub.bat"
+if (-not (Test-Path -LiteralPath 'C:\spaghettichef\app\spaghettichef.bat')) {
+    Fail "Launcher not found: C:\spaghettichef\app\spaghettichef.bat"
 }
 
-if (-not (Test-Path -LiteralPath 'C:\printerhub\log')) {
-    New-Item -ItemType Directory -Force -Path 'C:\printerhub\log' | Out-Null
+if (-not (Test-Path -LiteralPath 'C:\spaghettichef\log')) {
+    New-Item -ItemType Directory -Force -Path 'C:\spaghettichef\log' | Out-Null
 }
 
 try {
     schtasks /Query /TN $taskName | Out-Null
 }
 catch {
-    Fail "Scheduled task '$taskName' not found. Run C:\printerhub\bin\t.ps1 once as the intended task owner."
+    Fail "Scheduled task '$taskName' not found. Run C:\spaghettichef\bin\t.ps1 once as the intended task owner."
 }
 
 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -148,7 +148,7 @@ for ($i = 0; $i -lt 30; $i++) {
 
 if (-not $healthy) {
     "[$stamp] health endpoint never became reachable on port $apiPort" | Add-Content -LiteralPath $startLog
-    Fail "PrinterHub start failed. Health endpoint not reachable on port $apiPort"
+    Fail "SpaghettiChef start failed. Health endpoint not reachable on port $apiPort"
 }
 
 $stableChecks = 0
@@ -166,12 +166,12 @@ for ($i = 0; $i -lt 10; $i++) {
 
 if ($stableChecks -lt 8) {
     "[$stamp] health endpoint was transient stableChecks=$stableChecks/10 port=$apiPort" | Add-Content -LiteralPath $startLog
-    Fail "PrinterHub start was not stable. Health endpoint did not remain reachable long enough on port $apiPort"
+    Fail "SpaghettiChef start was not stable. Health endpoint did not remain reachable long enough on port $apiPort"
 }
 
 "[$stamp] health endpoint stable stableChecks=$stableChecks/10 port=$apiPort" | Add-Content -LiteralPath $startLog
 
-Write-Host "PrinterHub started successfully through Task Scheduler."
+Write-Host "SpaghettiChef started successfully through Task Scheduler."
 Write-Host "API port: $apiPort"
 Write-Host "Database file: $databaseFile"
 Write-Host "Java command: $javaCommand"

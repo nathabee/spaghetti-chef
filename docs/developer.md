@@ -1,6 +1,6 @@
 # Developer Guide
 
-Short developer reference for everyday work on PrinterHub `0.1.x`.
+Short developer reference for everyday work on SpaghettiChef `0.1.x`.
 
 Detailed setup and verification are documented in:
 
@@ -12,7 +12,7 @@ Detailed setup and verification are documented in:
 
 ## Current architecture
 
-PrinterHub `0.1.x` is a local runtime with:
+SpaghettiChef `0.1.x` is a local runtime with:
 
 - embedded HTTP API
 - runtime-managed printer registry
@@ -28,7 +28,7 @@ Real hardware remains optional for manual checks.
 
 ## Main source areas
 
-### `src/main/java/printerhub/Main.java`
+### `src/main/java/spaghettichef/Main.java`
 
 Runtime entry point.
 
@@ -40,7 +40,7 @@ Responsibilities:
 - keep the process alive
 - register shutdown handling
 
-### `src/main/java/printerhub/api/`
+### `src/main/java/spaghettichef/api/`
 
 Embedded REST API layer.
 
@@ -56,13 +56,13 @@ Responsibilities:
 - expose dashboard resources
 - translate runtime failures into controlled HTTP responses
 
-### `src/main/java/printerhub/runtime/`
+### `src/main/java/spaghettichef/runtime/`
 
 Runtime backbone.
 
 Main classes:
 
-- `PrinterHubRuntime`
+- `SpaghettiChefRuntime`
 - `PrinterRegistry`
 - `PrinterRuntimeNode`
 - `PrinterRuntimeNodeFactory`
@@ -75,7 +75,7 @@ Responsibilities:
 - keep current runtime state per printer
 - coordinate startup and shutdown
 
-### `src/main/java/printerhub/monitoring/`
+### `src/main/java/spaghettichef/monitoring/`
 
 Monitoring layer.
 
@@ -93,7 +93,7 @@ Responsibilities:
 - persist snapshots and events
 - deduplicate repeated failure events
 
-### `src/main/java/printerhub/persistence/`
+### `src/main/java/spaghettichef/persistence/`
 
 SQLite persistence layer.
 
@@ -115,7 +115,7 @@ Responsibilities:
 - persist events
 - apply snapshot persistence rules
 
-### `src/main/java/printerhub/serial/`
+### `src/main/java/spaghettichef/serial/`
 
 Serial and simulation implementations.
 
@@ -125,7 +125,7 @@ Main classes:
 - `JSerialCommPortAdapter`
 - `SimulatedPrinterPort`
 
-### `src/main/java/printerhub/SerialConnection.java`
+### `src/main/java/spaghettichef/SerialConnection.java`
 
 Real serial communication implementation used for `real` mode.
 
@@ -202,10 +202,10 @@ mvn clean verify
 
 ```bash id="p452q8"
 mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=8080 \
-  -Dprinterhub.monitoring.intervalSeconds=1 \
-  -Dprinterhub.databaseFile=printerhub.db
+  -Dexec.mainClass="spaghettichef.Main" \
+  -Dspaghettichef.api.port=8080 \
+  -Dspaghettichef.monitoring.intervalSeconds=1 \
+  -Dspaghettichef.databaseFile=spaghettichef.db
 ```
 
 ### Health check
@@ -261,7 +261,7 @@ http://localhost:8080/dashboard
 Default database file:
 
 ```text id="ecvwn0"
-printerhub.db
+spaghettichef.db
 ```
 
 The schema is initialized automatically on runtime startup.
@@ -279,19 +279,19 @@ printer_snapshots
 Useful checks:
 
 ```bash id="83tpb1"
-sqlite3 printerhub.db ".tables"
+sqlite3 spaghettichef.db ".tables"
 ```
 
 ```bash id="2r6icy"
-sqlite3 printerhub.db "select id,name,port_name,mode,enabled from configured_printers order by id;"
+sqlite3 spaghettichef.db "select id,name,port_name,mode,enabled from configured_printers order by id;"
 ```
 
 ```bash id="l6seli"
-sqlite3 printerhub.db "select printer_id,state,created_at from printer_snapshots order by id desc limit 10;"
+sqlite3 spaghettichef.db "select printer_id,state,created_at from printer_snapshots order by id desc limit 10;"
 ```
 
 ```bash id="ep6bfe"
-sqlite3 printerhub.db "select printer_id,event_type,message,created_at from printer_events order by id desc limit 10;"
+sqlite3 spaghettichef.db "select printer_id,event_type,message,created_at from printer_events order by id desc limit 10;"
 ```
 
 Do not commit runtime database files.

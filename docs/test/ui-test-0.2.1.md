@@ -5,7 +5,7 @@
  
 
 ```text
-mvn exec:java   -Dprinterhub.databaseFile="printerhub-real.db"   -Dprinterhub.api.port=18080   -Dexec.mainClass="printerhub.Main"
+mvn exec:java   -Dspaghettichef.databaseFile="spaghettichef-real.db"   -Dspaghettichef.api.port=18080   -Dexec.mainClass="spaghettichef.Main"
 
 # open in browser :
 http://localhost:18080/dashboard

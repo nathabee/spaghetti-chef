@@ -250,7 +250,7 @@ status: planned
 Goals:
 
 * harden Mode 2 host-side handling of printable files used by file-backed jobs
-* clarify how PrinterHub transfers, selects, or exposes prepared `.gcode` files to the printer
+* clarify how SpaghettiChef transfers, selects, or exposes prepared `.gcode` files to the printer
 * improve validation and error reporting around missing, unreadable, or invalid print files
 * make print-file handling more reviewable in dashboard and API
 * avoid ambiguous failures during print activation caused by file-path or transfer problems
@@ -296,7 +296,7 @@ Focus:
 Expected result:
 
 * local print operations become easier to review after the fact
-* PrinterHub becomes more usable for repeated real-printer operations and troubleshooting
+* SpaghettiChef becomes more usable for repeated real-printer operations and troubleshooting
 * audit value improves beyond raw event storage
  
 
@@ -319,7 +319,7 @@ Scope:
 This step strengthens the simulated printer behavior around SD-card upload and related serial protocol flows.
 
 It does not try to emulate full firmware complexity.
-It focuses on the parts needed to validate PrinterHub upload, recovery, and dashboard behavior with confidence.
+It focuses on the parts needed to validate SpaghettiChef upload, recovery, and dashboard behavior with confidence.
 
 #### Step A — make baseline simulated SD upload correct
 
@@ -413,14 +413,14 @@ Not part of this step:
 
 Main code:
 
-* `src/main/java/printerhub/serial/SimulatedPrinterPort.java`
-* `src/main/java/printerhub/runtime/PrinterRuntimeNodeFactory.java`
+* `src/main/java/spaghettichef/serial/SimulatedPrinterPort.java`
+* `src/main/java/spaghettichef/runtime/PrinterRuntimeNodeFactory.java`
 
 Tests:
 
-* `src/test/java/printerhub/serial/SimulatedPrinterPortTest.java`
-* `src/test/java/printerhub/command/SdCardUploadServiceTest.java`
-* `src/test/java/printerhub/api/RemoteApiServerTest.java`
+* `src/test/java/spaghettichef/serial/SimulatedPrinterPortTest.java`
+* `src/test/java/spaghettichef/command/SdCardUploadServiceTest.java`
+* `src/test/java/spaghettichef/api/RemoteApiServerTest.java`
 
 
 
@@ -433,12 +433,12 @@ Tests:
 
 Goal:
 
-Introduce the central platform that manages and observes multiple local PrinterHub runtimes.
+Introduce the central platform that manages and observes multiple local SpaghettiChef runtimes.
 
 Important architectural rule:
 
 The VPS does not communicate directly with USB printers.
-It communicates with local PrinterHub runtimes.
+It communicates with local SpaghettiChef runtimes.
 
 ---
 
@@ -461,9 +461,9 @@ Central Database
 Farm Runtime Connectors
         |
         v
-Local PrinterHub Runtime A
-Local PrinterHub Runtime B
-Local PrinterHub Runtime C
+Local SpaghettiChef Runtime A
+Local SpaghettiChef Runtime B
+Local SpaghettiChef Runtime C
 ```
 
 Goals:
@@ -480,7 +480,7 @@ status: future
 
 Goals:
 
-* register local PrinterHub runtimes in the central platform
+* register local SpaghettiChef runtimes in the central platform
 * assign farm IDs
 * store farm metadata
 * track farm online/offline status
@@ -554,7 +554,7 @@ Important rule:
 
 ```text
 central platform requests work
-local PrinterHub runtime executes work
+local SpaghettiChef runtime executes work
 ```
 
 ---
@@ -597,10 +597,10 @@ status: planned
 
 Purpose:
 
-Introduce Mode 1 for local jobs where PrinterHub owns the command stream.
+Introduce Mode 1 for local jobs where SpaghettiChef owns the command stream.
 
 This is intentionally planned after the autonomous print path because streamed
-printing turns PrinterHub into the real-time sender. It requires stronger flow
+printing turns SpaghettiChef into the real-time sender. It requires stronger flow
 control, response tracking, cancellation behavior, and recovery rules than
 autonomous printer-side execution.
 
@@ -610,7 +610,7 @@ Goals:
 * send G-code commands sequentially through `PrintJobExecutionService`
 * wait for firmware acceptance before sending the next command
 * persist per-line or grouped execution diagnostics without flooding history unnecessarily
-* support pause, cancel, and failure handling for a PrinterHub-owned stream
+* support pause, cancel, and failure handling for a SpaghettiChef-owned stream
 * coordinate streamed execution with monitoring so status polling does not corrupt the command flow
 * keep streamed mode separate from autonomous printer-side print mode in API, persistence, and dashboard wording
 
@@ -631,7 +631,7 @@ STREAMED_GCODE
 
 Expected result:
 
-* PrinterHub can execute small controlled G-code streams itself
+* SpaghettiChef can execute small controlled G-code streams itself
 * mini jobs and future calibration workflows can be controlled line by line
 * autonomous print mode remains available for normal printer-side file execution
 * local 0.2.x printing supports both architecture models without moving central monitoring into scope

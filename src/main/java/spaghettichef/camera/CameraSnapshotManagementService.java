@@ -1,0 +1,173 @@
+package spaghettichef.camera;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import spaghettichef.persistence.CameraJob;
+import spaghettichef.persistence.CameraJobStore;
+import spaghettichef.persistence.CameraSnapshotEntry;
+import spaghettichef.persistence.CameraSnapshotEntryStore;
+import spaghettichef.persistence.CameraSnapshotJobSummary;
+import spaghettichef.persistence.CameraSettings;
+
+public final class CameraSnapshotManagementService {
+
+    private final CameraSettingsService settingsService;
+    private final CameraSnapshotEntryStore snapshotEntryStore;
+    private final CameraJobStore cameraJobStore;
+
+    public CameraSnapshotManagementService(
+            CameraSettingsService settingsService,
+            CameraSnapshotEntryStore snapshotEntryStore) {
+        this(settingsService, snapshotEntryStore, new CameraJobStore());
+    }
+
+    public CameraSnapshotManagementService(
+            CameraSettingsService settingsService,
+            CameraSnapshotEntryStore snapshotEntryStore,
+            CameraJobStore cameraJobStore) {
+        this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
+        this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
+        this.cameraJobStore = Objects.requireNonNull(cameraJobStore, "cameraJobStore");
+    }
+
+    public List<CameraSnapshotJobSummary> listJobs() {
+        return cameraJobSummaries(cameraJobStore.findAll(), snapshotEntryStore.findJobSummaries());
+    }
+
+    public List<CameraSnapshotJobSummary> listJobs(String printerId) {
+        return cameraJobSummaries(
+                cameraJobStore.findByPrinterId(printerId),
+                snapshotEntryStore.findJobSummariesByPrinterId(printerId));
+    }
+
+    public List<CameraSnapshotEntry> entriesForJob(String jobId) {
+        return snapshotEntryStore.findByJobId(jobId);
+    }
+
+    public Optional<CameraSnapshotEntry> entryById(long entryId) {
+        return snapshotEntryStore.findById(entryId);
+    }
+
+    public List<CameraSnapshotEntry> entriesForJob(String printerId, String jobId) {
+        return snapshotEntryStore.findByPrinterIdAndJobId(printerId, jobId);
+    }
+
+    public CameraSnapshotDeletionReport deleteJobSnapshot(String jobId) {
+        List<CameraSnapshotEntry> entries = snapshotEntryStore.findByJobId(jobId);
+        List<String> failedFiles = new ArrayList<>();
+        int deletedFiles = 0;
+        long deletedBytes = 0L;
+
+        for (CameraSnapshotEntry entry : entries) {
+            Path snapshotPath = Path.of(entry.snapshotPath()).normalize();
+
+            if (!isInsidePrinterCameraDirectory(entry.printerId(), snapshotPath)) {
+                failedFiles.add(entry.snapshotPath());
+                continue;
+            }
+
+            try {
+                long size = Files.isRegularFile(snapshotPath) ? Files.size(snapshotPath) : 0L;
+                if (Files.deleteIfExists(snapshotPath)) {
+                    deletedFiles++;
+                    deletedBytes += size;
+                }
+            } catch (IOException exception) {
+                failedFiles.add(entry.snapshotPath());
+            }
+        }
+
+        int deletedRows = snapshotEntryStore.deleteByJobId(jobId);
+        String message = failedFiles.isEmpty()
+                ? "camera_snapshot_job_deleted"
+                : "camera_snapshot_job_deleted_with_file_errors";
+
+        return new CameraSnapshotDeletionReport(
+                jobId,
+                deletedFiles,
+                deletedBytes,
+                deletedRows,
+                List.copyOf(failedFiles),
+                message);
+    }
+
+    public CameraSnapshotDeletionReport deleteJobSnapshot(String printerId, String jobId) {
+        List<CameraSnapshotEntry> entries = snapshotEntryStore.findByPrinterIdAndJobId(printerId, jobId);
+        List<String> failedFiles = new ArrayList<>();
+        int deletedFiles = 0;
+        long deletedBytes = 0L;
+
+        for (CameraSnapshotEntry entry : entries) {
+            Path snapshotPath = Path.of(entry.snapshotPath()).normalize();
+
+            if (!isInsidePrinterCameraDirectory(entry.printerId(), snapshotPath)) {
+                failedFiles.add(entry.snapshotPath());
+                continue;
+            }
+
+            try {
+                long size = Files.isRegularFile(snapshotPath) ? Files.size(snapshotPath) : 0L;
+                if (Files.deleteIfExists(snapshotPath)) {
+                    deletedFiles++;
+                    deletedBytes += size;
+                }
+            } catch (IOException exception) {
+                failedFiles.add(entry.snapshotPath());
+            }
+        }
+
+        int deletedRows = snapshotEntryStore.deleteByPrinterIdAndJobId(printerId, jobId);
+        String message = failedFiles.isEmpty()
+                ? "camera_snapshot_job_deleted"
+                : "camera_snapshot_job_deleted_with_file_errors";
+
+        return new CameraSnapshotDeletionReport(
+                jobId,
+                deletedFiles,
+                deletedBytes,
+                deletedRows,
+                List.copyOf(failedFiles),
+                message);
+    }
+
+
+    private boolean isInsidePrinterCameraDirectory(String printerId, Path candidatePath) {
+        CameraSettings settings = settingsService.load(printerId);
+        Path printerDirectory = CameraStoragePaths
+                .resolveBaseDirectory(settings.storageDirectory())
+                .resolve(safePathSegment(printerId))
+                .normalize();
+
+        return candidatePath.startsWith(printerDirectory);
+    }
+
+    private static String safePathSegment(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("value must not be blank");
+        }
+        return value.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private static List<CameraSnapshotJobSummary> cameraJobSummaries(
+            List<CameraJob> jobs,
+            List<CameraSnapshotJobSummary> snapshotSummaries) {
+        Map<String, CameraSnapshotJobSummary> summariesByJobId = snapshotSummaries.stream()
+                .collect(Collectors.toMap(CameraSnapshotJobSummary::jobId, Function.identity(), (left, right) -> left));
+
+        return jobs.stream()
+                .map(job -> CameraSnapshotJobSummary.fromCameraJob(
+                        job,
+                        summariesByJobId.get(Long.toString(job.requireId()))))
+                .filter(summary -> summary.fileCount() > 0)
+                .toList();
+    }
+}

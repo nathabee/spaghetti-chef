@@ -1,14 +1,14 @@
 # img-analyzer
 
-Standalone Rust command-line image analyzer for PrinterHub camera experiments.
+Standalone Rust command-line image analyzer for SpaghettiChef camera experiments.
 
 ## Purpose
 
-`img-analyzer` is an experimental Rust tool developed alongside PrinterHub.
+`img-analyzer` is an experimental Rust tool developed alongside SpaghettiChef.
 
 The goal is to explore Rust-based image analysis without coupling the first development steps to the Java backend.
 
-The tool reads existing image files produced by PrinterHub camera jobs and performs simple visual-difference analysis.
+The tool reads existing image files produced by SpaghettiChef camera jobs and performs simple visual-difference analysis.
 
 Current scope:
 

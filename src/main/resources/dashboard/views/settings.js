@@ -24,7 +24,7 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
         <div>
           <div class="kicker">Local access</div>
           <h2>${escapeHtml(securityModeLabel())}</h2>
-          <p class="lead">Current dashboard role: ${escapeHtml(currentLocalRole())}. Running PrinterHub ${escapeHtml(appVersion.version || "unknown")}.</p>
+          <p class="lead">Current dashboard role: ${escapeHtml(currentLocalRole())}. Running SpaghettiChef ${escapeHtml(appVersion.version || "unknown")}.</p>
         </div>
         <span class="badge ${securitySettings.securityEnabled === true ? "badge-enabled" : "badge-disabled"}">${escapeHtml(currentLocalRole())}</span>
       </div>
@@ -153,14 +153,14 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
         <div class="section-header">
           <div>
             <h2>Print file storage</h2>
-            <p class="lead">Directory where uploaded .gcode files are saved by PrinterHub.</p>
+            <p class="lead">Directory where uploaded .gcode files are saved by SpaghettiChef.</p>
           </div>
         </div>
 
         <form id="printFileSettingsForm" class="form-grid">
           <label>
             Storage directory
-            <input id="printFileStorageDirectoryInput" name="storageDirectory" type="text" value="${escapeHtml(printFileSettings.storageDirectory ?? "printerhub-print-files")}" required>
+            <input id="printFileStorageDirectoryInput" name="storageDirectory" type="text" value="${escapeHtml(printFileSettings.storageDirectory ?? "spaghettichef-print-files")}" required>
           </label>
 
           <div class="form-actions">

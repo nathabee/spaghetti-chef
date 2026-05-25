@@ -1,7 +1,7 @@
-# PrinterHub Tools
+# SpaghettiChef Tools
 
 This directory contains operational helper scripts that are shipped with
-PrinterHub runtime packages.
+SpaghettiChef runtime packages.
 
 The tools are split by target platform:
 
@@ -22,7 +22,7 @@ tools/
 
 Tools are not Java application resources.
 
-They must not be bundled into `printer-hub.jar`.
+They must not be bundled into `spaghetti-chef.jar`.
 
 Windows tools are copied into the Windows package `bin/` directory.
 
@@ -33,7 +33,7 @@ Linux tools are copied into the Linux package tool/script area.
 A typical Windows runtime installation uses:
 
 ```text
-C:\printerhub\
+C:\spaghettichef\
 ├── app\
 ├── bin\
 ├── data\

@@ -7,7 +7,7 @@ status: planned
 
 Purpose:
 
-Introduce a local authorization and safety model before PrinterHub grows into
+Introduce a local authorization and safety model before SpaghettiChef grows into
 central VPS / multi-farm operation.
 
 This step does not yet implement full enterprise identity management. It creates
@@ -55,17 +55,17 @@ ADMIN    -> runtime configuration, printer administration, and security settings
 
 Expected result:
 
-* PrinterHub has a clear local access model
+* SpaghettiChef has a clear local access model
 * dangerous and administrative actions are no longer treated the same as read-only dashboard viewing
 
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/security/LocalRole.java
-src/main/java/printerhub/security/Permission.java
-src/main/java/printerhub/security/RoleProfile.java
-src/main/java/printerhub/security/AuthorizationService.java
-src/main/java/printerhub/OperationMessages.java
+src/main/java/spaghettichef/security/LocalRole.java
+src/main/java/spaghettichef/security/Permission.java
+src/main/java/spaghettichef/security/RoleProfile.java
+src/main/java/spaghettichef/security/AuthorizationService.java
+src/main/java/spaghettichef/OperationMessages.java
 ```
 
 ---
@@ -120,10 +120,10 @@ Expected result:
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/persistence/SecuritySettingsStore.java
-src/main/java/printerhub/persistence/RoleProfileStore.java
-src/main/java/printerhub/persistence/DatabaseInitializer.java
-src/main/java/printerhub/api/RemoteApiServer.java
+src/main/java/spaghettichef/persistence/SecuritySettingsStore.java
+src/main/java/spaghettichef/persistence/RoleProfileStore.java
+src/main/java/spaghettichef/persistence/DatabaseInitializer.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
 src/main/resources/dashboard/api.js
 src/main/resources/dashboard/state.js
 src/main/resources/dashboard/views/settings.js
@@ -198,10 +198,10 @@ Expected result:
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/api/RemoteApiServer.java
-src/main/java/printerhub/security/AuthorizationService.java
-src/main/java/printerhub/security/ActionPermissionResolver.java
-src/test/java/printerhub/api/RemoteApiServerTest.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
+src/main/java/spaghettichef/security/AuthorizationService.java
+src/main/java/spaghettichef/security/ActionPermissionResolver.java
+src/test/java/spaghettichef/api/RemoteApiServerTest.java
 ```
 
 ---
@@ -258,9 +258,9 @@ Expected result:
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/security/DangerousAction.java
-src/main/java/printerhub/security/DangerousActionGuard.java
-src/main/java/printerhub/api/RemoteApiServer.java
+src/main/java/spaghettichef/security/DangerousAction.java
+src/main/java/spaghettichef/security/DangerousActionGuard.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
 src/main/resources/dashboard/dashboard.js
 src/main/resources/dashboard/views/printer-prepare.js
 src/main/resources/dashboard/views/printer-control.js
@@ -351,10 +351,10 @@ Expected result:
 Likely impacted files:
 
 ```text
-src/main/java/printerhub/persistence/PrinterEventStore.java
-src/main/java/printerhub/persistence/OperatorAuditStore.java
-src/main/java/printerhub/security/AuthorizationService.java
-src/main/java/printerhub/api/RemoteApiServer.java
+src/main/java/spaghettichef/persistence/PrinterEventStore.java
+src/main/java/spaghettichef/persistence/OperatorAuditStore.java
+src/main/java/spaghettichef/security/AuthorizationService.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
 src/main/resources/dashboard/views/printer-history.js
 src/main/resources/dashboard/views/monitoring.js
 ```
@@ -363,7 +363,7 @@ src/main/resources/dashboard/views/monitoring.js
 
 ## Expected result for 0.3.0
 
-After this step, PrinterHub has a real local safety and authorization boundary.
+After this step, SpaghettiChef has a real local safety and authorization boundary.
 
 Expected improvements:
 
@@ -413,7 +413,7 @@ This is where you add real user management.
 Purpose:
 
 ```text
-PrinterHub gets local users, password login, sessions, and dashboard-based account administration.
+SpaghettiChef gets local users, password login, sessions, and dashboard-based account administration.
 ```
 
 This is the step you are asking about.
@@ -441,11 +441,11 @@ status: planned
 
 Purpose:
 
-Add local authentication to PrinterHub so real users can log in, receive a role/profile, and administer accounts through the dashboard before central VPS integration begins.
+Add local authentication to SpaghettiChef so real users can log in, receive a role/profile, and administer accounts through the dashboard before central VPS integration begins.
 
 Goals:
 
-* add local user accounts stored in the PrinterHub runtime database
+* add local user accounts stored in the SpaghettiChef runtime database
 * add password-based login for the embedded dashboard
 * store only password hashes, never plain passwords
 * attach one role/profile to each user
@@ -457,7 +457,7 @@ Goals:
 
 Expected result:
 
-* PrinterHub has a real local login screen
+* SpaghettiChef has a real local login screen
 * dashboard actions are executed as a known user, not as anonymous browser activity
 * local admins can manage users and roles without editing the database manually
 * later central authentication can build on a clear existing permission model
@@ -762,7 +762,7 @@ Settings
 Or, cleaner after 0.3.1:
 
 ```text
-PrinterHub
+SpaghettiChef
 ├── Farm Home
 ├── Monitoring
 ├── Printers

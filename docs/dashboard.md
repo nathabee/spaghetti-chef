@@ -1,6 +1,6 @@
-# PrinterHub Dashboard User Manual
+# SpaghettiChef Dashboard User Manual
 
-PrinterHub includes a local browser dashboard served by the same runtime as the REST API.
+SpaghettiChef includes a local browser dashboard served by the same runtime as the REST API.
 
 Open:
 
@@ -14,7 +14,7 @@ Typical local example:
 http://localhost:18080/dashboard
 ```
 
-If PrinterHub runs on another machine, replace `localhost` with that machine name or IP address:
+If SpaghettiChef runs on another machine, replace `localhost` with that machine name or IP address:
 
 ```text
 http://192.168.178.39:18080/dashboard
@@ -80,7 +80,7 @@ On small laptop screens the navigation scrolls, so all menu entries should remai
 2. Add or check your printer configuration.
 3. Enable the printer.
 4. Select the printer from the navigation.
-5. Open `Home` or `Monitoring` to confirm PrinterHub can poll it.
+5. Open `Home` or `Monitoring` to confirm SpaghettiChef can poll it.
 
 For a simulated printer, use a simulated port/mode. For a real Marlin printer, use the serial port shown by your operating system.
 
@@ -106,7 +106,7 @@ Use this page to choose the printer you want to operate.
 
 ## Jobs
 
-The Jobs page shows recent jobs across the local PrinterHub runtime.
+The Jobs page shows recent jobs across the local SpaghettiChef runtime.
 
 Common actions:
 
@@ -175,7 +175,7 @@ Home is the selected printer summary.
 Use it to confirm:
 
 * the selected printer is correct
-* PrinterHub can poll the printer
+* SpaghettiChef can poll the printer
 * temperatures and state are updating
 * recent events look normal
 
@@ -207,7 +207,7 @@ Use it to:
 * watch upload progress and transfer diagnostics
 * close an interrupted upload session when recovery is needed
 
-The upload controls are designed to use PrinterHub's controlled command flow. They are not raw serial access.
+The upload controls are designed to use SpaghettiChef's controlled command flow. They are not raw serial access.
 
 ---
 
@@ -233,34 +233,34 @@ Important fields:
 | Enable camera monitoring | Allows capture for this printer | checked |
 | Source type | Camera backend | `ffmpeg` |
 | Source value | Backend-specific input | `video=PC-LM1E Camera` |
-| Storage directory | Base folder for snapshots | `camera` or `C:\printerhub\data\camera` |
+| Storage directory | Base folder for snapshots | `camera` or `C:\spaghettichef\data\camera` |
 | ffmpeg command | ffmpeg executable | `ffmpeg` |
 | ffmpeg input format | OS/backend input type | `dshow` on Windows, `v4l2` on Linux |
 | ffmpeg video size | Capture size | `640x480` |
 | ffmpeg timeout ms | Capture timeout | `5000` |
 | ffmpeg JPEG quality | ffmpeg JPEG quality | `3` |
 
-The storage directory is a base directory. PrinterHub adds the printer id automatically.
+The storage directory is a base directory. SpaghettiChef adds the printer id automatically.
 
 Example with Windows package database:
 
 ```text
-database file:       C:\printerhub\data\printerhub.db
+database file:       C:\spaghettichef\data\spaghettichef.db
 storage setting:    camera
 printer id:         p1
-actual image folder: C:\printerhub\data\camera\p1
+actual image folder: C:\spaghettichef\data\camera\p1
 ```
 
 Example explicit Windows storage:
 
 ```text
-C:\printerhub\data\camera
+C:\spaghettichef\data\camera
 ```
 
-PrinterHub still adds the printer id:
+SpaghettiChef still adds the printer id:
 
 ```text
-C:\printerhub\data\camera\p1
+C:\spaghettichef\data\camera\p1
 ```
 
 ### Windows ffmpeg Camera Example

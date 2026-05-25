@@ -27,8 +27,8 @@ chat.txt
 
 # data
 data/
-printerhub-print-files/**
-printerhub-camera/**
+spaghettichef-print-files/**
+spaghettichef-camera/**
 *.jpg
 response.txt
 message.txt

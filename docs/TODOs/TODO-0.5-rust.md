@@ -1,6 +1,6 @@
 # TODO — 0.5.x Rust Image Analysis Track
 
-Goal: add Rust to PrinterHub as an independent image-analysis track first, without coupling it too early to the existing Java backend.
+Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
  
 ---
@@ -13,7 +13,7 @@ Planned.
 
 ## Purpose
 
-Create a standalone Rust command-line tool that analyzes existing image files produced by PrinterHub camera jobs.
+Create a standalone Rust command-line tool that analyzes existing image files produced by SpaghettiChef camera jobs.
 
 This version does **not** modify the Java backend.
 
@@ -21,7 +21,7 @@ The tool must be usable manually from the terminal.
 
 ## Architecture rule
 
-PrinterHub remains unchanged.
+SpaghettiChef remains unchanged.
 
 ```text
 Rust does not call Java.
@@ -130,7 +130,7 @@ In 0.5.0, `--delta-frame` is accepted as an optional argument but is not yet use
 
 ---
 
-# 0.5.1 — Rust Analyzer Real PrinterHub Dataset Workflow
+# 0.5.1 — Rust Analyzer Real SpaghettiChef Dataset Workflow
 
 ## Status
 
@@ -138,7 +138,7 @@ Planned.
 
 ## Purpose
 
-Use real PrinterHub camera files as manual test data.
+Use real SpaghettiChef camera files as manual test data.
 
 This proves that the Rust analyzer works with the real 0.4.x storage model.
 
@@ -154,7 +154,7 @@ data/camera/<printerId>/deltas/<cameraJobId>/<deltaSetId>/
 ## Manual workflow
 
 ```text
-1. Start PrinterHub normally.
+1. Start SpaghettiChef normally.
 2. Capture camera snapshots.
 3. Let 0.4.x create source snapshots and delta frames.
 4. Pick two snapshot files from one camera job.
@@ -189,7 +189,7 @@ rust/img-analyzer/scripts/analyze-sample.ps1
 
 ## Acceptance checklist
 
-* Analyzer runs against real PrinterHub snapshot files.
+* Analyzer runs against real SpaghettiChef snapshot files.
 * Analyzer runs with and without delta frame input.
 * At least one normal case is tested.
 * At least one suspicious/high-delta case is tested.
@@ -208,7 +208,7 @@ Planned.
 
 Stabilize the CLI contract before Java integration.
 
-This is the bridge between independent Rust work and future PrinterHub integration.
+This is the bridge between independent Rust work and future SpaghettiChef integration.
 
 ## Contract file
 
@@ -303,7 +303,7 @@ No Rust REST backend.
 ## New Java package
 
 ```text
-src/main/java/printerhub/camera/analysis/
+src/main/java/spaghettichef/camera/analysis/
 ```
 
 ## New Java files
@@ -362,7 +362,7 @@ Planned.
 
 ## Purpose
 
-Introduce the real PrinterHub calculation-engine abstraction.
+Introduce the real SpaghettiChef calculation-engine abstraction.
 
 This makes Rust selectable later without disturbing the camera pipeline.
 
@@ -424,10 +424,10 @@ INVALID_RESPONSE
 ## Java files likely touched
 
 ```text
-src/main/java/printerhub/camera/CameraCalculationRunService.java
-src/main/java/printerhub/persistence/CameraCalculationRun.java
-src/main/java/printerhub/persistence/CameraCalculationRunStore.java
-src/main/java/printerhub/persistence/DatabaseInitializer.java
+src/main/java/spaghettichef/camera/CameraCalculationRunService.java
+src/main/java/spaghettichef/persistence/CameraCalculationRun.java
+src/main/java/spaghettichef/persistence/CameraCalculationRunStore.java
+src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 ```
 
 ## Acceptance checklist
@@ -436,7 +436,7 @@ src/main/java/printerhub/persistence/DatabaseInitializer.java
 * Existing calculation runs still work.
 * Calculation runs persist engine metadata.
 * Rust engine can exist as an optional type.
-* Missing Rust executable does not crash PrinterHub.
+* Missing Rust executable does not crash SpaghettiChef.
 * `mvn test` passes.
 
 ---
@@ -473,7 +473,7 @@ Rust failure must not crash:
 camera job
 dashboard
 Java REST API
-PrinterHub runtime
+SpaghettiChef runtime
 ```
 
 Failure must be visible as diagnostic data.
@@ -481,8 +481,8 @@ Failure must be visible as diagnostic data.
 ## Java files likely touched
 
 ```text
-src/main/java/printerhub/camera/CameraCalculationRunService.java
-src/main/java/printerhub/api/CameraApiHandler.java
+src/main/java/spaghettichef/camera/CameraCalculationRunService.java
+src/main/java/spaghettichef/api/CameraApiHandler.java
 src/main/resources/dashboard/views/admin-camera-data.js
 src/main/resources/dashboard/api.js
 ```

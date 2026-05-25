@@ -1,6 +1,6 @@
 > **Project restructuring notice**
 >
-> PrinterHub is currently being developped
+> SpaghettiChef is currently being developped
 >
 > Some details in this document still describe the previous prototype state. The documentation will be cleaned up after the runtime architecture stabilizes.
 >
@@ -294,7 +294,7 @@ Purpose:
 * detect communication errors
 * update backend or database
 
-This corresponds to the current PrinterHub implementation.
+This corresponds to the current SpaghettiChef implementation.
 
 ### Device Communication Layer
 

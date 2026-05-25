@@ -97,7 +97,7 @@ Consistent delays → SD card write laten
 
 New Timing Output Format
 
-[PrinterHub] SD upload timing p1 line=2 attempt=1 checksum=0ms send+wait=24ms wall=24ms sleeps=12 total=24ms
+[SpaghettiChef] SD upload timing p1 line=2 attempt=1 checksum=0ms send+wait=24ms wall=24ms sleeps=12 total=24ms
 What Each Metric Means
 checksum (0ms): Time spent calculating the checksum (should be ~0ms)
 send+wait (24ms): NanoTime difference from send to response (precise CPU time)
@@ -122,16 +122,16 @@ If sleeps is much higher than the response time, it means the polling loop is in
 
 
 Result bottleneck test :
-[PrinterHub] SD upload timing p1 line=21 attempt=1 checksum=0ms send+wait=18ms wall=19ms sleeps=14 total=18ms
-[PrinterHub] SD upload wire p1 -> N22 M84*47 [attempt 1]
-[PrinterHub] SD upload wire p1 <- ok
-[PrinterHub] SD upload timing p1 line=22 attempt=1 checksum=0ms send+wait=16ms wall=16ms sleeps=14 total=16ms
-[PrinterHub] SD upload wire p1 -> N23 M29*41 [attempt 1]
-[PrinterHub] SD upload wire p1 <- Done saving file. | ok
-[PrinterHub] SD upload timing p1 line=23 attempt=1 checksum=0ms send+wait=25ms wall=26ms sleeps=21 total=25ms
-[PrinterHub] SD upload wire p1 -> N24 M20*39 [attempt 1]
-[PrinterHub] SD upload wire p1 <- Begin file list | CE3E3V~1.GCO 3900960 | CE3E3V~2.GCO 6517601 | LEFTLE~1.GCO 596930 | CE3E3V~3.GCO 596930 | TEST-023.GCO 52 | CE3E3V2_.GCO 6281784 | SMALLBOX.GCO 6281784 | BOTTLENE.GCO 294 | TEST8SIN.GCO 9 | TEST8EMP.GCO 9 | TEST9.GCO 73 | TESTHEXA.GCO 230 | FLEXIL~1.GCO 7501934 | HORIZO~2.GCO 676556 | /ORIGIN/RABBIT~1.GCO 5137185 | /ORIGIN/BOAT~1.GCO 3759599 | End file list | ok
-[PrinterHub] SD upload timing p1 line=24 attempt=1 checksum=0ms send+wait=55ms wall=56ms sleeps=39 total=55ms
+[SpaghettiChef] SD upload timing p1 line=21 attempt=1 checksum=0ms send+wait=18ms wall=19ms sleeps=14 total=18ms
+[SpaghettiChef] SD upload wire p1 -> N22 M84*47 [attempt 1]
+[SpaghettiChef] SD upload wire p1 <- ok
+[SpaghettiChef] SD upload timing p1 line=22 attempt=1 checksum=0ms send+wait=16ms wall=16ms sleeps=14 total=16ms
+[SpaghettiChef] SD upload wire p1 -> N23 M29*41 [attempt 1]
+[SpaghettiChef] SD upload wire p1 <- Done saving file. | ok
+[SpaghettiChef] SD upload timing p1 line=23 attempt=1 checksum=0ms send+wait=25ms wall=26ms sleeps=21 total=25ms
+[SpaghettiChef] SD upload wire p1 -> N24 M20*39 [attempt 1]
+[SpaghettiChef] SD upload wire p1 <- Begin file list | CE3E3V~1.GCO 3900960 | CE3E3V~2.GCO 6517601 | LEFTLE~1.GCO 596930 | CE3E3V~3.GCO 596930 | TEST-023.GCO 52 | CE3E3V2_.GCO 6281784 | SMALLBOX.GCO 6281784 | BOTTLENE.GCO 294 | TEST8SIN.GCO 9 | TEST8EMP.GCO 9 | TEST9.GCO 73 | TESTHEXA.GCO 230 | FLEXIL~1.GCO 7501934 | HORIZO~2.GCO 676556 | /ORIGIN/RABBIT~1.GCO 5137185 | /ORIGIN/BOAT~1.GCO 3759599 | End file list | ok
+[SpaghettiChef] SD upload timing p1 line=24 attempt=1 checksum=0ms send+wait=55ms wall=56ms sleeps=39 total=55ms
 
 
 => this means , the bottleneck is the printer because the printer must awake 14 to 21 times waiting for a response for the printer, this is where goes the time...

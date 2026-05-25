@@ -1,11 +1,11 @@
 
-# PrinterHub Linux Tools
+# SpaghettiChef Linux Tools
 
-This directory contains Linux helper scripts for PrinterHub.
+This directory contains Linux helper scripts for SpaghettiChef.
 
 ## Camera Helpers
 
-PrinterHub now supports direct ffmpeg webcam capture from the dashboard. The
+SpaghettiChef now supports direct ffmpeg webcam capture from the dashboard. The
 camera helper scripts are mainly diagnostic tools and fallback utilities.
 
 ```text
@@ -90,7 +90,7 @@ archive/*.jpg
 
 ## Storage Layout
 
-When the database is `./data/printerhub.db`, the default camera storage is:
+When the database is `./data/spaghettichef.db`, the default camera storage is:
 
 ```text
 ./data/camera/<printerId>/
@@ -100,4 +100,4 @@ When the database is `./data/printerhub.db`, the default camera storage is:
 └── snapshots/
 ```
 
-Use the same `printerId` as the printer created in the PrinterHub dashboard.
+Use the same `printerId` as the printer created in the SpaghettiChef dashboard.
