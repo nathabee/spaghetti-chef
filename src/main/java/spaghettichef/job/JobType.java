@@ -1,0 +1,13 @@
+package spaghettichef.job;
+
+public enum JobType {
+    READ_TEMPERATURE,
+    READ_POSITION,
+    READ_FIRMWARE_INFO,
+    HOME_AXES,
+    SET_NOZZLE_TEMPERATURE,
+    SET_BED_TEMPERATURE,
+    SET_FAN_SPEED,
+    TURN_FAN_OFF,
+    PRINT_FILE
+}

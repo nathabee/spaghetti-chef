@@ -1,7 +1,7 @@
 param(
     [string]$PrinterId = "p1",
     [string]$CameraName = "PC-LM1E Camera",
-    [string]$BaseDir = "C:\printerhub\data\camera",
+    [string]$BaseDir = "C:\spaghettichef\data\camera",
     [int]$Width = 1280,
     [int]$Height = 720,
     [int]$IntervalSeconds = 2,

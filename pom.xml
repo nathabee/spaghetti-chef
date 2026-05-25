@@ -5,8 +5,8 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>printerhub</groupId>
-    <artifactId>printer-hub</artifactId>
+    <groupId>spaghettichef</groupId>
+    <artifactId>spaghetti-chef</artifactId>
     <version>0.5.0</version>
 
     <properties>
@@ -90,7 +90,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>printerhub.Main</mainClass>
+                    <mainClass>spaghettichef.Main</mainClass>
                 </configuration>
             </plugin>
 
@@ -110,7 +110,7 @@
                             <shadedClassifierName>all</shadedClassifierName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>printerhub.Main</mainClass>
+                                    <mainClass>spaghettichef.Main</mainClass>
                                     <manifestEntries>
                                         <Implementation-Version>${project.version}</Implementation-Version>
                                     </manifestEntries>

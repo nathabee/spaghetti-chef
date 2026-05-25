@@ -39,18 +39,18 @@ function Read-RunEnv {
     return $map
 }
 
-$taskName = 'PrinterHub'
-$runEnvPath = 'C:\printerhub\data\run.env'
+$taskName = 'SpaghettiChef'
+$runEnvPath = 'C:\spaghettichef\data\run.env'
 $envMap = Read-RunEnv -Path $runEnvPath
 
 $databaseFile = $null
 $apiPort = '18080'
 
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+if ($envMap.ContainsKey('SPAGHETTICHEF_DATABASE_FILE')) {
+    $databaseFile = $envMap['SPAGHETTICHEF_DATABASE_FILE']
 }
-if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
-    $apiPort = $envMap['PRINTERHUB_API_PORT']
+if ($envMap.ContainsKey('SPAGHETTICHEF_API_PORT')) {
+    $apiPort = $envMap['SPAGHETTICHEF_API_PORT']
 }
 
 try {
@@ -63,9 +63,9 @@ catch {
 
 $targets = Get-CimInstance Win32_Process | Where-Object {
     $_.CommandLine -and (
-        $_.CommandLine -match 'printer-hub\.jar' -or
-        $_.CommandLine -match 'printerhub\.bat' -or
-        $_.CommandLine -match 'printerhub-task\.cmd'
+        $_.CommandLine -match 'spaghetti-chef\.jar' -or
+        $_.CommandLine -match 'spaghettichef\.bat' -or
+        $_.CommandLine -match 'spaghettichef-task\.cmd'
     )
 }
 
@@ -78,16 +78,16 @@ if ($databaseFile) {
 }
 
 if (-not $targets) {
-    Write-Host "No PrinterHub process found."
+    Write-Host "No SpaghettiChef process found."
 }
 else {
     foreach ($proc in $targets) {
         try {
             Stop-Process -Id $proc.ProcessId -Force
-            Write-Host "Stopped PrinterHub PID $($proc.ProcessId)"
+            Write-Host "Stopped SpaghettiChef PID $($proc.ProcessId)"
         }
         catch {
-            Fail "Failed to stop PrinterHub PID $($proc.ProcessId): $($_.Exception.Message)"
+            Fail "Failed to stop SpaghettiChef PID $($proc.ProcessId): $($_.Exception.Message)"
         }
     }
 }
@@ -98,9 +98,9 @@ for ($i = 0; $i -lt 20; $i++) {
 
     $remaining = Get-CimInstance Win32_Process | Where-Object {
         $_.CommandLine -and (
-            $_.CommandLine -match 'printer-hub\.jar' -or
-            $_.CommandLine -match 'printerhub\.bat' -or
-            $_.CommandLine -match 'printerhub-task\.cmd'
+            $_.CommandLine -match 'spaghetti-chef\.jar' -or
+            $_.CommandLine -match 'spaghettichef\.bat' -or
+            $_.CommandLine -match 'spaghettichef-task\.cmd'
         )
     }
 
@@ -127,8 +127,8 @@ for ($i = 0; $i -lt 20; $i++) {
 }
 
 if (-not $stopped) {
-    Fail "PrinterHub stop was requested, but runtime still appears active or locked."
+    Fail "SpaghettiChef stop was requested, but runtime still appears active or locked."
 }
 
 Write-Host "Health endpoint no longer reachable on port $apiPort"
-Write-Host "PrinterHub stopped successfully."
+Write-Host "SpaghettiChef stopped successfully."

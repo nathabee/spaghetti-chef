@@ -2,7 +2,7 @@
 
 This document describes manual verification for the `0.1.x` local runtime architecture.
 
-> PrinterHub is currently in runtime migration.
+> SpaghettiChef is currently in runtime migration.
 > The focus is runtime startup, API responsiveness, background monitoring, dashboard configuration, and SQLite persistence.
 
 ---
@@ -37,17 +37,17 @@ Recommended test port:
 
 ```bash
 mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=18081
+  -Dexec.mainClass="spaghettichef.Main" \
+  -Dspaghettichef.api.port=18081
 ```
 
 Optional custom database file:
 
 ```bash
 mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=18081 \
-  -Dprinterhub.databaseFile=printerhub-test.db
+  -Dexec.mainClass="spaghettichef.Main" \
+  -Dspaghettichef.api.port=18081 \
+  -Dspaghettichef.databaseFile=spaghettichef-test.db
 ```
 
 Keep the runtime terminal open while running the checks below.
@@ -230,7 +230,7 @@ Normal dashboard reads do not poll printers directly.
 Check tables:
 
 ```bash
-sqlite3 printerhub.db '.tables'
+sqlite3 spaghettichef.db '.tables'
 ```
 
 Expected tables include:
@@ -246,21 +246,21 @@ monitoring_rules
 Check persisted snapshots:
 
 ```bash
-sqlite3 printerhub.db \
+sqlite3 spaghettichef.db \
   'select printer_id,state,created_at from printer_snapshots order by id desc limit 10;'
 ```
 
 Check persisted events:
 
 ```bash
-sqlite3 printerhub.db \
+sqlite3 spaghettichef.db \
   'select printer_id,event_type,message,created_at from printer_events order by id desc limit 10;'
 ```
 
 Check persisted configuration:
 
 ```bash
-sqlite3 printerhub.db \
+sqlite3 spaghettichef.db \
   'select id,name,port_name,mode,enabled from configured_printers order by id;'
 ```
 
@@ -286,8 +286,8 @@ Start again:
 
 ```bash
 mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=18081
+  -Dexec.mainClass="spaghettichef.Main" \
+  -Dspaghettichef.api.port=18081
 ```
 
 Then:

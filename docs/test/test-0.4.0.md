@@ -2,23 +2,23 @@
 
 ## start
 
-mvn exec:java   -Dprinterhub.databaseFile="printerhub-real.db"   -Dprinterhub.api.port=18080   -Dexec.mainClass="printerhub.Main"
+mvn exec:java   -Dspaghettichef.databaseFile="spaghettichef-real.db"   -Dspaghettichef.api.port=18080   -Dexec.mainClass="spaghettichef.Main"
 [INFO] Scanning for projects...
 [INFO] 
-[INFO] -----------------------< printerhub:printer-hub >-----------------------
-[INFO] Building printer-hub 0.2.6
+[INFO] -----------------------< spaghettichef:spaghetti-chef >-----------------------
+[INFO] Building spaghetti-chef 0.2.6
 [INFO] --------------------------------[ jar ]---------------------------------
 [INFO] 
-[INFO] --- exec-maven-plugin:3.1.0:java (default-cli) @ printer-hub ---
+[INFO] --- exec-maven-plugin:3.1.0:java (default-cli) @ spaghetti-chef ---
 SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
 SLF4J: Defaulting to no-operation (NOP) logger implementation
 SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
-[PrinterHub] Database initialized: printerhub-real.db
-[PrinterHub] API server started on port 18080
-[PrinterHub] Local runtime started
-[PrinterHub] Health:   http://localhost:18080/health
-[PrinterHub] Printers: http://localhost:18080/printers
-[PrinterHub] Settings: http://localhost:18080/settings/monitoring
+[SpaghettiChef] Database initialized: spaghettichef-real.db
+[SpaghettiChef] API server started on port 18080
+[SpaghettiChef] Local runtime started
+[SpaghettiChef] Health:   http://localhost:18080/health
+[SpaghettiChef] Printers: http://localhost:18080/printers
+[SpaghettiChef] Settings: http://localhost:18080/settings/monitoring
 
 
 ## tests

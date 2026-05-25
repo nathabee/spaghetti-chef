@@ -33,37 +33,37 @@ function Read-RunEnv {
     return $map
 }
 
-$runEnvPath = 'C:\printerhub\data\run.env'
-$appDir = 'C:\printerhub\app'
-$jarPath = Join-Path $appDir 'printer-hub.jar'
-$launcherPath = Join-Path $appDir 'printerhub.bat'
-$taskCmdPath = 'C:\printerhub\bin\printerhub-task.cmd'
-$stdoutLog = 'C:\printerhub\log\printerhub-out.log'
-$stderrLog = 'C:\printerhub\log\printerhub-err.log'
-$startLog = 'C:\printerhub\log\start.log'
+$runEnvPath = 'C:\spaghettichef\data\run.env'
+$appDir = 'C:\spaghettichef\app'
+$jarPath = Join-Path $appDir 'spaghetti-chef.jar'
+$launcherPath = Join-Path $appDir 'spaghettichef.bat'
+$taskCmdPath = 'C:\spaghettichef\bin\spaghettichef-task.cmd'
+$stdoutLog = 'C:\spaghettichef\log\spaghettichef-out.log'
+$stderrLog = 'C:\spaghettichef\log\spaghettichef-err.log'
+$startLog = 'C:\spaghettichef\log\start.log'
 
 $envMap = Read-RunEnv -Path $runEnvPath
 
 $apiPort = '18080'
 $serialPort = 'COM3'
 $mode = 'real'
-$databaseFile = 'printerhub.db'
+$databaseFile = 'spaghettichef.db'
 $javaCommand = ''
 
-if ($envMap.ContainsKey('PRINTERHUB_API_PORT')) {
-    $apiPort = $envMap['PRINTERHUB_API_PORT']
+if ($envMap.ContainsKey('SPAGHETTICHEF_API_PORT')) {
+    $apiPort = $envMap['SPAGHETTICHEF_API_PORT']
 }
-if ($envMap.ContainsKey('PRINTERHUB_DATABASE_FILE')) {
-    $databaseFile = $envMap['PRINTERHUB_DATABASE_FILE']
+if ($envMap.ContainsKey('SPAGHETTICHEF_DATABASE_FILE')) {
+    $databaseFile = $envMap['SPAGHETTICHEF_DATABASE_FILE']
 }
-if ($envMap.ContainsKey('PRINTERHUB_JAVA')) {
-    $javaCommand = $envMap['PRINTERHUB_JAVA']
+if ($envMap.ContainsKey('SPAGHETTICHEF_JAVA')) {
+    $javaCommand = $envMap['SPAGHETTICHEF_JAVA']
 }
 
 $targets = Get-CimInstance Win32_Process | Where-Object {
     ($_.Name -eq 'java.exe' -or $_.Name -eq 'javaw.exe' -or $_.Name -eq 'cmd.exe') -and
     $_.CommandLine -and
-    ($_.CommandLine -match 'printer-hub\.jar' -or $_.CommandLine -match 'printerhub\.bat' -or $_.CommandLine -match 'printerhub-task\.cmd')
+    ($_.CommandLine -match 'spaghetti-chef\.jar' -or $_.CommandLine -match 'spaghettichef\.bat' -or $_.CommandLine -match 'spaghettichef-task\.cmd')
 }
 
 if ($databaseFile) {
@@ -82,7 +82,7 @@ Write-Host "Task wrapper exists: $(Test-Path -LiteralPath $taskCmdPath)"
 Write-Host "Configured API port: $apiPort" 
 Write-Host "Configured database file: $databaseFile"
 Write-Host "Configured Java command: $javaCommand"
-Write-Host "PrinterHub-related process count: $($targets.Count)"
+Write-Host "SpaghettiChef-related process count: $($targets.Count)"
 
 if (Test-Path -LiteralPath $runEnvPath) {
     Write-Host ""
@@ -91,7 +91,7 @@ if (Test-Path -LiteralPath $runEnvPath) {
 }
 
 try {
-    $taskInfo = schtasks /Query /TN PrinterHub /FO LIST /V
+    $taskInfo = schtasks /Query /TN SpaghettiChef /FO LIST /V
     Write-Host ""
     Write-Host "--- Task Scheduler ---"
     $taskInfo
@@ -99,7 +99,7 @@ try {
 catch {
     Write-Host ""
     Write-Host "--- Task Scheduler ---"
-    Write-Host "Scheduled task 'PrinterHub' not found."
+    Write-Host "Scheduled task 'SpaghettiChef' not found."
 }
 
 if ($targets.Count -gt 0) {
@@ -132,12 +132,12 @@ if (Test-Path -LiteralPath $startLog) {
 
 if (Test-Path -LiteralPath $stdoutLog) {
     Write-Host ""
-    Write-Host "--- printerhub-out.log ---"
+    Write-Host "--- spaghettichef-out.log ---"
     Get-Content -LiteralPath $stdoutLog -Tail 80
 }
 
 if (Test-Path -LiteralPath $stderrLog) {
     Write-Host ""
-    Write-Host "--- printerhub-err.log ---"
+    Write-Host "--- spaghettichef-err.log ---"
     Get-Content -LiteralPath $stderrLog -Tail 80
 }

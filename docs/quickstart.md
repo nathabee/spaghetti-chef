@@ -1,6 +1,6 @@
 # Quickstart
 
-This guide explains how to run PrinterHub from an expert package or build it
+This guide explains how to run SpaghettiChef from an expert package or build it
 locally from source.
 
 It focuses only on the shortest path to:
@@ -47,16 +47,16 @@ recompile.
 Linux:
 
 ```bash
-tar -xzf printer-hub-<version>-linux.tar.gz
+tar -xzf spaghetti-chef-<version>-linux.tar.gz
 cd linux
-./printerhub.sh 18080
+./spaghettichef.sh 18080
 ```
 
 Windows:
 
 ```bat
-rem extract printer-hub-<version>-windows.zip first
-printerhub.bat 18080
+rem extract spaghetti-chef-<version>-windows.zip first
+spaghettichef.bat 18080
 ```
 
 Then open:
@@ -72,8 +72,8 @@ The packages require Java 21 to be installed already.
 ## Clone repository
 
 ```bash
-git clone https://github.com/nathabee/printer-hub.git
-cd printer-hub
+git clone https://github.com/nathabee/spaghetti-chef.git
+cd spaghetti-chef
 ```
 
 ---
@@ -98,7 +98,7 @@ Main outputs:
 ```text
 target/surefire-reports/
 target/site/jacoco/
-target/printer-hub-<version>-all.jar
+target/spaghetti-chef-<version>-all.jar
 ```
 
 ---
@@ -110,37 +110,37 @@ After `mvn clean verify`, you can run the shaded jar directly.
 Linux:
 
 ```bash
-java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar target/printer-hub-<version>-all.jar
+java -Dspaghettichef.databaseFile=spaghettichef.db -Dspaghettichef.api.port=18080 -jar target/spaghetti-chef-<version>-all.jar
 ```
 
 Windows:
 
 ```bat
-java -Dprinterhub.databaseFile=printerhub.db -Dprinterhub.api.port=18080 -jar target\printer-hub-<version>-all.jar
+java -Dspaghettichef.databaseFile=spaghettichef.db -Dspaghettichef.api.port=18080 -jar target\spaghetti-chef-<version>-all.jar
 ```
 
 ---
 
 ## Start the local runtime
 
-For development, Maven can start PrinterHub directly:
+For development, Maven can start SpaghettiChef directly:
 
 ```bash
 mvn exec:java \
-  -Dexec.mainClass="printerhub.Main" \
-  -Dprinterhub.api.port=8080 \
-  -Dprinterhub.monitoring.intervalSeconds=1 \
-  -Dprinterhub.databaseFile=printerhub.db
+  -Dexec.mainClass="spaghettichef.Main" \
+  -Dspaghettichef.api.port=8080 \
+  -Dspaghettichef.monitoring.intervalSeconds=1 \
+  -Dspaghettichef.databaseFile=spaghettichef.db
 ```
 
 Expected startup output:
 
 ```text
-[PrinterHub] Database initialized: printerhub.db
-[PrinterHub] API server started on port 8080
-[PrinterHub] Local runtime started
-[PrinterHub] Health:   http://localhost:8080/health
-[PrinterHub] Printers: http://localhost:8080/printers
+[SpaghettiChef] Database initialized: spaghettichef.db
+[SpaghettiChef] API server started on port 8080
+[SpaghettiChef] Local runtime started
+[SpaghettiChef] Health:   http://localhost:8080/health
+[SpaghettiChef] Printers: http://localhost:8080/printers
 ```
 
 ---

@@ -1,6 +1,6 @@
-# PrinterHub Specification
+# SpaghettiChef Specification
 
-This document describes the current technical design of PrinterHub.
+This document describes the current technical design of SpaghettiChef.
 
 For operator instructions, see [dashboard.md](dashboard.md). For endpoint details, see [rest-api.md](rest-api.md).
 
@@ -8,7 +8,7 @@ For operator instructions, see [dashboard.md](dashboard.md). For endpoint detail
 
 ## Runtime Summary
 
-PrinterHub is a local Java runtime for monitoring and controlling Marlin-compatible 3D printers.
+SpaghettiChef is a local Java runtime for monitoring and controlling Marlin-compatible 3D printers.
 
 It provides:
 
@@ -33,9 +33,9 @@ The real-printer development reference is a Creality Ender-series Marlin workflo
 
 | Property | Default | Purpose |
 | --- | --- | --- |
-| `printerhub.api.port` | `8080` | REST API and dashboard port |
-| `printerhub.databaseFile` | `printerhub.db` | SQLite database file |
-| `printerhub.monitoring.intervalSeconds` | `5` | printer monitoring interval |
+| `spaghettichef.api.port` | `8080` | REST API and dashboard port |
+| `spaghettichef.databaseFile` | `spaghettichef.db` | SQLite database file |
+| `spaghettichef.monitoring.intervalSeconds` | `5` | printer monitoring interval |
 
 Camera storage is not a startup property. It is a persisted per-printer camera setting.
 
@@ -50,10 +50,10 @@ Relative camera storage paths resolve from the configured database directory. Th
 Example:
 
 ```text
-database:         C:\printerhub\data\printerhub.db
+database:         C:\spaghettichef\data\spaghettichef.db
 camera setting:   camera
 printer id:       p1
-resolved folder:  C:\printerhub\data\camera\p1
+resolved folder:  C:\spaghettichef\data\camera\p1
 ```
 
 ---
@@ -63,7 +63,7 @@ resolved folder:  C:\printerhub\data\camera\p1
 ```mermaid
 sequenceDiagram
     participant Main
-    participant Runtime as PrinterHubRuntime
+    participant Runtime as SpaghettiChefRuntime
     participant DB as DatabaseInitializer
     participant Registry as PrinterRegistry
     participant Monitor as PrinterMonitoringScheduler
@@ -92,7 +92,7 @@ Shutdown closes:
 ```mermaid
 flowchart TB
     Main["Main"]
-    Runtime["PrinterHubRuntime"]
+    Runtime["SpaghettiChefRuntime"]
     API["RemoteApiServer"]
     Dashboard["Dashboard resources"]
     Registry["PrinterRegistry"]
@@ -146,15 +146,15 @@ flowchart TB
 
 ## Logging
 
-Runtime logs should use `PrinterHubLog` for new code.
+Runtime logs should use `SpaghettiChefLog` for new code.
 
 Log format:
 
 ```text
-2026-05-20T08:12:24.606088160Z [PrinterHub] INFO Default camera storage base: /tmp/example/camera
+2026-05-20T08:12:24.606088160Z [SpaghettiChef] INFO Default camera storage base: /tmp/example/camera
 ```
 
-Current code still contains older direct `System.out`/`System.err` calls in some serial, job, and monitoring areas. New work should prefer `PrinterHubLog`.
+Current code still contains older direct `System.out`/`System.err` calls in some serial, job, and monitoring areas. New work should prefer `SpaghettiChefLog`.
 
 Fixed message vocabulary and event names belong in `OperationMessages`.
 
@@ -162,12 +162,12 @@ Fixed message vocabulary and event names belong in `OperationMessages`.
 
 ## Persistence
 
-PrinterHub uses SQLite.
+SpaghettiChef uses SQLite.
 
 The database file is selected by:
 
 ```text
--Dprinterhub.databaseFile=<file>
+-Dspaghettichef.databaseFile=<file>
 ```
 
 Persisted data includes:
@@ -420,7 +420,7 @@ The browser UI uses JavaScript modules and relative API requests. It should not 
 Known cleanup targets:
 
 * split `RemoteApiServer` into route handlers by domain
-* finish moving direct console output to `PrinterHubLog`
+* finish moving direct console output to `SpaghettiChefLog`
 * keep constants in `RuntimeDefaults` and `OperationMessages`
 * keep orchestration classes free of duplicated message constants
 * expand camera archive browsing API

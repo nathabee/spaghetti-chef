@@ -1,0 +1,11 @@
+package spaghettichef.camera;
+
+public enum SpaghettiDetectionReason {
+
+    ANALYSIS_NOT_COMPLETED,
+    LOW_VISUAL_DELTA,
+    HIGH_VISUAL_DELTA,
+    EXCESSIVE_CHANGED_AREA,
+    POSSIBLE_SPAGHETTI_PATTERN,
+    INSUFFICIENT_EVIDENCE
+}

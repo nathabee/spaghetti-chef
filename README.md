@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="docs/assets/media/banner-1544x500.png" alt="PrinterHub banner">
+  <img src="docs/assets/media/banner-1544x500.png" alt="SpaghettiChef banner">
 </p>
 
-# PrinterHub
+# SpaghettiChef
 
-**PrinterHub** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, controlled printer workflows, and camera-based visual analysis.
+**SpaghettiChef** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, controlled printer workflows, and camera-based visual analysis.
 
-PrinterHub is local-first. One runtime supervises one local printer farm through USB-connected or simulated printers. The current hardware reference is a Marlin-compatible Creality Ender-series printer, while simulation support keeps the runtime testable without physical hardware.
+SpaghettiChef is local-first. One runtime supervises one local printer farm through USB-connected or simulated printers. The current hardware reference is a Marlin-compatible Creality Ender-series printer, while simulation support keeps the runtime testable without physical hardware.
 
 The project currently combines:
 
@@ -25,9 +25,9 @@ For the detailed version plan, see [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 
-## What PrinterHub does
+## What SpaghettiChef does
 
-PrinterHub provides a structured local control layer around 3D printers.
+SpaghettiChef provides a structured local control layer around 3D printers.
 
 At the current stage, it can:
 
@@ -47,7 +47,7 @@ At the current stage, it can:
 * review camera analysis sessions
 * run a standalone Rust CLI image analyzer experiment
 
-PrinterHub does not currently try to replace a slicer or a full production MES. It focuses on the local runtime layer: printer communication, control, observation, persistence, and operator-facing diagnostics.
+SpaghettiChef does not currently try to replace a slicer or a full production MES. It focuses on the local runtime layer: printer communication, control, observation, persistence, and operator-facing diagnostics.
 
 ---
 
@@ -79,7 +79,7 @@ The 0.5.x work introduces an independent Rust image-analysis track. The Rust too
 flowchart TB
     dashboard["Embedded dashboard"]
     api["Java REST API"]
-    runtime["PrinterHub runtime"]
+    runtime["SpaghettiChef runtime"]
     db["SQLite persistence"]
     monitoring["Monitoring scheduler"]
     jobs["Job and action services"]
@@ -100,20 +100,20 @@ flowchart TB
     camera -. future optional integration .-> rust
 ```
 
-PrinterHub keeps the Java runtime as the owner of API, persistence, dashboard, scheduling, printer workflows, and camera-job state. External image analyzers are treated as optional calculation engines, not as replacement backends.
+SpaghettiChef keeps the Java runtime as the owner of API, persistence, dashboard, scheduling, printer workflows, and camera-job state. External image analyzers are treated as optional calculation engines, not as replacement backends.
 
 ---
 
 ## Dashboard
 
-PrinterHub includes an embedded dashboard served by the local runtime.
+SpaghettiChef includes an embedded dashboard served by the local runtime.
 
 The dashboard separates global runtime administration from selected-printer operation.
 
 ### Primary navigation
 
 ```text
-PrinterHub
+SpaghettiChef
 ├── Farm Home
 ├── Printers
 ├── Jobs
@@ -161,49 +161,49 @@ The screenshots below provide a visual overview of the current runtime, dashboar
   <tr>
     <td align="center">
       <sub>Farm Home</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-farm-home.png" alt="PrinterHub dashboard farm home" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-farm-home.png" alt="SpaghettiChef dashboard farm home" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Selected Printer → Home</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-printer-home.png" alt="PrinterHub selected printer home view" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-printer-home.png" alt="SpaghettiChef selected printer home view" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Selected Printer → Print</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-print.png" alt="PrinterHub selected printer print view" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-print.png" alt="SpaghettiChef selected printer print view" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>SD Card Management</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-sd-card.png" alt="PrinterHub SD card management" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-sd-card.png" alt="SpaghettiChef SD card management" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Camera Analysis</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-camera-analysis.png" alt="PrinterHub camera analysis view" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-camera-analysis.png" alt="SpaghettiChef camera analysis view" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Admin Camera Data</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-admin-camera-data.png" alt="PrinterHub admin camera data view" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-admin-camera-data.png" alt="SpaghettiChef admin camera data view" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Analysis Review</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-dashboard-analysis-review.png" alt="PrinterHub camera analysis review" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-dashboard-analysis-review.png" alt="SpaghettiChef camera analysis review" width="100%">
     </td>
   </tr>
   <tr>
     <td align="center">
       <sub>Rust img-analyzer terminal output</sub><br>
-      <img src="docs/assets/media-src/screenshot-printerhub-rust-img-analyzer-terminal.png" alt="PrinterHub Rust img-analyzer terminal output" width="100%">
+      <img src="docs/assets/media-src/screenshot-spaghettichef-rust-img-analyzer-terminal.png" alt="SpaghettiChef Rust img-analyzer terminal output" width="100%">
     </td>
   </tr>
 </table>
@@ -213,7 +213,7 @@ The screenshots below provide a visual overview of the current runtime, dashboar
 
 ## Camera monitoring and visual analysis
 
-PrinterHub includes a camera pipeline for per-printer image capture and persisted analysis.
+SpaghettiChef includes a camera pipeline for per-printer image capture and persisted analysis.
 
 The current camera model distinguishes live preview files from persisted analysis data.
 
@@ -238,8 +238,9 @@ Live files are volatile working files. Persisted review and recalculation use da
 
 ```mermaid
 flowchart TB
-    capture["Capture frame"]
+    manual["Manual capture"]
     live["Update live preview files<br/>latest / previous / delta"]
+    jobcapture["Camera job capture"]
     job["Camera job"]
     snapshot["Retained source snapshot"]
     entry["camera_snapshot_entries"]
@@ -249,8 +250,9 @@ flowchart TB
     result["Calculation result"]
     review["Analysis session review"]
 
-    capture --> live
-    capture --> job
+    manual --> live
+    jobcapture --> job
+    jobcapture --> live
     job --> snapshot
     snapshot --> entry
     entry --> deltaset
@@ -310,7 +312,7 @@ The 0.5.x track adds an experimental Rust image-analysis component.
 The first Rust step is intentionally standalone:
 
 ```text
-PrinterHub camera files
+SpaghettiChef camera files
         ↓
 rust/img-analyzer
         ↓
@@ -376,7 +378,7 @@ flowchart LR
 
 ## Printer runtime and monitoring
 
-PrinterHub monitors each configured printer node through the runtime scheduler.
+SpaghettiChef monitors each configured printer node through the runtime scheduler.
 
 The runtime state model is shared by simulated and USB-connected printers.
 
@@ -420,7 +422,7 @@ Monitoring data is persisted as runtime state and event history, so the dashboar
 
 ## Jobs and controlled actions
 
-PrinterHub uses backend jobs for controlled runtime operations.
+SpaghettiChef uses backend jobs for controlled runtime operations.
 
 Current job and action capabilities include:
 
@@ -448,9 +450,9 @@ TURN_FAN_OFF
 PRINT_FILE
 ```
 
-A `PRINT_FILE` job references a registered printer-side SD target. PrinterHub can register a host-side `.gcode` file, upload it to printer-side SD storage through a guarded transfer session, and request a firmware-side print start.
+A `PRINT_FILE` job references a registered printer-side SD target. SpaghettiChef can register a host-side `.gcode` file, upload it to printer-side SD storage through a guarded transfer session, and request a firmware-side print start.
 
-PrinterHub does not currently slice models, edit G-code, or line-stream a full print from the host as its main workflow.
+SpaghettiChef does not currently slice models, edit G-code, or line-stream a full print from the host as its main workflow.
 
 ---
 
@@ -458,7 +460,7 @@ PrinterHub does not currently slice models, edit G-code, or line-stream a full p
 
 Host-to-printer SD-card upload is one of the main real-printer verification paths.
 
-PrinterHub exposes upload visibility through the API and dashboard.
+SpaghettiChef exposes upload visibility through the API and dashboard.
 
 Upload diagnostics include:
 
@@ -483,7 +485,7 @@ This makes long serial transfers observable instead of opaque.
 
 ## Security, confirmation, and audit
 
-PrinterHub includes a local role model for runtime operations.
+SpaghettiChef includes a local role model for runtime operations.
 
 Roles include:
 
@@ -495,21 +497,21 @@ ADMIN
 
 Dangerous or state-changing actions can require confirmation, including heating, movement, print start/cancel, SD delete, upload overwrite, and raw command paths.
 
-PrinterHub persists operator audit records for accepted and rejected state-changing actions.
+SpaghettiChef persists operator audit records for accepted and rejected state-changing actions.
 
 ---
 
 ## Local storage model
 
-PrinterHub keeps runtime state in SQLite and filesystem-backed working directories.
+SpaghettiChef keeps runtime state in SQLite and filesystem-backed working directories.
 
 Typical local development data includes:
 
 ```text
-printerhub.db
+spaghettichef.db
 data/
 camera/
-printerhub-print-files/
+spaghettichef-print-files/
 ```
 
 Development runtime data and generated camera files are ignored by Git.
@@ -528,9 +530,9 @@ Start the local runtime with an explicit database file and API port:
 
 ```bash
 mvn exec:java \
-  -Dprinterhub.databaseFile="printerhub.db" \
-  -Dprinterhub.api.port=18080 \
-  -Dexec.mainClass="printerhub.Main"
+  -Dspaghettichef.databaseFile="spaghettichef.db" \
+  -Dspaghettichef.api.port=18080 \
+  -Dexec.mainClass="spaghettichef.Main"
 ```
 
 Open the dashboard:
@@ -592,11 +594,14 @@ GET  /settings/monitoring
 PUT  /settings/monitoring
 ```
 
-Camera endpoints include live snapshot access and admin camera-data workflows:
-
+Camera endpoints include diagnostic live snapshot access and admin camera-data workflows:
+ 
 ```text
 POST /printers/{printerId}/camera/snapshot
 GET  /printers/{printerId}/camera/snapshot
+POST /printers/{printerId}/camera/jobs/start
+POST /printers/{printerId}/camera/jobs/stop
+GET  /printers/{printerId}/camera/jobs/active
 
 GET  /admin/camera/snapshot/jobs?printerId=<printerId>
 GET  /admin/camera/snapshot/jobs/{cameraJobId}/timeline?printerId=<printerId>
@@ -610,7 +615,7 @@ For the full API surface, see [`docs/rest-api.md`](docs/rest-api.md).
 ## Repository structure
 
 ```text
-printer-hub/
+spaghetti-chef/
 ├── README.md
 ├── Jenkinsfile
 ├── docs/
@@ -624,7 +629,7 @@ printer-hub/
 │   └── TODOs/
 ├── src/
 │   ├── main/
-│   │   ├── java/printerhub/
+│   │   ├── java/spaghettichef/
 │   │   │   ├── api/
 │   │   │   ├── camera/
 │   │   │   ├── command/
@@ -642,7 +647,7 @@ printer-hub/
 │   │           ├── views/
 │   │           └── ...
 │   └── test/
-│       └── java/printerhub/
+│       └── java/spaghettichef/
 ├── rust/
 │   └── img-analyzer/
 ├── ops/
@@ -685,7 +690,7 @@ Current direction:
 
 ## DevOps and verification
 
-PrinterHub uses Jenkins-based CI.
+SpaghettiChef uses Jenkins-based CI.
 
 The current pipeline verifies:
 

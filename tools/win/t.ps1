@@ -9,12 +9,12 @@ function Fail {
     exit 1
 }
 
-$taskName = 'PrinterHub'
-$appDir = 'C:\printerhub\app'
-$launcher = Join-Path $appDir 'printerhub.bat'
-$runEnvPath = 'C:\printerhub\data\run.env'
-$logDir = 'C:\printerhub\log'
-$taskCmd = 'C:\printerhub\bin\printerhub-task.cmd'
+$taskName = 'SpaghettiChef'
+$appDir = 'C:\spaghettichef\app'
+$launcher = Join-Path $appDir 'spaghettichef.bat'
+$runEnvPath = 'C:\spaghettichef\data\run.env'
+$logDir = 'C:\spaghettichef\log'
+$taskCmd = 'C:\spaghettichef\bin\spaghettichef-task.cmd'
 
 if (-not (Test-Path -LiteralPath $launcher)) {
     Fail "Launcher not found: $launcher"
@@ -28,12 +28,12 @@ if (-not (Test-Path -LiteralPath $logDir)) {
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-if not exist C:\printerhub\data\run.env (
-  echo run.env not found: C:\printerhub\data\run.env >> C:\printerhub\log\printerhub-err.log
+if not exist C:\spaghettichef\data\run.env (
+  echo run.env not found: C:\spaghettichef\data\run.env >> C:\spaghettichef\log\spaghettichef-err.log
   exit /b 1
 )
 
-for /f "usebackq tokens=1,* delims==" %%A in ("C:\printerhub\data\run.env") do (
+for /f "usebackq tokens=1,* delims==" %%A in ("C:\spaghettichef\data\run.env") do (
   set "K=%%A"
   set "V=%%B"
   if not "!K!"=="" (
@@ -43,8 +43,8 @@ for /f "usebackq tokens=1,* delims==" %%A in ("C:\printerhub\data\run.env") do (
   )
 )
 
-cd /d C:\printerhub\app
-call C:\printerhub\app\printerhub.bat >> C:\printerhub\log\printerhub-out.log 2>> C:\printerhub\log\printerhub-err.log
+cd /d C:\spaghettichef\app
+call C:\spaghettichef\app\spaghettichef.bat >> C:\spaghettichef\log\spaghettichef-out.log 2>> C:\spaghettichef\log\spaghettichef-err.log
 "@ | Set-Content -LiteralPath $taskCmd -Encoding ASCII
 
 $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name

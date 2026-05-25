@@ -9,10 +9,10 @@
 For a safe real-printer test file, use something with no heating and no extrusion, for example a short dwell/status file uploaded to SD:
 
 ```gcode
-; PrinterHub Step H dashboard test
-M117 PrinterHub test
+; SpaghettiChef Step H dashboard test
+M117 SpaghettiChef test
 G4 S60
-M117 PrinterHub done
+M117 SpaghettiChef done
 ```
  
  
@@ -147,4 +147,4 @@ M117 PrinterHub done
 
 8. **Dashboard Polish**
    - Confirm dashboard date/time values are readable instead of raw ISO timestamps.
-   - Confirm the browser tab shows the PrinterHub favicon.
+   - Confirm the browser tab shows the SpaghettiChef favicon.

@@ -44,7 +44,7 @@ ffmpeg \
 Best architecture:
 
 ```text
-PrinterHub Runtime
+SpaghettiChef Runtime
   ├─ CameraCaptureService
   ├─ CameraDevice
   ├─ FrameAnalyzer
@@ -120,7 +120,7 @@ GET /printers/{id}/camera/anomalies
 PUT /printers/{id}/camera/settings
 ```
 
-So: Java backend for capture/detection, JS frontend for display, simulated camera for tests. That fits your current PrinterHub architecture very cleanly.
+So: Java backend for capture/detection, JS frontend for display, simulated camera for tests. That fits your current SpaghettiChef architecture very cleanly.
 
 
 ---
@@ -152,7 +152,7 @@ Those are already critical and fragile enough.
 Camera monitoring should be its own subsystem:
 
 ```text
-printerhub.camera
+spaghettichef.camera
 ```
 
 with only controlled connections to:
@@ -169,7 +169,7 @@ command/job safety layer
 The camera system should behave like this:
 
 ```text
-PrinterHub Runtime
+SpaghettiChef Runtime
   ├─ Printer monitoring task        -> temperature / firmware / serial status
   ├─ Job execution task             -> upload / start / cancel / pause
   └─ Camera monitoring task         -> snapshot / anomaly / spaghetti suspicion
@@ -206,8 +206,8 @@ No spaghetti detection yet. No automatic pause. No safety action.
 This version answers only:
 
 ```text
-Can PrinterHub see a camera?
-Can PrinterHub capture an image?
+Can SpaghettiChef see a camera?
+Can SpaghettiChef capture an image?
 Can the dashboard show it?
 Can the system work in CI without a webcam?
 ```
@@ -354,7 +354,7 @@ Print paused by camera safety
 Add:
 
 ```text
-src/main/java/printerhub/camera
+src/main/java/spaghettichef/camera
 ```
 
 Suggested files:
@@ -399,7 +399,7 @@ Do not add OpenCV in 0.4.0 unless you really want native dependency work immedia
 ## `CameraDevice`
 
 ```java
-package printerhub.camera;
+package spaghettichef.camera;
 
 import java.util.Optional;
 
@@ -433,7 +433,7 @@ opencv:index=0
 Final interface:
 
 ```java
-package printerhub.camera;
+package spaghettichef.camera;
 
 import java.util.Optional;
 
@@ -521,19 +521,19 @@ This can be a small bridge in 0.4.2.
 Package options:
 
 ```text
-printerhub.camera.PrinterSafetyActionService
+spaghettichef.camera.PrinterSafetyActionService
 ```
 
 or better:
 
 ```text
-printerhub.safety.PrinterSafetyActionService
+spaghettichef.safety.PrinterSafetyActionService
 ```
 
 I prefer a new package later:
 
 ```text
-src/main/java/printerhub/safety
+src/main/java/spaghettichef/safety
 ```
 
 because future safety features may not be camera-only.
@@ -558,12 +558,12 @@ Current persistence package is already crowded, but for consistency I would keep
 Add:
 
 ```text
-src/main/java/printerhub/persistence/CameraSettings.java
-src/main/java/printerhub/persistence/CameraSettingsStore.java
-src/main/java/printerhub/persistence/CameraEvent.java
-src/main/java/printerhub/persistence/CameraEventStore.java
-src/main/java/printerhub/persistence/CameraSnapshotMetadata.java
-src/main/java/printerhub/persistence/CameraSnapshotMetadataStore.java
+src/main/java/spaghettichef/persistence/CameraSettings.java
+src/main/java/spaghettichef/persistence/CameraSettingsStore.java
+src/main/java/spaghettichef/persistence/CameraEvent.java
+src/main/java/spaghettichef/persistence/CameraEventStore.java
+src/main/java/spaghettichef/persistence/CameraSnapshotMetadata.java
+src/main/java/spaghettichef/persistence/CameraSnapshotMetadataStore.java
 ```
 
 Do **not** store full image blobs in SQLite for the first version.
@@ -671,14 +671,14 @@ camera_snapshot_metadata
 
 # Runtime integration: modify as little as possible
 
-## Modify `PrinterHubRuntime.java`
+## Modify `SpaghettiChefRuntime.java`
 
 Add camera services as optional subsystem.
 
 Minimal integration:
 
 ```text
-PrinterHubRuntime
+SpaghettiChefRuntime
   ├─ existing registry/cache/stores/services
   └─ CameraMonitoringScheduler cameraMonitoringScheduler
 ```
@@ -761,7 +761,7 @@ Do not reuse printer error messages. Camera events are a separate domain.
 Modify:
 
 ```text
-src/main/java/printerhub/api/RemoteApiServer.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
 ```
 
 Unfortunately this file is your central routing point, so it will need edits.
@@ -773,7 +773,7 @@ Add only route handlers that call a `CameraApiController`-style service if you c
 Since the project currently seems to keep API logic mostly inside `RemoteApiServer`, I would still add a helper class to reduce future pain:
 
 ```text
-src/main/java/printerhub/api/CameraApiHandler.java
+src/main/java/spaghettichef/api/CameraApiHandler.java
 ```
 
 Then `RemoteApiServer` only delegates.
@@ -954,7 +954,7 @@ Do not block yourself with too many permissions in the first implementation.
 Add:
 
 ```text
-src/test/java/printerhub/camera
+src/test/java/spaghettichef/camera
 ```
 
 Suggested tests:
@@ -976,7 +976,7 @@ Modify:
 ```text
 DatabaseInitializerTest.java
 RemoteApiServerTest.java
-PrinterHubRuntimeTest.java
+SpaghettiChefRuntimeTest.java
 ```
 
 But only add camera assertions. Do not rewrite existing tests.
@@ -1018,32 +1018,32 @@ The SD upload logic is already complex. Camera monitoring must not enter that co
 ## Add
 
 ```text
-src/main/java/printerhub/camera/CameraDevice.java
-src/main/java/printerhub/camera/CameraFrame.java
-src/main/java/printerhub/camera/CameraStatus.java
-src/main/java/printerhub/camera/CameraSourceType.java
-src/main/java/printerhub/camera/CameraCaptureResult.java
-src/main/java/printerhub/camera/CameraCaptureService.java
-src/main/java/printerhub/camera/CameraMonitoringService.java
-src/main/java/printerhub/camera/CameraMonitoringTask.java
-src/main/java/printerhub/camera/CameraMonitoringScheduler.java
-src/main/java/printerhub/camera/CameraSettingsService.java
-src/main/java/printerhub/camera/FrameAnalyzer.java
-src/main/java/printerhub/camera/FrameAnalysisResult.java
-src/main/java/printerhub/camera/SpaghettiDetectionService.java
-src/main/java/printerhub/camera/SpaghettiDetectionResult.java
-src/main/java/printerhub/camera/SimulatedCameraDevice.java
-src/main/java/printerhub/camera/SnapshotFolderCameraDevice.java
-src/main/java/printerhub/camera/NoopCameraDevice.java
+src/main/java/spaghettichef/camera/CameraDevice.java
+src/main/java/spaghettichef/camera/CameraFrame.java
+src/main/java/spaghettichef/camera/CameraStatus.java
+src/main/java/spaghettichef/camera/CameraSourceType.java
+src/main/java/spaghettichef/camera/CameraCaptureResult.java
+src/main/java/spaghettichef/camera/CameraCaptureService.java
+src/main/java/spaghettichef/camera/CameraMonitoringService.java
+src/main/java/spaghettichef/camera/CameraMonitoringTask.java
+src/main/java/spaghettichef/camera/CameraMonitoringScheduler.java
+src/main/java/spaghettichef/camera/CameraSettingsService.java
+src/main/java/spaghettichef/camera/FrameAnalyzer.java
+src/main/java/spaghettichef/camera/FrameAnalysisResult.java
+src/main/java/spaghettichef/camera/SpaghettiDetectionService.java
+src/main/java/spaghettichef/camera/SpaghettiDetectionResult.java
+src/main/java/spaghettichef/camera/SimulatedCameraDevice.java
+src/main/java/spaghettichef/camera/SnapshotFolderCameraDevice.java
+src/main/java/spaghettichef/camera/NoopCameraDevice.java
 
-src/main/java/printerhub/persistence/CameraSettings.java
-src/main/java/printerhub/persistence/CameraSettingsStore.java
-src/main/java/printerhub/persistence/CameraEvent.java
-src/main/java/printerhub/persistence/CameraEventStore.java
-src/main/java/printerhub/persistence/CameraSnapshotMetadata.java
-src/main/java/printerhub/persistence/CameraSnapshotMetadataStore.java
+src/main/java/spaghettichef/persistence/CameraSettings.java
+src/main/java/spaghettichef/persistence/CameraSettingsStore.java
+src/main/java/spaghettichef/persistence/CameraEvent.java
+src/main/java/spaghettichef/persistence/CameraEventStore.java
+src/main/java/spaghettichef/persistence/CameraSnapshotMetadata.java
+src/main/java/spaghettichef/persistence/CameraSnapshotMetadataStore.java
 
-src/main/java/printerhub/api/CameraApiHandler.java
+src/main/java/spaghettichef/api/CameraApiHandler.java
 
 src/main/resources/dashboard/views/printer-camera.js
 src/main/resources/dashboard/components/camera-card.js
@@ -1052,13 +1052,13 @@ src/main/resources/dashboard/components/camera-card.js
 ## Modify
 
 ```text
-src/main/java/printerhub/runtime/PrinterHubRuntime.java
-src/main/java/printerhub/api/RemoteApiServer.java
-src/main/java/printerhub/persistence/DatabaseInitializer.java
-src/main/java/printerhub/OperationMessages.java
-src/main/java/printerhub/config/RuntimeDefaults.java
-src/main/java/printerhub/security/Permission.java
-src/main/java/printerhub/security/ActionPermissionResolver.java
+src/main/java/spaghettichef/runtime/SpaghettiChefRuntime.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
+src/main/java/spaghettichef/persistence/DatabaseInitializer.java
+src/main/java/spaghettichef/OperationMessages.java
+src/main/java/spaghettichef/config/RuntimeDefaults.java
+src/main/java/spaghettichef/security/Permission.java
+src/main/java/spaghettichef/security/ActionPermissionResolver.java
 
 src/main/resources/dashboard/api.js
 src/main/resources/dashboard/dashboard.js
@@ -1076,10 +1076,10 @@ src/main/resources/dashboard/views/printer-home.js
 ## Do not modify for 0.4.0
 
 ```text
-src/main/java/printerhub/command/SdCardUploadService.java
-src/main/java/printerhub/job/PrintJobExecutionService.java
-src/main/java/printerhub/monitoring/PrinterMonitoringTask.java
-src/main/java/printerhub/SerialConnection.java
+src/main/java/spaghettichef/command/SdCardUploadService.java
+src/main/java/spaghettichef/job/PrintJobExecutionService.java
+src/main/java/spaghettichef/monitoring/PrinterMonitoringTask.java
+src/main/java/spaghettichef/SerialConnection.java
 ```
 
 ---
@@ -1170,8 +1170,8 @@ CameraMonitoringService
 Modify:
 
 ```text
-PrinterHubRuntime
-PrinterHubRuntimeTest
+SpaghettiChefRuntime
+SpaghettiChefRuntimeTest
 RuntimeDefaults
 ```
 

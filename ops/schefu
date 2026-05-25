@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${SCHEF_HOST:-spaghettichef-win}"
+USER_NAME="${SCHEF_USER:-admin}"
+
+if [ $# -ne 1 ]; then
+  echo "usage: schefu <version>"
+  exit 1
+fi
+
+VERSION="$1"
+
+ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\spaghettichef\\bin\\u.ps1 -Version ${VERSION}"

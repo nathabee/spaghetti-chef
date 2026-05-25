@@ -1958,7 +1958,7 @@ async function handleDeletePrinterSdFile(printerSdFileId) {
   try {
     const confirmation = requireDangerousActionConfirmation(
       "SD_DELETE",
-      `Delete SD target ${printerSdFileId}. This removes PrinterHub's registered printer-side file record.`
+      `Delete SD target ${printerSdFileId}. This removes SpaghettiChef's registered printer-side file record.`
     );
     if (!confirmation) {
       setMessage(`Cancelled SD target deletion for ${printerSdFileId}.`);
@@ -2365,7 +2365,7 @@ async function runDashboardAutoRefreshTick() {
       if (dashboardAutoRefreshConsecutiveNetworkFailures >= DASHBOARD_AUTO_REFRESH_NETWORK_FAILURE_LIMIT) {
         dashboardAutoRefreshSuspended = true;
         setMessage(
-          `PrinterHub server is unreachable. Automatic refresh stopped after ${dashboardAutoRefreshConsecutiveNetworkFailures} failed attempts. Use Refresh to retry.`
+          `SpaghettiChef server is unreachable. Automatic refresh stopped after ${dashboardAutoRefreshConsecutiveNetworkFailures} failed attempts. Use Refresh to retry.`
         );
         renderGlobalMessage();
       }

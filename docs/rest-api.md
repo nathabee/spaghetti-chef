@@ -1,6 +1,6 @@
-# PrinterHub REST API
+# SpaghettiChef REST API
 
-This document is a practical endpoint reference for the current local PrinterHub API.
+This document is a practical endpoint reference for the current local SpaghettiChef API.
 
 The API and dashboard are served from the same host and port.
 
@@ -289,9 +289,9 @@ Sample response example:
   "printerId": "p1",
   "capturedAt": "2026-05-20T10:01:00Z",
   "analyzedAt": "2026-05-20T10:01:00Z",
-  "latestSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\latest.jpg",
-  "previousSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\previous.jpg",
-  "deltaSnapshotPath": "C:\\printerhub\\data\\camera\\p1\\delta.jpg",
+  "latestSnapshotPath": "C:\\spaghettichef\\data\\camera\\p1\\latest.jpg",
+  "previousSnapshotPath": "C:\\spaghettichef\\data\\camera\\p1\\previous.jpg",
+  "deltaSnapshotPath": "C:\\spaghettichef\\data\\camera\\p1\\delta.jpg",
   "deltaScore": 0.12,
   "changedPixelRatio": 0.08,
   "averagePixelDelta": 0.21,
@@ -436,7 +436,7 @@ Example body:
 
 ```json
 {
-  "storageDirectory": "printerhub-print-files"
+  "storageDirectory": "spaghettichef-print-files"
 }
 ```
 

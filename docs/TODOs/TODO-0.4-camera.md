@@ -460,7 +460,7 @@ Camera job
   It is not itself a print job.
 
 Print job
-  Existing PrinterHub job used for print execution, SD upload, or controlled commands.
+  Existing SpaghettiChef job used for print execution, SD upload, or controlled commands.
 
 Camera analysis session
   Detector/analysis session.
@@ -761,13 +761,13 @@ This confirms the branch still uses `unassigned` instead of a real camera job id
 New files:
 
 ```text
-src/main/java/printerhub/persistence/CameraJob.java
-src/main/java/printerhub/persistence/CameraJobState.java
-src/main/java/printerhub/persistence/CameraJobStore.java
-src/main/java/printerhub/camera/CameraJobService.java
+src/main/java/spaghettichef/persistence/CameraJob.java
+src/main/java/spaghettichef/persistence/CameraJobState.java
+src/main/java/spaghettichef/persistence/CameraJobStore.java
+src/main/java/spaghettichef/camera/CameraJobService.java
 
-src/test/java/printerhub/persistence/CameraJobStoreTest.java
-src/test/java/printerhub/camera/CameraJobServiceTest.java
+src/test/java/spaghettichef/persistence/CameraJobStoreTest.java
+src/test/java/spaghettichef/camera/CameraJobServiceTest.java
 ```
 
 Responsibilities:
@@ -794,11 +794,11 @@ CameraJobService:
 Update:
 
 ```text
-src/main/java/printerhub/camera/CameraCaptureService.java
-src/main/java/printerhub/camera/CameraStoragePaths.java
-src/main/java/printerhub/persistence/CameraSnapshotEntry.java
-src/main/java/printerhub/persistence/CameraSnapshotEntryStore.java
-src/main/java/printerhub/persistence/DatabaseInitializer.java
+src/main/java/spaghettichef/camera/CameraCaptureService.java
+src/main/java/spaghettichef/camera/CameraStoragePaths.java
+src/main/java/spaghettichef/persistence/CameraSnapshotEntry.java
+src/main/java/spaghettichef/persistence/CameraSnapshotEntryStore.java
+src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 ```
 
 Target:
@@ -833,8 +833,8 @@ but it must not be the camera folder owner.
 Update:
 
 ```text
-src/main/java/printerhub/api/RemoteApiServer.java
-src/main/java/printerhub/api/CameraApiHandler.java
+src/main/java/spaghettichef/api/RemoteApiServer.java
+src/main/java/spaghettichef/api/CameraApiHandler.java
 src/main/resources/dashboard/api.js
 src/main/resources/dashboard/views/admin-camera-data.js
 ```

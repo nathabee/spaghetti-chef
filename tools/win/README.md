@@ -1,6 +1,6 @@
-# PrinterHub Windows Tools
+# SpaghettiChef Windows Tools
 
-This directory contains Windows helper scripts for PrinterHub.
+This directory contains Windows helper scripts for SpaghettiChef.
 
 These scripts are intended to be copied into the Windows runtime `bin`
 directory.
@@ -8,7 +8,7 @@ directory.
 Example runtime layout:
 
 ```text
-C:\printerhub\
+C:\spaghettichef\
 ├── app\
 ├── bin\
 ├── data\
@@ -20,10 +20,10 @@ C:\printerhub\
 ## Runtime Scripts
 
 ```text
-r.ps1              start PrinterHub through Task Scheduler
-s.ps1              stop PrinterHub
-t.ps1              create or refresh the PrinterHub scheduled task
-u.ps1              update PrinterHub from a GitHub release ZIP
+r.ps1              start SpaghettiChef through Task Scheduler
+s.ps1              stop SpaghettiChef
+t.ps1              create or refresh the SpaghettiChef scheduled task
+u.ps1              update SpaghettiChef from a GitHub release ZIP
 v.ps1              verify runtime configuration and status
 run.env.example    example runtime environment file
 ```
@@ -31,20 +31,20 @@ run.env.example    example runtime environment file
 The active runtime environment file is normally:
 
 ```text
-C:\printerhub\data\run.env
+C:\spaghettichef\data\run.env
 ```
 
 Example:
 
 ```text
-PRINTERHUB_JAVA=C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot\bin\java.exe
-PRINTERHUB_DATABASE_FILE=C:\printerhub\data\printerhub.db
-PRINTERHUB_API_PORT=18080
+SPAGHETTICHEF_JAVA=C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot\bin\java.exe
+SPAGHETTICHEF_DATABASE_FILE=C:\spaghettichef\data\spaghettichef.db
+SPAGHETTICHEF_API_PORT=18080
 ```
 
 ## Camera Helpers
 
-PrinterHub now supports direct ffmpeg webcam capture from the dashboard. The
+SpaghettiChef now supports direct ffmpeg webcam capture from the dashboard. The
 camera helper scripts are mainly diagnostic tools and fallback utilities.
 
 ```text
@@ -60,7 +60,7 @@ bin\camera\
 ```
 
 They should not be packaged inside `app\camera\` and should not be bundled into
-`printer-hub.jar`.
+`spaghetti-chef.jar`.
 
 ## Requirements
 
@@ -104,15 +104,15 @@ video=Integrated Camera
 ```powershell
 .\tools\win\camera\camera-capture-once.ps1 `
   -CameraName "AUKEY Webcam" `
-  -OutputFile "C:\printerhub\data\camera\p1\latest.jpg"
+  -OutputFile "C:\spaghettichef\data\camera\p1\latest.jpg"
 ```
 
 When installed on the runtime machine:
 
 ```powershell
-C:\printerhub\bin\camera\camera-capture-once.ps1 `
+C:\spaghettichef\bin\camera\camera-capture-once.ps1 `
   -CameraName "AUKEY Webcam" `
-  -OutputFile "C:\printerhub\data\camera\p1\latest.jpg"
+  -OutputFile "C:\spaghettichef\data\camera\p1\latest.jpg"
 ```
 
 ## Run Capture Loop
@@ -121,7 +121,7 @@ C:\printerhub\bin\camera\camera-capture-once.ps1 `
 .\tools\win\camera\camera-capture-loop.ps1 `
   -PrinterId "p1" `
   -CameraName "AUKEY Webcam" `
-  -BaseDir "C:\printerhub\data\camera" `
+  -BaseDir "C:\spaghettichef\data\camera" `
   -IntervalSeconds 2 `
   -ArchiveIntervalSeconds 300 `
   -RetentionHours 24
@@ -130,10 +130,10 @@ C:\printerhub\bin\camera\camera-capture-once.ps1 `
 When installed on the runtime machine:
 
 ```powershell
-C:\printerhub\bin\camera\camera-capture-loop.ps1 `
+C:\spaghettichef\bin\camera\camera-capture-loop.ps1 `
   -PrinterId "p1" `
   -CameraName "AUKEY Webcam" `
-  -BaseDir "C:\printerhub\data\camera" `
+  -BaseDir "C:\spaghettichef\data\camera" `
   -IntervalSeconds 2 `
   -ArchiveIntervalSeconds 300 `
   -RetentionHours 24
@@ -142,10 +142,10 @@ C:\printerhub\bin\camera\camera-capture-loop.ps1 `
 ## Quick Archive Test
 
 ```powershell
-C:\printerhub\bin\camera\camera-capture-loop.ps1 `
+C:\spaghettichef\bin\camera\camera-capture-loop.ps1 `
   -PrinterId "p1" `
   -CameraName "AUKEY Webcam" `
-  -BaseDir "C:\printerhub\data\camera" `
+  -BaseDir "C:\spaghettichef\data\camera" `
   -ArchiveIntervalSeconds 10
 ```
 
@@ -154,22 +154,22 @@ C:\printerhub\bin\camera\camera-capture-loop.ps1 `
 After the loop has run for 15 to 20 seconds:
 
 ```text
-C:\printerhub\data\camera\p1\latest.jpg
-C:\printerhub\data\camera\p1\previous.jpg
-C:\printerhub\data\camera\p1\archive\*.jpg
+C:\spaghettichef\data\camera\p1\latest.jpg
+C:\spaghettichef\data\camera\p1\previous.jpg
+C:\spaghettichef\data\camera\p1\archive\*.jpg
 ```
 
 ## Storage Layout
 
-When the database is `C:\printerhub\data\printerhub.db`, the default camera
+When the database is `C:\spaghettichef\data\spaghettichef.db`, the default camera
 storage is:
 
 ```text
-C:\printerhub\data\camera\<printerId>\
+C:\spaghettichef\data\camera\<printerId>\
 ├── latest.jpg
 ├── previous.jpg
 ├── archive\
 └── snapshots\
 ```
 
-Use the same `printerId` as the printer created in the PrinterHub dashboard.
+Use the same `printerId` as the printer created in the SpaghettiChef dashboard.

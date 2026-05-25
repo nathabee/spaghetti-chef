@@ -60,7 +60,7 @@
           font-family="Arial, sans-serif"
           font-size="52"
           font-weight="700"
-          fill="#1f2937">PrinterHub</text>
+          fill="#1f2937">SpaghettiChef</text>
 
     <text x="146" y="96"
           font-family="Arial, sans-serif"
@@ -106,7 +106,7 @@
 
   <g filter="url(#shadow)"> 
     <rect x="850" y="312" width="200" height="200" rx="18" fill="#edf1f4"  opacity="0.42"/>
-    <image href="printerhub-image.png" xlink:href="printerhub-image.png"
+    <image href="spaghettichef-image.png" xlink:href="spaghettichef-image.png"
            x="850" y="312"
            width="200" height="200"
            preserveAspectRatio="xMidYMid meet"
@@ -119,7 +119,7 @@
 
   <g filter="url(#shadow)"> 
     <rect x="960" y="5" width="550" height="450" rx="18" fill="#edf1f4"  opacity="0.42"/>
-    <image href="screenshot-printerhub-dashboard-camera-analysis.png" xlink:href="screenshot-printerhub-dashboard-camera-analysis.png"
+    <image href="screenshot-spaghettichef-dashboard-camera-analysis.png" xlink:href="screenshot-spaghettichef-dashboard-camera-analysis.png"
            x="960" y="5"
            width="550" height="450"
            preserveAspectRatio="xMidYMid meet"

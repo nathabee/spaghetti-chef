@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOST="${SCHEF_HOST:-spaghettichef-win}"
+USER_NAME="${SCHEF_USER:-admin}"
+
+ssh "${USER_NAME}@${HOST}" "powershell -ExecutionPolicy Bypass -File C:\\spaghettichef\\bin\\v.ps1"

@@ -1,7 +1,7 @@
 # DevOps Overview
 
 This document summarizes the CI pipeline, verification scope, and expert
-packaging workflow for PrinterHub.
+packaging workflow for SpaghettiChef.
 
 Environment setup and Jenkins installation are described in:
 
@@ -33,7 +33,7 @@ curl --version
 python3 --version
 ```
 
-The Jenkins Java installation must be Java 21. PrinterHub compiles with Maven
+The Jenkins Java installation must be Java 21. SpaghettiChef compiles with Maven
 compiler release `21`.
 
 ---
@@ -181,8 +181,8 @@ target/operator-message-report.md
 target/*.json
 target/*.txt
 release/**
-dist/printer-hub-<version>-linux.tar.gz
-dist/printer-hub-<version>-windows.zip
+dist/spaghetti-chef-<version>-linux.tar.gz
+dist/spaghetti-chef-<version>-windows.zip
 *.tar.gz
 ```
 
@@ -205,7 +205,7 @@ Typical contents:
 
 ```text
 release/
-├── printer-hub-<version>-all.jar
+├── spaghetti-chef-<version>-all.jar
 ├── jacoco/
 ├── README.md
 ├── test.md
@@ -237,8 +237,8 @@ printer-events.txt
 When `RELEASE_VERSION` is set, Jenkins also creates two small expert packages:
 
 ```text
-printer-hub-<version>-linux.tar.gz
-printer-hub-<version>-windows.zip
+spaghetti-chef-<version>-linux.tar.gz
+spaghetti-chef-<version>-windows.zip
 ```
 
 Both packages contain the same shaded runnable jar. They do not bundle Java.
@@ -247,8 +247,8 @@ Linux package:
 
 ```text
 linux/
-├── printer-hub.jar
-├── printerhub.sh
+├── spaghetti-chef.jar
+├── spaghettichef.sh
 ├── README.md
 ├── INSTALL.md
 └── QUICKSTART.md
@@ -258,8 +258,8 @@ Windows package:
 
 ```text
 windows/
-├── printer-hub.jar
-├── printerhub.bat
+├── spaghetti-chef.jar
+├── spaghettichef.bat
 ├── README.md
 ├── INSTALL.md
 └── QUICKSTART.md
@@ -292,7 +292,7 @@ This continues the old `0.0.x` operator-message idea in the current `0.1.x` runt
 
 ## Release and branch workflow
 
-PrinterHub uses two GitHub branches:
+SpaghettiChef uses two GitHub branches:
 
 * `develop` = current development
 * `main` = approved production branch
@@ -373,7 +373,7 @@ It does not use `origin/develop`.
 If a second local clone or folder is used for the production branch:
 
 ```bash
-cd ~/coding/github/printer-hub/main
+cd ~/coding/github/spaghetti-chef/main
 git fetch origin --tags
 git checkout main
 git reset --hard origin/main

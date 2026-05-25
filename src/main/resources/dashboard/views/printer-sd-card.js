@@ -136,8 +136,8 @@ export function renderPrinterSdCard(printer) {
       <div class="section-header compact">
         <div>
           <div class="kicker">Host files</div>
-          <h3>PrinterHub .gcode library</h3>
-          <p class="lead">Upload or register prepared .gcode files on the PrinterHub host before mapping them to a printer-side path.</p>
+          <h3>SpaghettiChef .gcode library</h3>
+          <p class="lead">Upload or register prepared .gcode files on the SpaghettiChef host before mapping them to a printer-side path.</p>
         </div>
       </div>
 
@@ -160,7 +160,7 @@ export function renderPrinterSdCard(printer) {
       ${state.printFiles.length === 0 ? `
         <div class="empty-state">
           <h3>No host print files registered</h3>
-          <p class="muted">Use the form above to add prepared .gcode files to PrinterHub.</p>
+          <p class="muted">Use the form above to add prepared .gcode files to SpaghettiChef.</p>
         </div>
         ` : renderHostFileTable(printer.id, uploadActive)}
     </section>
