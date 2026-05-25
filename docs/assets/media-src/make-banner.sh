@@ -89,8 +89,8 @@ require_file "$SCREENSHOT2"
 
 mkdir -p "$OUT_DIR"
 
-echo "Rendering logo..."
-inkscape "$ICON_FILE" -w 256 -h 256 -o "$ICON_RENDER_FILE"
+#echo "Rendering logo..."
+#inkscape "$ICON_FILE" -w 256 -h 256 -o "$ICON_RENDER_FILE"
 
 echo "Generating banner.svg from template..."
 python3 - "$TEMPLATE_FILE" "$SVG_FILE" <<PY

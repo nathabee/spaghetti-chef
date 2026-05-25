@@ -3,7 +3,7 @@
      xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f4f1eb"/>
+      <stop offset="0%" stop-color="rgb(255, 255, 255)"/>
       <stop offset="100%" stop-color="#e7dfd2"/>
     </linearGradient>
 
@@ -44,9 +44,9 @@
 
   <!-- soft honey shapes -->
   <g opacity="0.18">
-    <polygon points="1320,36 1368,64 1368,120 1320,148 1272,120 1272,64" fill="#e7c56b"/>
-    <polygon points="1400,92 1448,120 1448,176 1400,204 1352,176 1352,120" fill="#d7ae4f"/>
-    <polygon points="1238,110 1286,138 1286,194 1238,222 1190,194 1190,138" fill="#e7c56b"/>
+    <polygon points="1320,36 1368,64 1368,120 1320,148 1272,120 1272,64" fill="#e0ded8"/>
+    <polygon points="1400,92 1448,120 1448,176 1400,204 1352,176 1352,120" fill="#eeeae2"/>
+    <polygon points="1238,110 1286,138 1286,194 1238,222 1190,194 1190,138" fill="#fffbf0"/>
   </g>
 
 
