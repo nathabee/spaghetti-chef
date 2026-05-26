@@ -1,14 +1,17 @@
 package spaghettichef.camera;
 
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+import spaghettichef.OperationMessages;
 import spaghettichef.camera.analysis.CalculationEngineName;
 import spaghettichef.camera.analysis.CalculationEngineRegistry;
 import spaghettichef.camera.analysis.CalculationEngineResult;
 import spaghettichef.camera.analysis.CalculationEngineStatus;
+import spaghettichef.camera.analysis.RustCliAnalyzerException;
 import spaghettichef.camera.analysis.SpaghettiCalculationEngine;
 import spaghettichef.persistence.CameraCalculationResult;
 import spaghettichef.persistence.CameraCalculationResultStore;
@@ -87,6 +90,17 @@ public final class CameraCalculationRunService {
             String parameterJson,
             String message,
             String engineName) {
+        return run(deltaSetId, methodName, confidenceThreshold, parameterJson, message, engineName, null);
+    }
+
+    public CameraCalculationRun run(
+            long deltaSetId,
+            String methodName,
+            Double confidenceThreshold,
+            String parameterJson,
+            String message,
+            String engineName,
+            String rustExecutablePath) {
         if (deltaSetId <= 0L) {
             throw new IllegalArgumentException("deltaSetId must be greater than zero");
         }
@@ -96,7 +110,9 @@ public final class CameraCalculationRunService {
         List<CameraDeltaFrame> frames = deltaFrameStore.findByDeltaSetId(deltaSetId);
         Instant createdAt = clock.instant();
         double threshold = normalizeThreshold(confidenceThreshold);
-        SpaghettiCalculationEngine engine = engineRegistry.resolve(CalculationEngineName.fromWireValue(engineName));
+        SpaghettiCalculationEngine engine = engineRegistry.resolve(
+                CalculationEngineName.fromWireValue(engineName),
+                normalizeExecutablePath(rustExecutablePath));
         long startedAtNanos = System.nanoTime();
 
         if (engine.status() != CalculationEngineStatus.SUCCESS) {
@@ -134,22 +150,41 @@ public final class CameraCalculationRunService {
                 engine.status().name()));
 
         int resultCount = 0;
-        for (CameraDeltaFrame frame : frames) {
-            CalculationEngineResult result = engine.analyze(frame, threshold);
-            calculationResultStore.save(new CameraCalculationResult(
-                    null,
+        String engineVersion = engine.engineVersion();
+        try {
+            for (CameraDeltaFrame frame : frames) {
+                CalculationEngineResult result = engine.analyze(frame, threshold);
+                if (result.engineVersion() != null) {
+                    engineVersion = result.engineVersion();
+                }
+                calculationResultStore.save(new CameraCalculationResult(
+                        null,
+                        run.requireId(),
+                        frame.requireId(),
+                        result.confidence(),
+                        result.suspected(),
+                        result.reasonCodesText(),
+                        result.message(),
+                        createdAt));
+                resultCount++;
+            }
+        } catch (RuntimeException exception) {
+            calculationRunStore.updateResultCount(run.requireId(), resultCount);
+            return calculationRunStore.updateEngineOutcome(
                     run.requireId(),
-                    frame.requireId(),
-                    result.confidence(),
-                    result.suspected(),
-                    result.reasonCodesText(),
-                    result.message(),
-                    createdAt));
-            resultCount++;
+                    statusFor(exception).name(),
+                    engine.engineVersion(),
+                    elapsedMillis(startedAtNanos),
+                    OperationMessages.safeDetail(exception.getMessage(), "Rust calculation failed"));
         }
 
         calculationRunStore.updateResultCount(run.requireId(), resultCount);
-        return calculationRunStore.updateExecutionDuration(run.requireId(), elapsedMillis(startedAtNanos));
+        return calculationRunStore.updateEngineOutcome(
+                run.requireId(),
+                CalculationEngineStatus.SUCCESS.name(),
+                engineVersion,
+                elapsedMillis(startedAtNanos),
+                message);
     }
 
     private static String normalizeMethodName(String methodName) {
@@ -195,5 +230,26 @@ public final class CameraCalculationRunService {
             return defaultMessage;
         }
         return requestedMessage.trim() + " (" + defaultMessage + ")";
+    }
+
+    private static Path normalizeExecutablePath(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return Path.of(value.trim());
+    }
+
+    private static CalculationEngineStatus statusFor(RuntimeException exception) {
+        if (exception instanceof RustCliAnalyzerException analyzerException) {
+            String message = analyzerException.getMessage() == null ? "" : analyzerException.getMessage();
+            if (message.contains("timed out")) {
+                return CalculationEngineStatus.TIMEOUT;
+            }
+            if (message.contains("invalid JSON")) {
+                return CalculationEngineStatus.INVALID_RESPONSE;
+            }
+            return CalculationEngineStatus.FAILED;
+        }
+        return CalculationEngineStatus.FAILED;
     }
 }

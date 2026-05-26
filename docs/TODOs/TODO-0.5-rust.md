@@ -449,7 +449,7 @@ src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -493,12 +493,12 @@ src/main/resources/dashboard/api.js
 
 ## Acceptance checklist
 
-* Admin can select Rust calculation engine.
-* Rust result is persisted as CameraCalculationResult.
-* Java and Rust calculation runs can coexist for the same delta set.
-* Failed Rust calls are visible.
-* Existing Java calculation still works.
-* `mvn test` passes.
+* [x] Admin can select Rust calculation engine.
+* [x] Rust result is persisted as CameraCalculationResult.
+* [x] Java and Rust calculation runs can coexist for the same delta set.
+* [x] Failed Rust calls are visible.
+* [x] Existing Java calculation still works.
+* [x] `mvn test` passes.
 
 ---
 

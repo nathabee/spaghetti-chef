@@ -236,7 +236,7 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, sel
           <option value="">No calculation run selected</option>
           ${safeRuns.map((run) => `
             <option value="${escapeHtml(String(run.id))}" ${Number(run.id) === Number(selectedCalculationRunId) ? "selected" : ""}>
-              #${escapeHtml(String(run.id))} - ${escapeHtml(run.methodName ?? "-")} - ${escapeHtml(String(run.resultCount ?? 0))} results
+              #${escapeHtml(String(run.id))} - ${escapeHtml(run.engineName ?? run.methodName ?? "-")} - ${escapeHtml(run.engineStatus ?? "UNKNOWN")} - ${escapeHtml(String(run.resultCount ?? 0))} results
             </option>
           `).join("")}
         </select>
@@ -246,8 +246,19 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, sel
         <input id="adminCameraCalculationMethodInput" type="text" value="spaghetti-heuristic">
       </label>
       <label>
+        Calculation engine
+        <select id="adminCameraCalculationEngineInput">
+          <option value="JAVA_BASIC_DELTA">Java basic delta</option>
+          <option value="RUST_CLI_DELTA">Rust CLI delta</option>
+        </select>
+      </label>
+      <label>
         Confidence threshold
         <input id="adminCameraCalculationConfidenceInput" type="number" min="0" max="1" step="0.01" value="0.85">
+      </label>
+      <label>
+        Rust executable
+        <input id="adminCameraRustExecutableInput" type="text" placeholder="optional path for Rust CLI">
       </label>
       <label>
         Parameters JSON
@@ -274,6 +285,8 @@ function renderRunComparison(calculationRuns) {
         <thead>
           <tr>
             <th>Run</th>
+            <th>Engine</th>
+            <th>Status</th>
             <th>Method</th>
             <th>Results</th>
             <th>Created</th>
@@ -284,6 +297,8 @@ function renderRunComparison(calculationRuns) {
           ${calculationRuns.map((run) => `
             <tr>
               <td>${escapeHtml(String(run.id ?? "-"))}</td>
+              <td>${escapeHtml(run.engineName ?? "-")}</td>
+              <td>${escapeHtml(run.engineStatus ?? "-")}</td>
               <td>${escapeHtml(run.methodName ?? "-")}</td>
               <td>${escapeHtml(String(run.resultCount ?? 0))}</td>
               <td>${escapeHtml(run.createdAt ?? "-")}</td>

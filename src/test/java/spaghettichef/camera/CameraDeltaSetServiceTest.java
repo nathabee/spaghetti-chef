@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -205,6 +206,77 @@ class CameraDeltaSetServiceTest {
         assertEquals(0, results.size());
     }
 
+    @Test
+    void rustCalculationEnginePersistsResultsWhenExecutableIsConfigured() throws Exception {
+        useDatabase("camera-rust-calculation-engine-success.db");
+        CameraJob job = saveCameraJob("printer-1");
+        saveCameraSettings("printer-1");
+        saveSnapshots("printer-1", job.requireId(), 3);
+        CameraDeltaSetGenerationResult deltaResult = service().generate(
+                "printer-1",
+                job.requireId(),
+                1,
+                null,
+                null);
+
+        CameraCalculationRun javaRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "threshold-v1",
+                0.85,
+                null,
+                "java run",
+                "JAVA_BASIC_DELTA");
+        CameraCalculationRun rustRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "rust-cli-delta",
+                0.65,
+                null,
+                "rust run",
+                "RUST_CLI_DELTA",
+                scriptPath("fake-rust-analyzer-success.sh").toString());
+
+        assertTrue(javaRun.requireId() != rustRun.requireId());
+        assertEquals("JAVA_BASIC_DELTA", javaRun.engineName());
+        assertEquals("RUST_CLI_DELTA", rustRun.engineName());
+        assertEquals("SUCCESS", rustRun.engineStatus());
+        assertEquals("0.5.5", rustRun.engineVersion());
+        assertEquals(2, rustRun.resultCount());
+
+        List<CameraCalculationResult> rustResults = new CameraCalculationResultStore()
+                .findByCalculationRunId(rustRun.requireId());
+        assertEquals(2, rustResults.size());
+        assertEquals("large_delta_area,high_average_pixel_delta", rustResults.get(0).reasonCodes());
+        assertEquals("Large visual difference detected between snapshots.", rustResults.get(0).message());
+    }
+
+    @Test
+    void rustCalculationEngineInvalidResponseIsVisibleOnRun() throws Exception {
+        useDatabase("camera-rust-calculation-engine-invalid.db");
+        CameraJob job = saveCameraJob("printer-1");
+        saveCameraSettings("printer-1");
+        saveSnapshots("printer-1", job.requireId(), 3);
+        CameraDeltaSetGenerationResult deltaResult = service().generate(
+                "printer-1",
+                job.requireId(),
+                1,
+                null,
+                null);
+
+        CameraCalculationRun rustRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "rust-cli-delta",
+                0.65,
+                null,
+                "rust invalid",
+                "RUST_CLI_DELTA",
+                scriptPath("fake-rust-analyzer-invalid-json.sh").toString());
+
+        assertEquals("RUST_CLI_DELTA", rustRun.engineName());
+        assertEquals("INVALID_RESPONSE", rustRun.engineStatus());
+        assertEquals(0, rustRun.resultCount());
+        assertTrue(rustRun.message().contains("invalid JSON"));
+    }
+
     private CameraDeltaSetService service() {
         return new CameraDeltaSetService(
                 new CameraJobStore(),
@@ -291,6 +363,20 @@ class CameraDeltaSetServiceTest {
         Path dbFile = tempDir.resolve(fileName);
         System.setProperty("spaghettichef.databaseFile", dbFile.toString());
         new DatabaseInitializer().initialize();
+    }
+
+    private static Path scriptPath(String resourceName) {
+        try {
+            Path path = Path.of(
+                    CameraDeltaSetServiceTest.class
+                            .getClassLoader()
+                            .getResource(resourceName)
+                            .toURI());
+            path.toFile().setExecutable(true);
+            return path;
+        } catch (URISyntaxException exception) {
+            throw new IllegalStateException("Invalid test resource URI", exception);
+        }
     }
 
     private static void writeImage(Path path, int shadeSeed) throws Exception {

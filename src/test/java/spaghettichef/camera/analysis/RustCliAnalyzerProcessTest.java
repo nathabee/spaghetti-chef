@@ -50,7 +50,7 @@ final class RustCliAnalyzerProcessTest {
 
         assertEquals(RustCliAnalyzerExitCode.SUCCESS, response.exitCode());
         assertEquals("RUST_CLI_DELTA", response.engineName());
-        assertEquals("0.5.3", response.engineVersion());
+        assertEquals("0.5.5", response.engineVersion());
         assertEquals("FRAME_DELTA", response.algorithmVariant());
         assertEquals(0.78, response.confidence(), 0.0001);
         assertTrue(response.suspected());

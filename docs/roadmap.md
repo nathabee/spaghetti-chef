@@ -3641,7 +3641,7 @@ Goals:
 
 ### 0.5.5 — Rust Recalculation Integration
 
-status: planned
+status: done
 
 Goals:
 

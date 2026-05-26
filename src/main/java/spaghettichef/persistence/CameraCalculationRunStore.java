@@ -161,6 +161,46 @@ public final class CameraCalculationRunStore {
                 .orElseThrow(() -> new IllegalArgumentException("camera calculation run not found: " + id));
     }
 
+    public CameraCalculationRun updateEngineOutcome(
+            long id,
+            String engineStatus,
+            String engineVersion,
+            long executionDurationMs,
+            String message) {
+        if (engineStatus == null || engineStatus.isBlank()) {
+            throw new IllegalArgumentException("engineStatus must not be blank");
+        }
+        if (executionDurationMs < 0L) {
+            throw new IllegalArgumentException("executionDurationMs must not be negative");
+        }
+
+        String sql = """
+                UPDATE camera_calculation_runs
+                SET engine_status = ?,
+                    engine_version = ?,
+                    execution_duration_ms = ?,
+                    message = ?
+                WHERE id = ?;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, engineStatus.trim());
+            statement.setString(2, engineVersion == null || engineVersion.isBlank() ? null : engineVersion.trim());
+            statement.setLong(3, executionDurationMs);
+            statement.setString(4, message == null || message.isBlank() ? null : message.trim());
+            statement.setLong(5, requirePositive(id, "id"));
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update camera calculation run engine outcome", exception);
+        }
+
+        return findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("camera calculation run not found: " + id));
+    }
+
     private static String selectColumns() {
         return """
                 SELECT

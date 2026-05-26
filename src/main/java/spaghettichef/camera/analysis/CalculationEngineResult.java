@@ -6,12 +6,22 @@ public record CalculationEngineResult(
         double confidence,
         boolean suspected,
         List<String> reasonCodes,
-        String message
+        String message,
+        String engineVersion
 ) {
+    public CalculationEngineResult(
+            double confidence,
+            boolean suspected,
+            List<String> reasonCodes,
+            String message) {
+        this(confidence, suspected, reasonCodes, message, null);
+    }
+
     public CalculationEngineResult {
         confidence = requireRatio(confidence, "confidence");
         reasonCodes = List.copyOf(reasonCodes == null ? List.of() : reasonCodes);
         message = message == null || message.isBlank() ? null : message.trim();
+        engineVersion = engineVersion == null || engineVersion.isBlank() ? null : engineVersion.trim();
     }
 
     public String reasonCodesText() {

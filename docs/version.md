@@ -12,6 +12,7 @@ see ROADMAP.md
 
 Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
+- 0.5.5 — Rust Recalculation Integration
 - 0.5.4 — Configurable Calculation Engine Architecture
 - 0.5.3 — Java Rust CLI Adapter
 - 0.5.2 — Rust CLI Result Contract

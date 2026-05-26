@@ -968,7 +968,8 @@ public final class RemoteApiServer {
                         optionalJsonDoubleObject(body, "confidenceThreshold"),
                         optionalJsonString(body, "parameterJson", null),
                         optionalJsonString(body, "message", null),
-                        optionalJsonString(body, "engineName", null));
+                        optionalJsonString(body, "engineName", null),
+                        optionalJsonString(body, "rustExecutablePath", null));
                 sendJson(exchange, 201, "{\"calculationRun\":" + cameraCalculationRunJson(run) + "}");
                 return;
             }

@@ -358,13 +358,17 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
   }
 
   const methodInput = document.getElementById("adminCameraCalculationMethodInput");
+  const engineInput = document.getElementById("adminCameraCalculationEngineInput");
   const confidenceInput = document.getElementById("adminCameraCalculationConfidenceInput");
+  const rustExecutableInput = document.getElementById("adminCameraRustExecutableInput");
   const paramsInput = document.getElementById("adminCameraCalculationParamsInput");
   const parsedConfidence = Number.parseFloat(confidenceInput?.value || "");
 
   try {
     const result = await runCameraCalculation(deltaSetId, {
       methodName: methodInput?.value?.trim() || "spaghetti-heuristic",
+      engineName: engineInput?.value?.trim() || "JAVA_BASIC_DELTA",
+      rustExecutablePath: rustExecutableInput?.value?.trim() || undefined,
       confidenceThreshold: Number.isFinite(parsedConfidence) ? parsedConfidence : undefined,
       parameterJson: paramsInput?.value?.trim() || "{}",
       message: "dashboard calculation run"
