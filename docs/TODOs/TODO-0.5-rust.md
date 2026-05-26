@@ -1,5 +1,9 @@
 # TODO — 0.5.x Rust Image Analysis Track
 
+This doc is [/docs/TODOs/TODO-0.5-rust.md]
+
+
+
 Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
  
@@ -9,7 +13,7 @@ Goal: add Rust to SpaghettiChef as an independent image-analysis track first, wi
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
