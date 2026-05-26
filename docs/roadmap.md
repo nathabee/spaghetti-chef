@@ -3591,7 +3591,7 @@ A late tick for a completed cameraJobId must fail/record an error, not create a 
 
 ### 0.5.1 — Rust Real Dataset Validation
 
-status: planned
+status: done
 
 Goals:
 
@@ -3604,7 +3604,7 @@ Goals:
 
 ### 0.5.2 — Rust CLI Result Contract
 
-status: planned
+status: done
 
 Goals:
 
@@ -3616,7 +3616,7 @@ Goals:
 
 ### 0.5.3 — Java Rust CLI Adapter
 
-status: planned
+status: done
 
 Goals:
 

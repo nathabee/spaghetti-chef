@@ -12,8 +12,10 @@ see ROADMAP.md
 
 Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
-
-- 0.5.1 — rename printerhub in spaghettichef 
+- 0.5.3 — Java Rust CLI Adapter
+- 0.5.2 — Rust CLI Result Contract
+- 0.5.1 — B - Rust Analyzer Real SpaghettiChef Dataset Workflow
+- 0.5.1 — A - rename printerhub in spaghettichef 
 - 0.5.0 — Standalone Rust Image Analyzer + Anomalies
  
 

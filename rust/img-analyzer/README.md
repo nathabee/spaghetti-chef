@@ -137,7 +137,7 @@ Example:
 ```json
 {
   "engineName": "RUST_CLI_DELTA",
-  "engineVersion": "0.5.1",
+  "engineVersion": "0.5.3",
   "algorithmVariant": "FRAME_DELTA",
   "confidence": 0.78,
   "suspected": true,
@@ -153,6 +153,8 @@ Example:
 ```
 
 Diagnostics and error details are written to stderr.
+
+The stable CLI and JSON behavior is documented in [docs/result-contract.md](docs/result-contract.md).
 
 ---
 
@@ -175,7 +177,7 @@ Diagnostics and error details are written to stderr.
 Current version:
 
 ```text
-0.5.1
+0.5.3
 Standalone Rust prototype.
 No Java integration yet.
 ```

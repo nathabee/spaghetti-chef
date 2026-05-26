@@ -28,4 +28,9 @@ VERSION="${VERSION}" perl -0pi -e 's|(name = "img-analyzer"\s*version = ")[^"]*(
 VERSION="${VERSION}" perl -0pi -e 's|("engineVersion": ")[^"]*(")|$1$ENV{VERSION}$2|g; s|(Current version:\s*```text\s*)[^`\s]+|$1$ENV{VERSION}|s' \
   "${ROOT_DIR}/rust/img-analyzer/README.md"
 
+if [[ -f "${ROOT_DIR}/rust/img-analyzer/docs/result-contract.md" ]]; then
+  VERSION="${VERSION}" perl -0pi -e 's|^Version: `[^`]*`|Version: `$ENV{VERSION}`|m; s|("engineVersion": ")[^"]*(")|$1$ENV{VERSION}$2|g' \
+    "${ROOT_DIR}/rust/img-analyzer/docs/result-contract.md"
+fi
+
 "${ROOT_DIR}/tools/check-version.sh"

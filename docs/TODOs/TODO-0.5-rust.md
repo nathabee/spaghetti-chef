@@ -138,7 +138,7 @@ In 0.5.0, `--delta-frame` is accepted as an optional argument but is not yet use
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -206,7 +206,7 @@ rust/img-analyzer/scripts/analyze-sample.ps1
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -271,13 +271,13 @@ analysis_failed
 
 ## Acceptance checklist
 
-* Result contract is documented.
-* Exit codes are documented.
-* Reason codes are documented.
-* Metrics are documented.
-* Example success output exists.
-* Example failure output exists.
-* No Java code is changed.
+* [x] Result contract is documented.
+* [x] Exit codes are documented.
+* [x] Reason codes are documented.
+* [x] Metrics are documented.
+* [x] Example success output exists.
+* [x] Example failure output exists.
+* [x] No Java code is changed.
 
 ---
 
@@ -285,7 +285,7 @@ analysis_failed
 
 ## Status
 
-Planned after 0.5.0–0.5.2 are stable.
+Done.
 
 ## Purpose
 
@@ -347,14 +347,14 @@ Windows fake later if needed.
 
 ## Acceptance checklist
 
-* Java can call a fake analyzer process.
-* Java parses valid JSON.
-* Java handles timeout.
-* Java handles non-zero exit.
-* Java handles invalid JSON.
-* Java captures stderr.
-* Unit tests pass.
-* No live camera behavior changes.
+* [x] Java can call a fake analyzer process.
+* [x] Java parses valid JSON.
+* [x] Java handles timeout.
+* [x] Java handles non-zero exit.
+* [x] Java handles invalid JSON.
+* [x] Java captures stderr.
+* [x] Unit tests pass.
+* [x] No live camera behavior changes.
 
 ---
 

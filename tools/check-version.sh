@@ -57,6 +57,19 @@ if ! rg -n 'engine_version: env!\("CARGO_PKG_VERSION"\)\.to_string\(\)' \
   failures=$((failures + 1))
 fi
 
+if [[ -f "${ROOT_DIR}/rust/img-analyzer/docs/result-contract.md" ]]; then
+  CONTRACT_VERSION="$(
+    sed -n 's/^Version: `\([^`]*\)`$/\1/p' "${ROOT_DIR}/rust/img-analyzer/docs/result-contract.md" | head -n 1
+  )"
+  check_equals "rust/img-analyzer/docs/result-contract.md contract version" "${CONTRACT_VERSION}"
+
+  if ! rg -n "\"engineVersion\": \"${VERSION}\"" \
+      "${ROOT_DIR}/rust/img-analyzer/docs/result-contract.md" >/dev/null; then
+    echo "Version mismatch: result-contract.md example engineVersion should be ${VERSION}" >&2
+    failures=$((failures + 1))
+  fi
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
   echo "Version check failed. Update VERSION first, then run tools/sync-version.sh." >&2
   exit 1
