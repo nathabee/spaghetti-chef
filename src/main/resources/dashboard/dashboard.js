@@ -15,6 +15,7 @@ import {
   adminCameraSnapshotEntryUrl,
   deleteCameraSnapshotJob,
   getCameraCalculationRuns,
+  getCameraCalculationComparison,
   getCameraCalculationTrace,
   getCameraDeltaFrames,
   getCameraDeltaSets,
@@ -295,6 +296,9 @@ async function loadAdminCameraAnalysisData(jobId, preferredDeltaSetId = null, pr
   const traceRows = selectedCalculationRunId
     ? await getCameraCalculationTrace(selectedCalculationRunId, state.adminCameraPrinterId)
     : [];
+  const comparison = selectedCalculationRunId
+    ? await loadAdminCameraRunComparison(calculationRuns, selectedCalculationRunId)
+    : null;
 
   setAdminCameraAnalysisData(
     deltaSets,
@@ -302,8 +306,26 @@ async function loadAdminCameraAnalysisData(jobId, preferredDeltaSetId = null, pr
     calculationRuns,
     traceRows,
     selectedDeltaSetId,
-    selectedCalculationRunId
+    selectedCalculationRunId,
+    comparison
   );
+}
+
+async function loadAdminCameraRunComparison(calculationRuns, selectedCalculationRunId) {
+  const leftRun = selectById(calculationRuns, selectedCalculationRunId);
+  if (!leftRun || !Array.isArray(calculationRuns) || calculationRuns.length < 2) {
+    return null;
+  }
+
+  const rightRun = calculationRuns.find((run) =>
+    Number(run.id) !== Number(leftRun.id) && run.engineName !== leftRun.engineName)
+    || calculationRuns.find((run) => Number(run.id) !== Number(leftRun.id))
+    || null;
+  if (!rightRun) {
+    return null;
+  }
+
+  return getCameraCalculationComparison(leftRun.id, rightRun.id, state.adminCameraPrinterId);
 }
 
 function selectById(items, id) {
@@ -358,13 +380,17 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
   }
 
   const methodInput = document.getElementById("adminCameraCalculationMethodInput");
+  const engineInput = document.getElementById("adminCameraCalculationEngineInput");
   const confidenceInput = document.getElementById("adminCameraCalculationConfidenceInput");
+  const rustExecutableInput = document.getElementById("adminCameraRustExecutableInput");
   const paramsInput = document.getElementById("adminCameraCalculationParamsInput");
   const parsedConfidence = Number.parseFloat(confidenceInput?.value || "");
 
   try {
     const result = await runCameraCalculation(deltaSetId, {
       methodName: methodInput?.value?.trim() || "spaghetti-heuristic",
+      engineName: engineInput?.value?.trim() || "JAVA_BASIC_DELTA",
+      rustExecutablePath: rustExecutableInput?.value?.trim() || undefined,
       confidenceThreshold: Number.isFinite(parsedConfidence) ? parsedConfidence : undefined,
       parameterJson: paramsInput?.value?.trim() || "{}",
       message: "dashboard calculation run"
@@ -402,13 +428,18 @@ async function handleAdminCameraSelectCalculationRun(calculationRunId) {
       state.adminCameraSelectedCalculationRunId,
       state.adminCameraPrinterId
     );
+    const comparison = await loadAdminCameraRunComparison(
+      state.adminCameraCalculationRuns,
+      state.adminCameraSelectedCalculationRunId
+    );
     setAdminCameraAnalysisData(
       state.adminCameraDeltaSets,
       state.adminCameraDeltaFrames,
       state.adminCameraCalculationRuns,
       traceRows,
       state.adminCameraSelectedDeltaSetId,
-      state.adminCameraSelectedCalculationRunId
+      state.adminCameraSelectedCalculationRunId,
+      comparison
     );
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to load calculation trace: ${error.message}` });
@@ -566,6 +597,7 @@ function renderPage() {
       state.adminCameraDeltaFrames,
       state.adminCameraCalculationRuns,
       state.adminCameraTraceRows,
+      state.adminCameraRunComparison,
       state.adminCameraSelectedDeltaSetId,
       state.adminCameraSelectedCalculationRunId,
       state.adminCameraActionResult,

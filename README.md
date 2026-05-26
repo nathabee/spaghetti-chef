@@ -2,7 +2,12 @@
   <img src="docs/assets/media/banner-1544x500.png" alt="SpaghettiChef banner">
 </p>
 
+
 # SpaghettiChef
+
+> **Print like a chef. Monitor your spaghetti.**
+
+
 
 **SpaghettiChef** is a Java-based local runtime for monitoring and controlling 3D printers through an embedded dashboard, REST API, persistent runtime state, controlled printer workflows, and camera-based visual analysis.
 

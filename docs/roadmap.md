@@ -2389,7 +2389,7 @@ Expected result:
 
 ---
 
-### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+## 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
 status: done
 
@@ -3591,7 +3591,7 @@ A late tick for a completed cameraJobId must fail/record an error, not create a 
 
 ### 0.5.1 — Rust Real Dataset Validation
 
-status: planned
+status: done
 
 Goals:
 
@@ -3604,7 +3604,7 @@ Goals:
 
 ### 0.5.2 — Rust CLI Result Contract
 
-status: planned
+status: done
 
 Goals:
 
@@ -3616,7 +3616,7 @@ Goals:
 
 ### 0.5.3 — Java Rust CLI Adapter
 
-status: planned
+status: done
 
 Goals:
 
@@ -3628,7 +3628,7 @@ Goals:
 
 ### 0.5.4 — Configurable Calculation Engines
 
-status: planned
+status: done
 
 Goals:
 
@@ -3641,7 +3641,7 @@ Goals:
 
 ### 0.5.5 — Rust Recalculation Integration
 
-status: planned
+status: done
 
 Goals:
 
@@ -3654,7 +3654,7 @@ Goals:
 
 ### 0.5.6 — Engine Comparison And Benchmarking
 
-status: planned
+status: done
 
 Goals:
 

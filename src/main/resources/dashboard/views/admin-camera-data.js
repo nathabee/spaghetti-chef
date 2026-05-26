@@ -12,6 +12,7 @@ export function renderAdminCameraDataPage(
   deltaFrames = [],
   calculationRuns = [],
   traceRows = [],
+  runComparison = null,
   selectedDeltaSetId = null,
   selectedCalculationRunId = null,
   actionResult = null,
@@ -106,7 +107,7 @@ export function renderAdminCameraDataPage(
           </div>
           <span class="badge badge-real">0.4.12</span>
         </div>
-        ${renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, selectedDeltaSetId, selectedCalculationRunId)}
+        ${renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId)}
       </article>
 
       <article class="placeholder-card">
@@ -209,7 +210,7 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
   `;
 }
 
-function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, selectedDeltaSetId, selectedCalculationRunId) {
+function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId) {
   if (!selectedJobId) {
     return `<p class="muted">Load a camera job before generating deltas or running calculations.</p>`;
   }
@@ -236,7 +237,7 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, sel
           <option value="">No calculation run selected</option>
           ${safeRuns.map((run) => `
             <option value="${escapeHtml(String(run.id))}" ${Number(run.id) === Number(selectedCalculationRunId) ? "selected" : ""}>
-              #${escapeHtml(String(run.id))} - ${escapeHtml(run.methodName ?? "-")} - ${escapeHtml(String(run.resultCount ?? 0))} results
+              #${escapeHtml(String(run.id))} - ${escapeHtml(run.engineName ?? run.methodName ?? "-")} - ${escapeHtml(run.engineStatus ?? "UNKNOWN")} - ${escapeHtml(String(run.resultCount ?? 0))} results
             </option>
           `).join("")}
         </select>
@@ -246,8 +247,19 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, sel
         <input id="adminCameraCalculationMethodInput" type="text" value="spaghetti-heuristic">
       </label>
       <label>
+        Calculation engine
+        <select id="adminCameraCalculationEngineInput">
+          <option value="JAVA_BASIC_DELTA">Java basic delta</option>
+          <option value="RUST_CLI_DELTA">Rust CLI delta</option>
+        </select>
+      </label>
+      <label>
         Confidence threshold
         <input id="adminCameraCalculationConfidenceInput" type="number" min="0" max="1" step="0.01" value="0.85">
+      </label>
+      <label>
+        Rust executable
+        <input id="adminCameraRustExecutableInput" type="text" placeholder="optional path for Rust CLI">
       </label>
       <label>
         Parameters JSON
@@ -260,6 +272,7 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, sel
       </button>
     </div>
     ${renderRunComparison(safeRuns)}
+    ${renderRunComparisonDetails(runComparison)}
   `;
 }
 
@@ -274,8 +287,13 @@ function renderRunComparison(calculationRuns) {
         <thead>
           <tr>
             <th>Run</th>
+            <th>Engine</th>
+            <th>Status</th>
+            <th>Version</th>
             <th>Method</th>
             <th>Results</th>
+            <th>Duration</th>
+            <th>ms/frame</th>
             <th>Created</th>
             <th>Parameters</th>
           </tr>
@@ -284,8 +302,13 @@ function renderRunComparison(calculationRuns) {
           ${calculationRuns.map((run) => `
             <tr>
               <td>${escapeHtml(String(run.id ?? "-"))}</td>
+              <td>${escapeHtml(run.engineName ?? "-")}</td>
+              <td>${escapeHtml(run.engineStatus ?? "-")}</td>
+              <td>${escapeHtml(run.engineVersion ?? "-")}</td>
               <td>${escapeHtml(run.methodName ?? "-")}</td>
               <td>${escapeHtml(String(run.resultCount ?? 0))}</td>
+              <td>${formatDuration(run.executionDurationMs)}</td>
+              <td>${formatMillisecondsPerFrame(run)}</td>
               <td>${escapeHtml(run.createdAt ?? "-")}</td>
               <td><code>${escapeHtml(run.parameterJson ?? "{}")}</code></td>
             </tr>
@@ -293,6 +316,68 @@ function renderRunComparison(calculationRuns) {
         </tbody>
       </table>
     </div>
+  `;
+}
+
+function renderRunComparisonDetails(comparison) {
+  if (!comparison?.left?.run || !comparison?.right?.run) {
+    return `<p class="muted">Select a calculation run when at least two runs exist to compare engine results for this delta set.</p>`;
+  }
+
+  const frames = Array.isArray(comparison.frames) ? comparison.frames : [];
+  const rows = frames.slice(0, 50);
+  return `
+    <div class="section-header compact">
+      <div>
+        <h3>Engine comparison</h3>
+        <p class="placeholder-caption">
+          Run #${escapeHtml(String(comparison.left.run.id))} ${escapeHtml(comparison.left.run.engineName ?? "-")}
+          vs run #${escapeHtml(String(comparison.right.run.id))} ${escapeHtml(comparison.right.run.engineName ?? "-")}.
+        </p>
+      </div>
+      <span class="badge badge-real">${escapeHtml(String(comparison.suspectedMismatchCount ?? 0))} mismatches</span>
+    </div>
+    <dl class="metric-list">
+      <div><dt>Compared frames</dt><dd>${escapeHtml(String(comparison.comparedFrameCount ?? 0))}</dd></div>
+      <div><dt>Average confidence difference</dt><dd>${formatPercent(comparison.averageAbsoluteConfidenceDifference)}</dd></div>
+      <div><dt>Left average confidence</dt><dd>${formatPercent(comparison.left.averageConfidence)}</dd></div>
+      <div><dt>Right average confidence</dt><dd>${formatPercent(comparison.right.averageConfidence)}</dd></div>
+      <div><dt>Left suspected</dt><dd>${escapeHtml(String(comparison.left.suspectedCount ?? 0))}</dd></div>
+      <div><dt>Right suspected</dt><dd>${escapeHtml(String(comparison.right.suspectedCount ?? 0))}</dd></div>
+    </dl>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Delta frame</th>
+            <th>Left confidence</th>
+            <th>Right confidence</th>
+            <th>Difference</th>
+            <th>Left state</th>
+            <th>Right state</th>
+            <th>Mismatch</th>
+            <th>Left reasons</th>
+            <th>Right reasons</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((frame) => `
+            <tr class="${frame.suspectedMismatch ? "analysis-suspected" : ""}">
+              <td>${escapeHtml(String(frame.deltaFrameId ?? "-"))}</td>
+              <td>${formatPercent(frame.leftConfidence)}</td>
+              <td>${formatPercent(frame.rightConfidence)}</td>
+              <td>${formatPercent(frame.confidenceDifference)}</td>
+              <td>${formatSuspected(frame.leftSuspected)}</td>
+              <td>${formatSuspected(frame.rightSuspected)}</td>
+              <td>${frame.suspectedMismatch ? '<span class="badge status-error">Mismatch</span>' : '<span class="badge badge-enabled">Match</span>'}</td>
+              <td>${escapeHtml(frame.leftReasonCodes ?? "-")}</td>
+              <td>${escapeHtml(frame.rightReasonCodes ?? "-")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${frames.length > rows.length ? `<p class="muted">Showing first ${escapeHtml(String(rows.length))} of ${escapeHtml(String(frames.length))} compared frames.</p>` : ""}
   `;
 }
 
@@ -438,6 +523,34 @@ function formatPercent(value) {
   }
 
   return `${Math.round(parsed * 100)}%`;
+}
+
+function formatDuration(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return "-";
+  }
+
+  return `${Math.round(parsed)} ms`;
+}
+
+function formatMillisecondsPerFrame(run) {
+  const duration = Number(run?.executionDurationMs);
+  const results = Number(run?.resultCount);
+  if (!Number.isFinite(duration) || !Number.isFinite(results) || results <= 0) {
+    return "-";
+  }
+
+  return `${Math.round(duration / results)} ms`;
+}
+
+function formatSuspected(value) {
+  if (value == null) {
+    return "-";
+  }
+  return value
+    ? '<span class="badge status-error">Suspicious</span>'
+    : '<span class="badge badge-enabled">Good</span>';
 }
 
 function renderActionResult(result) {

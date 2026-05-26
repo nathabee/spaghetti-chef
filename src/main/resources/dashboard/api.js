@@ -521,6 +521,15 @@ export async function getCameraCalculationTrace(calculationRunId, printerId) {
   return Array.isArray(data.trace) ? data.trace : [];
 }
 
+export async function getCameraCalculationComparison(leftRunId, rightRunId, printerId) {
+  const params = new URLSearchParams();
+  params.set("rightRunId", rightRunId);
+  if (printerId) {
+    params.set("printerId", printerId);
+  }
+  return requestJson(`/admin/camera/calculation-runs/${encodeURIComponent(leftRunId)}/compare?${params.toString()}`);
+}
+
 export function adminCameraSnapshotEntryUrl(entryId) {
   return `/admin/camera/snapshot/files/${encodeURIComponent(entryId)}?t=${Date.now()}`;
 }

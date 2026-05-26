@@ -73,8 +73,8 @@ Example:
 
 ```bash
 cargo run -- \
-  --from-snapshot ../../camera/p1/previous.jpg \
-  --to-snapshot ../../camera/p1/latest.jpg \
+  --from-snapshot ../../camera/p1/snapshots/1/002523_snapshot.jpg \
+  --to-snapshot ../../camera/p1/snapshots/1/002524_snapshot.jpg \
   --method delta-basic \
   --threshold 0.20
 ```
@@ -83,12 +83,36 @@ Example with optional delta frame:
 
 ```bash
 cargo run -- \
-  --from-snapshot ../../camera/p1/previous.jpg \
-  --to-snapshot ../../camera/p1/latest.jpg \
-  --delta-frame ../../camera/p1/delta.jpg \
+  --from-snapshot ../../camera/p1/snapshots/1/002523_snapshot.jpg \
+  --to-snapshot ../../camera/p1/snapshots/1/002524_snapshot.jpg \
+  --delta-frame ../../camera/p1/deltas/1/1/002523_002524_delta.jpg \
   --method delta-basic \
   --threshold 0.20
 ```
+
+## Run Against SpaghettiChef Camera Data
+
+0.5.1 adds helper scripts for manual analysis of real files captured by the Java application:
+
+```text
+<cameraRoot>/<printerId>/snapshots/<cameraJobId>/
+<cameraRoot>/<printerId>/deltas/<cameraJobId>/<deltaSetId>/
+```
+
+The camera root is configurable in SpaghettiChef camera settings. The Java default storage directory is `camera`, resolved from the database directory. Use `--camera-root` when your captured files live somewhere else.
+
+Linux:
+
+```bash
+./scripts/analyze-sample.sh --printer-id p1 --camera-job-id 1 --from-sequence 2523 --to-sequence 2524
+```
+
+Windows:
+
+```ps1
+.\scripts\analyze-sample.ps1 -PrinterId p1 -CameraJobId 1 -FromSequence 2523 -ToSequence 2524
+```
+ 
 
 ---
 
@@ -113,7 +137,7 @@ Example:
 ```json
 {
   "engineName": "RUST_CLI_DELTA",
-  "engineVersion": "0.5.0",
+  "engineVersion": "0.5.6",
   "algorithmVariant": "FRAME_DELTA",
   "confidence": 0.78,
   "suspected": true,
@@ -129,6 +153,8 @@ Example:
 ```
 
 Diagnostics and error details are written to stderr.
+
+The stable CLI and JSON behavior is documented in [docs/result-contract.md](docs/result-contract.md).
 
 ---
 
@@ -151,7 +177,7 @@ Diagnostics and error details are written to stderr.
 Current version:
 
 ```text
-0.5.0
+0.5.6
 Standalone Rust prototype.
 No Java integration yet.
 ```

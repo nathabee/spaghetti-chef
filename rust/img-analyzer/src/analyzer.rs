@@ -67,7 +67,7 @@ pub fn analyze(cli: &Cli) -> Result<AnalysisResult, AnalyzerError> {
 
     Ok(AnalysisResult {
         engine_name: "RUST_CLI_DELTA".to_string(),
-        engine_version: "0.5.0".to_string(),
+        engine_version: env!("CARGO_PKG_VERSION").to_string(),
         algorithm_variant: "FRAME_DELTA".to_string(),
         confidence: average_pixel_delta.max(changed_pixel_ratio),
         suspected,

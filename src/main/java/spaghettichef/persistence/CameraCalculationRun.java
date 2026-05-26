@@ -13,8 +13,40 @@ public record CameraCalculationRun(
         String parameterJson,
         Instant createdAt,
         int resultCount,
-        String message
+        String message,
+        String engineName,
+        String algorithmVariant,
+        String engineVersion,
+        Long executionDurationMs,
+        String engineStatus
 ) {
+    public CameraCalculationRun(
+            Long id,
+            String printerId,
+            long cameraJobId,
+            long deltaSetId,
+            String methodName,
+            String parameterJson,
+            Instant createdAt,
+            int resultCount,
+            String message) {
+        this(
+                id,
+                printerId,
+                cameraJobId,
+                deltaSetId,
+                methodName,
+                parameterJson,
+                createdAt,
+                resultCount,
+                message,
+                "JAVA_BASIC_DELTA",
+                "DELTA_SCORE_THRESHOLD",
+                null,
+                null,
+                "SUCCESS");
+    }
+
     public CameraCalculationRun {
         if (id != null && id <= 0L) {
             throw new IllegalArgumentException("id must be greater than zero");
@@ -27,6 +59,13 @@ public record CameraCalculationRun(
         createdAt = Objects.requireNonNull(createdAt, "createdAt");
         resultCount = requireNonNegative(resultCount, "resultCount");
         message = normalizeNullableText(message);
+        engineName = requireText(engineName, "engineName");
+        algorithmVariant = normalizeNullableText(algorithmVariant);
+        engineVersion = normalizeNullableText(engineVersion);
+        if (executionDurationMs != null && executionDurationMs < 0L) {
+            throw new IllegalArgumentException("executionDurationMs must not be negative");
+        }
+        engineStatus = requireText(engineStatus, "engineStatus");
     }
 
     public Optional<Long> idOptional() {
@@ -51,7 +90,12 @@ public record CameraCalculationRun(
                 parameterJson,
                 createdAt,
                 resultCount,
-                message);
+                message,
+                engineName,
+                algorithmVariant,
+                engineVersion,
+                executionDurationMs,
+                engineStatus);
     }
 
     public Optional<String> messageOptional() {

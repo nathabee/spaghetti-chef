@@ -1,5 +1,9 @@
 # TODO — 0.5.x Rust Image Analysis Track
 
+This doc is [/docs/TODOs/TODO-0.5-rust.md]
+
+
+
 Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.
 
  
@@ -9,7 +13,7 @@ Goal: add Rust to SpaghettiChef as an independent image-analysis track first, wi
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -134,7 +138,7 @@ In 0.5.0, `--delta-frame` is accepted as an optional argument but is not yet use
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -202,7 +206,7 @@ rust/img-analyzer/scripts/analyze-sample.ps1
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -267,13 +271,13 @@ analysis_failed
 
 ## Acceptance checklist
 
-* Result contract is documented.
-* Exit codes are documented.
-* Reason codes are documented.
-* Metrics are documented.
-* Example success output exists.
-* Example failure output exists.
-* No Java code is changed.
+* [x] Result contract is documented.
+* [x] Exit codes are documented.
+* [x] Reason codes are documented.
+* [x] Metrics are documented.
+* [x] Example success output exists.
+* [x] Example failure output exists.
+* [x] No Java code is changed.
 
 ---
 
@@ -281,7 +285,7 @@ analysis_failed
 
 ## Status
 
-Planned after 0.5.0–0.5.2 are stable.
+Done.
 
 ## Purpose
 
@@ -343,14 +347,14 @@ Windows fake later if needed.
 
 ## Acceptance checklist
 
-* Java can call a fake analyzer process.
-* Java parses valid JSON.
-* Java handles timeout.
-* Java handles non-zero exit.
-* Java handles invalid JSON.
-* Java captures stderr.
-* Unit tests pass.
-* No live camera behavior changes.
+* [x] Java can call a fake analyzer process.
+* [x] Java parses valid JSON.
+* [x] Java handles timeout.
+* [x] Java handles non-zero exit.
+* [x] Java handles invalid JSON.
+* [x] Java captures stderr.
+* [x] Unit tests pass.
+* [x] No live camera behavior changes.
 
 ---
 
@@ -358,7 +362,7 @@ Windows fake later if needed.
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -432,12 +436,12 @@ src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 
 ## Acceptance checklist
 
-* Java basic engine remains default.
-* Existing calculation runs still work.
-* Calculation runs persist engine metadata.
-* Rust engine can exist as an optional type.
-* Missing Rust executable does not crash SpaghettiChef.
-* `mvn test` passes.
+* [x] Java basic engine remains default.
+* [x] Existing calculation runs still work.
+* [x] Calculation runs persist engine metadata.
+* [x] Rust engine can exist as an optional type.
+* [x] Missing Rust executable does not crash SpaghettiChef.
+* [x] `mvn test` passes.
 
 ---
 
@@ -445,7 +449,7 @@ src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -489,12 +493,12 @@ src/main/resources/dashboard/api.js
 
 ## Acceptance checklist
 
-* Admin can select Rust calculation engine.
-* Rust result is persisted as CameraCalculationResult.
-* Java and Rust calculation runs can coexist for the same delta set.
-* Failed Rust calls are visible.
-* Existing Java calculation still works.
-* `mvn test` passes.
+* [x] Admin can select Rust calculation engine.
+* [x] Rust result is persisted as CameraCalculationResult.
+* [x] Java and Rust calculation runs can coexist for the same delta set.
+* [x] Failed Rust calls are visible.
+* [x] Existing Java calculation still works.
+* [x] `mvn test` passes.
 
 ---
 
@@ -502,11 +506,33 @@ src/main/resources/dashboard/api.js
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
 Compare Java and Rust calculation runs.
+
+This step is a planning-and-implementation bridge before 0.6.x replay work.
+
+The comparison must use persisted camera-job data only:
+
+```text
+camera_snapshot_entries
+camera_delta_sets
+camera_delta_frames
+camera_calculation_runs
+camera_calculation_results
+```
+
+It must not compare or benchmark volatile preview files:
+
+```text
+latest.jpg
+previous.jpg
+delta.jpg
+```
+
+Those preview files only show the current capture state. They are not historical references.
 
 ## Dashboard target
 
@@ -541,13 +567,88 @@ cameraJobId
 deltaSetId
 ```
 
+The first comparison should be simple and readable:
+
+```text
+same delta frame
+Java confidence
+Rust confidence
+Java suspected
+Rust suspected
+confidence difference
+suspected mismatch
+Java reason codes
+Rust reason codes
+```
+
+The goal is to see whether engines agree, not to choose a winner automatically.
+
+## Benchmark target
+
+For each calculation run, keep the already persisted duration visible:
+
+```text
+executionDurationMs
+resultCount
+suspectedCount
+averageConfidence
+engineStatus
+```
+
+Derived benchmark values can be added in the dashboard/API layer:
+
+```text
+results per second
+average milliseconds per frame
+```
+
+No new benchmark table is required at first.
+
+## API direction
+
+Prefer adding read-only admin endpoints before adding more write behavior:
+
+```text
+GET /admin/camera/calculation-runs?printerId=<printerId>&cameraJobId=<cameraJobId>&deltaSetId=<deltaSetId>
+  List runs with engine metadata and summary values.
+
+GET /admin/camera/calculation-runs/compare?printerId=<printerId>&leftRunId=<runId>&rightRunId=<runId>
+  Compare two runs for the same printer, camera job, and delta set.
+```
+
+If the existing endpoint already returns enough run data, keep the API change smaller and build the first comparison in the dashboard.
+
+## Comparison safety rules
+
+```text
+Only compare runs with the same printerId.
+Only compare runs with the same cameraJobId.
+Only compare runs with the same deltaSetId.
+Do not create new delta frames.
+Do not create new calculation results.
+Do not read latest.jpg, previous.jpg, or delta.jpg.
+Do not overwrite either calculation run.
+```
+
+## Relationship To 0.6.x
+
+0.5.6 is comparison and benchmark summary.
+
+0.6.x is replay.
+
+Replay can later reuse the comparison data, but 0.5.6 should not become a full replay UI.
+
 ## Acceptance checklist
 
-* Admin can compare Java and Rust runs.
-* Runtime duration is visible.
-* Result differences are visible.
-* Engine metadata is visible.
-* No calculation run overwrites another.
-* `mvn test` passes.
+* [x] Admin can compare Java and Rust runs.
+* [x] Only runs from the same printer, camera job, and delta set can be compared.
+* [x] Runtime duration is visible.
+* [x] Result count, suspected count, and average confidence are visible.
+* [x] Per-frame confidence differences are visible.
+* [x] Suspected/not-suspected mismatches are visible.
+* [x] Engine metadata is visible.
+* [x] No calculation run overwrites another.
+* [x] Comparison never reads `latest.jpg`, `previous.jpg`, or `delta.jpg`.
+* [x] `mvn test` passes.
 
 --- 
