@@ -362,7 +362,7 @@ Windows fake later if needed.
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -436,12 +436,12 @@ src/main/java/spaghettichef/persistence/DatabaseInitializer.java
 
 ## Acceptance checklist
 
-* Java basic engine remains default.
-* Existing calculation runs still work.
-* Calculation runs persist engine metadata.
-* Rust engine can exist as an optional type.
-* Missing Rust executable does not crash SpaghettiChef.
-* `mvn test` passes.
+* [x] Java basic engine remains default.
+* [x] Existing calculation runs still work.
+* [x] Calculation runs persist engine metadata.
+* [x] Rust engine can exist as an optional type.
+* [x] Missing Rust executable does not crash SpaghettiChef.
+* [x] `mvn test` passes.
 
 ---
 

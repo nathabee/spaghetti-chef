@@ -26,9 +26,14 @@ public final class CameraCalculationRunStore {
                     parameter_json,
                     created_at,
                     result_count,
-                    message
+                    message,
+                    engine_name,
+                    algorithm_variant,
+                    engine_version,
+                    execution_duration_ms,
+                    engine_status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """;
 
         try (
@@ -43,6 +48,15 @@ public final class CameraCalculationRunStore {
             statement.setString(6, run.createdAt().toString());
             statement.setInt(7, run.resultCount());
             statement.setString(8, run.message());
+            statement.setString(9, run.engineName());
+            statement.setString(10, run.algorithmVariant());
+            statement.setString(11, run.engineVersion());
+            if (run.executionDurationMs() == null) {
+                statement.setNull(12, java.sql.Types.INTEGER);
+            } else {
+                statement.setLong(12, run.executionDurationMs());
+            }
+            statement.setString(13, run.engineStatus());
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -125,6 +139,28 @@ public final class CameraCalculationRunStore {
                 .orElseThrow(() -> new IllegalArgumentException("camera calculation run not found: " + id));
     }
 
+    public CameraCalculationRun updateExecutionDuration(long id, long executionDurationMs) {
+        if (executionDurationMs < 0L) {
+            throw new IllegalArgumentException("executionDurationMs must not be negative");
+        }
+
+        String sql = "UPDATE camera_calculation_runs SET execution_duration_ms = ? WHERE id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, executionDurationMs);
+            statement.setLong(2, requirePositive(id, "id"));
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to update camera calculation run execution duration", exception);
+        }
+
+        return findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("camera calculation run not found: " + id));
+    }
+
     private static String selectColumns() {
         return """
                 SELECT
@@ -136,7 +172,12 @@ public final class CameraCalculationRunStore {
                     parameter_json,
                     created_at,
                     result_count,
-                    message
+                    message,
+                    engine_name,
+                    algorithm_variant,
+                    engine_version,
+                    execution_duration_ms,
+                    engine_status
                 """;
     }
 
@@ -150,7 +191,17 @@ public final class CameraCalculationRunStore {
                 resultSet.getString("parameter_json"),
                 Instant.parse(resultSet.getString("created_at")),
                 resultSet.getInt("result_count"),
-                resultSet.getString("message"));
+                resultSet.getString("message"),
+                resultSet.getString("engine_name"),
+                resultSet.getString("algorithm_variant"),
+                resultSet.getString("engine_version"),
+                nullableLong(resultSet, "execution_duration_ms"),
+                resultSet.getString("engine_status"));
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static long requirePositive(long value, String fieldName) {

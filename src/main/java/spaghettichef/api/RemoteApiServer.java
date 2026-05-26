@@ -967,7 +967,8 @@ public final class RemoteApiServer {
                         optionalJsonString(body, "methodName", null),
                         optionalJsonDoubleObject(body, "confidenceThreshold"),
                         optionalJsonString(body, "parameterJson", null),
-                        optionalJsonString(body, "message", null));
+                        optionalJsonString(body, "message", null),
+                        optionalJsonString(body, "engineName", null));
                 sendJson(exchange, 201, "{\"calculationRun\":" + cameraCalculationRunJson(run) + "}");
                 return;
             }
@@ -2668,6 +2669,11 @@ public final class RemoteApiServer {
                 + "\"cameraJobId\":" + run.cameraJobId() + ","
                 + "\"deltaSetId\":" + run.deltaSetId() + ","
                 + "\"methodName\":\"" + escapeJson(run.methodName()) + "\","
+                + "\"engineName\":\"" + escapeJson(run.engineName()) + "\","
+                + "\"algorithmVariant\":" + nullableString(run.algorithmVariant()) + ","
+                + "\"engineVersion\":" + nullableString(run.engineVersion()) + ","
+                + "\"executionDurationMs\":" + nullableLong(run.executionDurationMs()) + ","
+                + "\"engineStatus\":\"" + escapeJson(run.engineStatus()) + "\","
                 + "\"parameterJson\":\"" + escapeJson(run.parameterJson()) + "\","
                 + "\"createdAt\":\"" + escapeJson(run.createdAt().toString()) + "\","
                 + "\"resultCount\":" + run.resultCount() + ","

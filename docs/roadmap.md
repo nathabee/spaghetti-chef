@@ -2389,7 +2389,7 @@ Expected result:
 
 ---
 
-### 0.3.0 — Local Security, Roles, and Dangerous Action Guards
+## 0.3.0 — Local Security, Roles, and Dangerous Action Guards
 
 status: done
 
@@ -3628,7 +3628,7 @@ Goals:
 
 ### 0.5.4 — Configurable Calculation Engines
 
-status: planned
+status: done
 
 Goals:
 

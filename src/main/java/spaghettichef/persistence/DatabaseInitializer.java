@@ -121,6 +121,13 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
             ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
+            ensureColumn(connection, "camera_calculation_runs", "engine_name",
+                    "TEXT NOT NULL DEFAULT 'JAVA_BASIC_DELTA'");
+            ensureColumn(connection, "camera_calculation_runs", "algorithm_variant", "TEXT");
+            ensureColumn(connection, "camera_calculation_runs", "engine_version", "TEXT");
+            ensureColumn(connection, "camera_calculation_runs", "execution_duration_ms", "INTEGER");
+            ensureColumn(connection, "camera_calculation_runs", "engine_status",
+                    "TEXT NOT NULL DEFAULT 'SUCCESS'");
 
             ensureBuiltInRoleProfiles(connection);
 
@@ -375,7 +382,12 @@ public final class DatabaseInitializer {
                     parameter_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     result_count INTEGER NOT NULL,
-                    message TEXT
+                    message TEXT,
+                    engine_name TEXT NOT NULL DEFAULT 'JAVA_BASIC_DELTA',
+                    algorithm_variant TEXT,
+                    engine_version TEXT,
+                    execution_duration_ms INTEGER,
+                    engine_status TEXT NOT NULL DEFAULT 'SUCCESS'
                 );
                 """;
 

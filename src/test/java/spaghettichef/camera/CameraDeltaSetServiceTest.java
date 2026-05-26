@@ -167,6 +167,42 @@ class CameraDeltaSetServiceTest {
         assertEquals(2, secondResults.size());
         assertEquals(firstRun.requireId(), firstResults.get(0).calculationRunId());
         assertEquals(secondRun.requireId(), secondResults.get(0).calculationRunId());
+        assertEquals("JAVA_BASIC_DELTA", firstRun.engineName());
+        assertEquals("DELTA_SCORE_THRESHOLD", firstRun.algorithmVariant());
+        assertEquals("SUCCESS", firstRun.engineStatus());
+        assertTrue(firstRun.executionDurationMs() != null);
+    }
+
+    @Test
+    void rustCalculationEngineCanBeSelectedButRemainsUnavailable() throws Exception {
+        useDatabase("camera-rust-calculation-engine.db");
+        CameraJob job = saveCameraJob("printer-1");
+        saveCameraSettings("printer-1");
+        saveSnapshots("printer-1", job.requireId(), 3);
+        CameraDeltaSetGenerationResult deltaResult = service().generate(
+                "printer-1",
+                job.requireId(),
+                1,
+                null,
+                null);
+
+        CameraCalculationRun run = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "rust-cli-delta",
+                0.65,
+                null,
+                null,
+                "RUST_CLI_DELTA");
+
+        assertEquals("RUST_CLI_DELTA", run.engineName());
+        assertEquals("FRAME_DELTA", run.algorithmVariant());
+        assertEquals("UNAVAILABLE", run.engineStatus());
+        assertEquals(0, run.resultCount());
+        assertTrue(run.executionDurationMs() != null);
+
+        List<CameraCalculationResult> results = new CameraCalculationResultStore()
+                .findByCalculationRunId(run.requireId());
+        assertEquals(0, results.size());
     }
 
     private CameraDeltaSetService service() {
