@@ -68,6 +68,10 @@ import spaghettichef.camera.CameraDeltaSetGenerationResult;
 import spaghettichef.camera.CameraDeltaSetService;
 import spaghettichef.camera.CameraAnalysisTraceRow;
 import spaghettichef.camera.CameraAnalysisTraceService;
+import spaghettichef.camera.CameraCalculationComparisonFrame;
+import spaghettichef.camera.CameraCalculationComparisonService;
+import spaghettichef.camera.CameraCalculationRunComparison;
+import spaghettichef.camera.CameraCalculationRunSummary;
 import spaghettichef.camera.CameraAnalysisSessionService;
 import spaghettichef.camera.CameraSafetyDecisionService;
 import spaghettichef.camera.CameraSettingsService;
@@ -147,6 +151,7 @@ public final class RemoteApiServer {
     private final CameraCalculationRunStore cameraCalculationRunStore;
     private final CameraCalculationResultStore cameraCalculationResultStore;
     private final CameraAnalysisTraceService cameraAnalysisTraceService;
+    private final CameraCalculationComparisonService cameraCalculationComparisonService;
     private final Path cameraStorageDirectory;
 
     private HttpServer server;
@@ -299,6 +304,9 @@ public final class RemoteApiServer {
                 this.cameraCalculationResultStore,
                 this.cameraDeltaFrameStore,
                 cameraSnapshotEntryStore);
+        this.cameraCalculationComparisonService = new CameraCalculationComparisonService(
+                this.cameraCalculationRunStore,
+                this.cameraCalculationResultStore);
 
         CameraAnalysisSampleStore cameraAnalysisSampleStore = new CameraAnalysisSampleStore();
         CameraSafetyDecisionService cameraSafetyDecisionService = new CameraSafetyDecisionService(
@@ -1027,6 +1035,26 @@ public final class RemoteApiServer {
             sendJson(exchange, 200, cameraAnalysisTraceJson(
                     calculationRunId,
                     cameraAnalysisTraceService.traceForCalculationRun(calculationRunId, printerId)));
+            return;
+        }
+
+        if (parts.length == 2 && "compare".equals(parts[1])) {
+            if (!"GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+            String rightRunIdValue = queryParameter(exchange.getRequestURI().getRawQuery(), "rightRunId");
+            if (rightRunIdValue == null || rightRunIdValue.isBlank()) {
+                sendJson(exchange, 400, errorJson("rightRunId is required"));
+                return;
+            }
+            long rightRunId = parsePositiveLong(
+                    rightRunIdValue,
+                    "rightRunId");
+            sendJson(exchange, 200, cameraCalculationRunComparisonJson(
+                    cameraCalculationComparisonService.compare(calculationRunId, rightRunId, printerId)));
             return;
         }
 
@@ -2682,6 +2710,54 @@ public final class RemoteApiServer {
                 + "}";
     }
 
+    private String cameraCalculationRunComparisonJson(CameraCalculationRunComparison comparison) {
+        StringBuilder json = new StringBuilder();
+        json.append("{")
+                .append("\"left\":").append(cameraCalculationRunSummaryJson(comparison.left())).append(",")
+                .append("\"right\":").append(cameraCalculationRunSummaryJson(comparison.right())).append(",")
+                .append("\"comparedFrameCount\":").append(comparison.comparedFrameCount()).append(",")
+                .append("\"suspectedMismatchCount\":").append(comparison.suspectedMismatchCount()).append(",")
+                .append("\"averageAbsoluteConfidenceDifference\":")
+                .append(comparison.averageAbsoluteConfidenceDifference()).append(",")
+                .append("\"frames\":[");
+
+        boolean first = true;
+        for (CameraCalculationComparisonFrame frame : comparison.frames()) {
+            if (!first) {
+                json.append(",");
+            }
+
+            json.append("{")
+                    .append("\"deltaFrameId\":").append(frame.deltaFrameId()).append(",")
+                    .append("\"leftResultId\":").append(nullableLong(frame.leftResultId())).append(",")
+                    .append("\"rightResultId\":").append(nullableLong(frame.rightResultId())).append(",")
+                    .append("\"leftConfidence\":").append(nullableDouble(frame.leftConfidence())).append(",")
+                    .append("\"rightConfidence\":").append(nullableDouble(frame.rightConfidence())).append(",")
+                    .append("\"confidenceDifference\":").append(nullableDouble(frame.confidenceDifference())).append(",")
+                    .append("\"leftSuspected\":").append(nullableBoolean(frame.leftSuspected())).append(",")
+                    .append("\"rightSuspected\":").append(nullableBoolean(frame.rightSuspected())).append(",")
+                    .append("\"suspectedMismatch\":").append(frame.suspectedMismatch()).append(",")
+                    .append("\"leftReasonCodes\":").append(nullableString(frame.leftReasonCodes())).append(",")
+                    .append("\"rightReasonCodes\":").append(nullableString(frame.rightReasonCodes()))
+                    .append("}");
+            first = false;
+        }
+
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraCalculationRunSummaryJson(CameraCalculationRunSummary summary) {
+        return "{"
+                + "\"run\":" + cameraCalculationRunJson(summary.run()) + ","
+                + "\"resultCount\":" + summary.resultCount() + ","
+                + "\"suspectedCount\":" + summary.suspectedCount() + ","
+                + "\"averageConfidence\":" + summary.averageConfidence() + ","
+                + "\"resultsPerSecond\":" + nullableDouble(summary.resultsPerSecond()) + ","
+                + "\"averageMillisecondsPerFrame\":" + nullableDouble(summary.averageMillisecondsPerFrame())
+                + "}";
+    }
+
     private String cameraCalculationResultsJson(long calculationRunId, List<CameraCalculationResult> results) {
         StringBuilder json = new StringBuilder();
         json.append("{\"calculationRunId\":").append(calculationRunId).append(",\"results\":[");
@@ -2979,6 +3055,22 @@ public final class RemoteApiServer {
     }
 
     private String nullableLong(Long value) {
+        if (value == null) {
+            return "null";
+        }
+
+        return String.valueOf(value);
+    }
+
+    private String nullableDouble(Double value) {
+        if (value == null) {
+            return "null";
+        }
+
+        return String.valueOf(value);
+    }
+
+    private String nullableBoolean(Boolean value) {
         if (value == null) {
             return "null";
         }

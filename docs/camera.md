@@ -1,28 +1,527 @@
-# CAMERA
+# Camera
 
+This document is the current camera user manual and implementation overview for SpaghettiChef.
 
-
-
-## Installation and manual test
-
-
-test  on linux :
+Historical planning belongs in:
 
 ```text
-sudo apt install v4l-utils ffmpeg
+docs/TODOs/TODO-0.4-camera.md
+docs/TODOs/TODO-0.5-rust.md
+docs/TODOs/TODO-0.6-replay.md
+```
 
+## User Manual
+
+Camera monitoring starts from a printer entry.
+
+In SpaghettiChef, a printer can represent:
+
+```text
+a real printer connected by serial/USB
+a simulated printer for tests
+a placeholder printer used only to monitor a camera
+```
+
+That means you can create a fake or placeholder printer when you only want SpaghettiChef to monitor a camera connected to the PC. The camera settings still need a printer id because camera files, jobs, snapshots, delta sets, and calculation runs are all grouped by printer.
+
+### 1. Create Or Select A Printer
+
+Open the dashboard and create a printer first.
+
+For a real printer, configure the usual printer connection settings.
+
+For a camera-only setup, create a printer entry with a clear id such as:
+
+```text
+cam-pc-1
+webcam-lab
+printer-stand-camera
+```
+
+Use a simulated or disabled printer connection if you do not want SpaghettiChef to send printer commands. The camera can still be configured for that selected printer.
+
+### 2. Configure The Camera For The Selected Printer
+
+Select the printer in the dashboard, then open the camera/settings area.
+
+Enable the camera and configure:
+
+```text
+source type
+source value
+input format
+video size
+capture interval seconds
+retained snapshots
+camera storage directory
+analysis enabled
+safety enabled
+```
+
+Common camera source examples:
+
+```text
+Linux webcam:
+  source type: ffmpeg
+  input format: v4l2
+  source value: /dev/video0
+
+Windows webcam:
+  source type: ffmpeg
+  input format: dshow
+  source value: video=<camera name>
+
+Development/test:
+  source type: simulated or snapshot folder
+```
+
+If the camera root is left at the application default, SpaghettiChef stores camera files relative to the database directory. If you set a custom camera storage directory, the camera writes there instead.
+
+### 3. Test One Capture
+
+Use `Capture now` to test the camera.
+
+This is a manual capture. It is useful for checking that the camera works, but it is not the same as a camera job.
+
+Expected result:
+
+```text
+the latest preview image updates
+a camera event is recorded
+latest.jpg may be refreshed
+```
+
+Manual capture must not create or reuse a camera job id.
+
+### 4. Start A Camera Job
+
+Start a camera job from the selected-printer camera or analysis-session area.
+
+When a camera job starts:
+
+```text
+SpaghettiChef creates one cameraJobId.
+The scheduler receives that exact cameraJobId.
+Scheduled captures write source snapshots into that camera job.
+The dashboard can show the latest preview while persisted files are collected.
+```
+
+The capture interval controls how often pictures are taken.
+
+Example:
+
+```text
+capture interval seconds = 2
+```
+
+means the camera job will sequence pictures roughly every two seconds while the job is running.
+
+### 5. Stop The Camera Job
+
+Stop the camera job when monitoring is finished.
+
+Stopping the job:
+
+```text
+marks the camera job complete
+stops the scheduler
+keeps the persisted source snapshots
+keeps generated delta frames and calculation results
+```
+
+A later scheduler tick for a completed camera job must not silently create a new job.
+
+### 6. Review The Captured Data
+
+Use the admin camera data area to inspect persisted data.
+
+Typical workflow:
+
+```text
+select printer
+select camera job
+review source snapshots
+generate or select a delta set
+run a calculation
+select Java or Rust calculation engine
+compare calculation runs
+```
+
+The admin view is the right place to inspect historical camera data. The current camera preview is only a live/operator convenience.
+
+## Dashboard Overview
+
+Camera features are split between operator views and admin views.
+
+Operator-facing views show the current camera state:
+
+```text
+selected printer camera settings
+latest camera preview
+camera job start/stop controls
+current camera job status
+live analysis/session status
+recent trace rows
+camera events
+```
+
+Admin-facing views manage retained data:
+
+```text
+camera jobs
+source snapshots
+delta sets
+calculation runs
+engine selection
+manual recalculation
+future replay/compression tools
+```
+
+The operator view is for watching the printer. The admin view is for inspecting and recalculating persisted camera data.
+
+## Camera Settings
+
+Camera settings are stored per printer.
+
+The important settings are:
+
+```text
+enabled
+source type
+source value
+input format
+video size
+capture interval seconds
+retained snapshots
+storage directory / camera root
+analysis enabled
+safety enabled
+confidence threshold
+confirmations required
+```
+
+The camera root is configurable. Examples in the documentation use `<cameraRoot>` to make that explicit.
+
+Example layout:
+
+```text
+<cameraRoot>/<printerId>/
+```
+
+The configured camera root is resolved by the Java backend. The dashboard should not assume a fixed `data/camera` path.
+
+## Current File Model
+
+The current rule is:
+
+```text
+Persisted camera-job files are the source of truth.
+latest.jpg, previous.jpg, and delta.jpg are volatile preview files only.
+```
+
+SpaghettiChef stores camera-job data directly at its final persisted path.
+
+Source snapshots for a camera job:
+
+```text
+<cameraRoot>/<printerId>/snapshots/<cameraJobId>/<snapshotId>_snapshot.jpg
+```
+
+Delta frames for a camera job and delta set:
+
+```text
+<cameraRoot>/<printerId>/deltas/<cameraJobId>/<deltaSetId>/<from>_<to>_delta.jpg
+```
+
+The database stores the stable metadata and file references:
+
+```text
+camera_jobs
+camera_snapshot_entries
+camera_delta_sets
+camera_delta_frames
+camera_calculation_runs
+camera_calculation_results
+```
+
+Replay, recalculation, comparison, and benchmarking must use these persisted rows and named files.
+
+## Preview Files
+
+Each printer may also have these files:
+
+```text
+<cameraRoot>/<printerId>/latest.jpg
+<cameraRoot>/<printerId>/previous.jpg
+<cameraRoot>/<printerId>/delta.jpg
+```
+
+They exist so the dashboard always has something simple to display.
+
+Meaning:
+
+```text
+latest.jpg    current preview image
+previous.jpg  previous preview image
+delta.jpg     current preview delta image
+```
+
+They may be overwritten at every capture cycle.
+
+They must not be used as historical references for:
+
+```text
+camera jobs
+delta sets
+calculation runs
+replay
+benchmarking
+compression decisions
+```
+
+The capture flow writes the persisted end file first, then may copy/update these preview files. This avoids parallel jobs or late captures creating history that points to the wrong job.
+
+## Camera Job Lifecycle
+
+A camera job owns the retained source snapshots created while it is active.
+
+The intended lifecycle is:
+
+```text
+Start job creates the cameraJobId.
+The scheduler receives that exact cameraJobId.
+Each scheduled capture writes only into that cameraJobId.
+Stop job completes that cameraJobId and stops the scheduler.
+A late scheduler tick for a completed cameraJobId fails or records an error.
+It must not create a new job.
+```
+
+Manual capture is different:
+
+```text
+Manual capture may update the preview image.
+Manual capture must not create, read, or reuse a cameraJobId.
+Manual capture must not accidentally attach files to a running or completed camera job.
+```
+
+This separation prevents incoherent capture history when a manual capture and a scheduled camera job happen near the same time.
+
+## Capture Flow
+
+For a scheduled camera-job capture:
+
+```text
+1. Load camera settings for the printer.
+2. Capture one frame from the configured camera source.
+3. Resolve the active cameraJobId supplied by the scheduler.
+4. Write the source snapshot directly to its persisted job path.
+5. Store camera_snapshot_entries metadata.
+6. Update latest.jpg / previous.jpg preview files.
+7. Generate/update live delta data if live analysis is enabled.
+8. Store camera events and diagnostic messages.
+```
+
+For a manual capture:
+
+```text
+1. Load camera settings for the printer.
+2. Capture one frame.
+3. Update preview files.
+4. Store a camera event.
+5. Do not attach the capture to a camera job.
+```
+
+## Delta Sets
+
+A delta set is a persisted group of delta frames for one camera job.
+
+It is scoped by:
+
+```text
+printerId
+cameraJobId
+deltaSetId
+```
+
+Each delta frame references:
+
+```text
+from snapshot id
+to snapshot id
+delta image path
+```
+
+Several delta sets can exist for the same camera job. For example:
+
+```text
+delta set 1: compare every adjacent snapshot
+delta set 2: compare every tenth snapshot
+delta set 3: regenerated later with different settings
+```
+
+Delta frames must reference persisted source snapshots. They must not reference `latest.jpg`, `previous.jpg`, or `delta.jpg`.
+
+## Calculation Runs
+
+A calculation run analyzes one delta set.
+
+Current calculation engines:
+
+```text
+JAVA_BASIC_DELTA
+RUST_CLI_DELTA
+```
+
+Each calculation run stores:
+
+```text
+engine name
+algorithm variant
+engine version
+execution duration
+engine status
+result count
+message
+```
+
+Each calculation result stores per-frame analysis data such as:
+
+```text
+delta frame id
+confidence
+suspected
+reason codes
+message
+changed pixel ratio
+average pixel delta
+```
+
+Java and Rust runs can coexist for the same printer, camera job, and delta set. No calculation run should overwrite another run.
+
+## Rust Analyzer Track
+
+The 0.5.x track adds Rust as an optional image-analysis engine.
+
+Current scope:
+
+```text
+0.5.0 standalone Rust CLI analyzer
+0.5.1 validation against real SpaghettiChef camera files
+0.5.2 stable CLI/result contract
+0.5.3 Java process adapter
+0.5.4 configurable calculation engine architecture
+0.5.5 Rust recalculation integration
+0.5.6 engine comparison and benchmarking
+```
+
+Rust analysis uses persisted source snapshots and persisted delta frames. It does not read SpaghettiChef live preview files as history.
+
+## Engine Comparison And Benchmarking
+
+The 0.5.6 comparison work should compare calculation runs for the same:
+
+```text
+printerId
+cameraJobId
+deltaSetId
+```
+
+The useful comparison fields are:
+
+```text
+engine name
+algorithm variant
+engine version
+engine status
+execution duration
+result count
+suspected count
+average confidence
+per-frame confidence difference
+per-frame suspected mismatch
+reason code differences
+```
+
+This is benchmarking and comparison only. It should not create new snapshots, delta frames, or calculation results unless the admin explicitly starts a recalculation first.
+
+## Replay And Compression Track
+
+The 0.6.x replay work should use persisted data only.
+
+Replay reads:
+
+```text
+camera_snapshot_entries
+camera_delta_sets
+camera_delta_frames
+camera_calculation_runs
+camera_calculation_results
+```
+
+Replay must not read historical data from:
+
+```text
+latest.jpg
+previous.jpg
+delta.jpg
+```
+
+Compression/delete actions are explicit admin actions. They must be scoped to one selected printer and one selected camera job.
+
+Compression/delete must never touch:
+
+```text
+<cameraRoot>/<printerId>/latest.jpg
+<cameraRoot>/<printerId>/previous.jpg
+<cameraRoot>/<printerId>/delta.jpg
+```
+
+If source snapshots are deleted or moved to a non-readable archive, dependent delta sets and calculation runs must be deleted or marked invalid.
+
+## REST And Dashboard References
+
+Important dashboard/API concepts:
+
+```text
+GET /printers/{printerId}/camera/status
+GET /printers/{printerId}/camera/snapshot
+PUT /printers/{printerId}/camera/settings
+POST /printers/{printerId}/camera/jobs/start
+POST /printers/{printerId}/camera/jobs/stop
+admin camera job list
+admin snapshot timeline
+admin delta set generation
+admin calculation run creation
+admin calculation run comparison
+```
+
+The snapshot endpoint may return the current preview image. Admin history views must use persisted job data.
+
+## Manual Camera Test
+
+Linux packages:
+
+```bash
+sudo apt install v4l-utils ffmpeg
+```
+
+Inspect connected cameras:
+
+```bash
 lsusb
 v4l2-ctl --list-devices
 ```
 
-make one picture :
-ffmpeg -f v4l2 -video_size 1280x720 -i /dev/video0 -frames:v 1 /tmp/aukey-test.jpg
+Capture one test picture:
 
+```bash
+ffmpeg -f v4l2 -video_size 1280x720 -i /dev/video0 -frames:v 1 /tmp/spaghettichef-camera-test.jpg
+```
 
+Example continuous capture outside SpaghettiChef:
 
-### Example: save one image every 2 seconds:
-
-mkdir -p ./data/camera/p1
+```bash
+mkdir -p ./camera/p1/manual-test
 
 ffmpeg \
   -f v4l2 \
@@ -31,1380 +530,5 @@ ffmpeg \
   -i /dev/video0 \
   -vf fps=1/2 \
   -strftime 1 \
-  ./data/camera/p1/snapshot_%Y%m%d_%H%M%S.jpg
-
-
-
-
-## Roadmap and Specification : 0.4.x CAMERA 
-
-
-### overview
-
-Best architecture:
-
-```text
-SpaghettiChef Runtime
-  ├─ CameraCaptureService
-  ├─ CameraDevice
-  ├─ FrameAnalyzer
-  ├─ SpaghettiDetectionService
-  ├─ PrinterSafetyActionService
-  └─ Dashboard JS view
+  ./camera/p1/manual-test/snapshot_%Y%m%d_%H%M%S.jpg
 ```
-
-For Linux/Windows compatibility, avoid OS-specific camera code at first. Use one abstraction:
-
-```java
-public interface CameraDevice {
-    Optional<CameraFrame> captureFrame();
-    boolean isAvailable();
-    void close();
-}
-```
-
-Then implementations:
-
-```text
-OpenCvCameraDevice        // later, real webcam
-SnapshotFolderCameraDevice // test/dev mode
-SimulatedCameraDevice      // CI tests
-```
-
-Why this is good:
-
-* Linux camera: `/dev/video0`
-* Windows camera: usually index `0`
-* Java code stays the same
-* dashboard only consumes REST endpoints
-* CI can test without a real webcam
-
-First version should not be “AI” yet. I would do:
-
-```text
-0.4.0 Camera monitoring foundation
-- detect camera
-- capture snapshot
-- expose /printers/{id}/camera/snapshot
-- show image in dashboard
-- persist camera events
-
-0.4.1 Spaghetti heuristic detection
-- compare frames
-- detect abnormal chaos/motion
-- confidence score
-- no automatic stop yet
-
-0.4.2 Safety intervention
-- if confidence high several times
-- pause SD print with M25
-- persist SPAGHETTI_DETECTED
-```
-
-For Java libraries, I would use **OpenCV Java bindings** or possibly **JavaCV**. But I would hide it behind `CameraDevice`, because native camera libraries are often the pain point on Windows.
-
-Important: do **not** mix this into job upload/streaming. It should be a parallel monitoring task:
-
-```text
-job RUNNING
-camera task observes
-if anomaly → command service sends pause/abort
-```
-
-Dashboard JS only needs:
-
-```text
-GET /printers/{id}/camera/status
-GET /printers/{id}/camera/snapshot
-GET /printers/{id}/camera/anomalies
-PUT /printers/{id}/camera/settings
-```
-
-So: Java backend for capture/detection, JS frontend for display, simulated camera for tests. That fits your current SpaghettiChef architecture very cleanly.
-
-
----
-
-
-Yes: this should become a **separate 0.4.x feature line**, not be mixed into upload, jobs, serial transfer, or normal printer monitoring.
-
-The cleanest direction is:
-
-```text
-0.4.x — Camera Monitoring & Visual Safety Layer
-```
-
-It should observe printers in parallel, produce visual state, persist camera events, and only later trigger printer actions through existing services.
-
-## Core architectural decision
-
-Do **not** make the camera part of:
-
-```text
-PrintJobExecutionService
-SdCardUploadService
-PrinterMonitoringTask
-SerialConnection
-```
-
-Those are already critical and fragile enough.
-
-Camera monitoring should be its own subsystem:
-
-```text
-spaghettichef.camera
-```
-
-with only controlled connections to:
-
-```text
-runtime
-api
-persistence
-security
-dashboard
-command/job safety layer
-```
-
-The camera system should behave like this:
-
-```text
-SpaghettiChef Runtime
-  ├─ Printer monitoring task        -> temperature / firmware / serial status
-  ├─ Job execution task             -> upload / start / cancel / pause
-  └─ Camera monitoring task         -> snapshot / anomaly / spaghetti suspicion
-```
-
-The camera task observes. It does **not** own printing.
-
----
-
-# Recommended roadmap
-
-## 0.4.0 — Camera monitoring foundation
-
-Status: planned
-
-Purpose:
-
-Create the camera infrastructure without AI, without OpenCV dependency pain, and without automatic printer intervention.
-
-Goals:
-
-```text
-- register camera settings per printer
-- support simulated/dev camera sources
-- capture snapshots
-- expose camera status and latest snapshot through REST
-- show snapshot in dashboard
-- persist camera events
-- keep camera code isolated from serial/job/upload logic
-```
-
-No spaghetti detection yet. No automatic pause. No safety action.
-
-This version answers only:
-
-```text
-Can SpaghettiChef see a camera?
-Can SpaghettiChef capture an image?
-Can the dashboard show it?
-Can the system work in CI without a webcam?
-```
-
-That is enough for the first mergeable step.
-
----
-
-## 0.4.1 — Frame analysis and heuristic anomaly detection
-
-Status: planned after 0.4.0
-
-Purpose:
-
-Introduce analysis logic, but still without printer intervention.
-
-Goals:
-
-```text
-- compare frames over time
-- calculate simple visual indicators
-- persist anomaly observations
-- expose confidence score
-- show visual analysis state in dashboard
-- avoid false automatic stops
-```
-
-Possible first heuristics:
-
-```text
-- excessive new edges in print area
-- abnormal visual growth outside expected object region
-- sudden chaotic filament-like lines
-- movement where the print should be stable
-- blob/string increase between frames
-```
-
-Output should look like:
-
-```text
-printerId=p1
-cameraStatus=ACTIVE
-analysisStatus=OBSERVING
-spaghettiConfidence=0.62
-lastAnomalyAt=...
-reason=EDGE_CHAOS_INCREASE
-```
-
-Still no printer pause.
-
----
-
-## 0.4.2 — Safety decision layer
-
-Status: planned after 0.4.1
-
-Purpose:
-
-Turn repeated high-confidence visual anomalies into controlled safety events.
-
-Goals:
-
-```text
-- require repeated detections before action
-- introduce camera safety settings
-- persist SPAGHETTI_SUSPECTED / SPAGHETTI_CONFIRMED
-- optionally pause print with M25
-- never hard-stop by default
-- show safety action in job/printer history
-```
-
-Important: first automatic action should be **pause**, not kill.
-
-For SD printing, likely:
-
-```text
-M25
-```
-
-For later host-streaming mode, the runtime can stop sending lines, but that is not your current priority.
-
----
-
-## 0.4.3 — Real OpenCV / JavaCV camera backend
-
-Status: planned after foundation is stable
-
-Purpose:
-
-Add real webcam support behind the existing abstraction.
-
-Goals:
-
-```text
-- OpenCvCameraDevice or JavaCvCameraDevice
-- support Linux /dev/video0
-- support Windows camera index 0
-- keep native dependency issues isolated
-- document camera installation requirements
-```
-
-Do **not** start with this. Native camera libraries can waste days. Build the architecture first with simulated and folder-based snapshots.
-
----
-
-## 0.4.4 — Camera dashboard polish
-
-Status: planned
-
-Purpose:
-
-Make the feature useful operationally.
-
-Goals:
-
-```text
-- live snapshot card
-- camera health badge
-- last frame age
-- anomaly timeline
-- confidence graph
-- manual capture button
-- camera settings panel
-- safety mode indicator
-```
-
-Possible dashboard states:
-
-```text
-Camera disabled
-Camera configured but unavailable
-Camera active
-Camera active, observing
-Spaghetti suspected
-Print paused by camera safety
-```
-
----
-
-# Packages and files I would add
-
-## New backend package
-
-Add:
-
-```text
-src/main/java/spaghettichef/camera
-```
-
-Suggested files:
-
-```text
-CameraDevice.java
-CameraFrame.java
-CameraStatus.java
-CameraSourceType.java
-CameraCaptureResult.java
-CameraCaptureService.java
-CameraMonitoringService.java
-CameraMonitoringTask.java
-CameraMonitoringScheduler.java
-CameraSettings.java
-CameraSettingsService.java
-CameraSnapshotStore.java
-CameraEventType.java
-CameraEvent.java
-CameraEventStore.java
-FrameAnalyzer.java
-FrameAnalysisResult.java
-SpaghettiDetectionService.java
-SpaghettiDetectionResult.java
-SimulatedCameraDevice.java
-SnapshotFolderCameraDevice.java
-NoopCameraDevice.java
-```
-
-Later only:
-
-```text
-OpenCvCameraDevice.java
-```
-
-Do not add OpenCV in 0.4.0 unless you really want native dependency work immediately.
-
----
-
-# Recommended minimal class design
-
-## `CameraDevice`
-
-```java
-package spaghettichef.camera;
-
-import java.util.Optional;
-
-public interface CameraDevice extends AutoCloseable {
-
-    Optional<CameraFrame> captureFrame();
-
-    boolean isAvailable();
-
-    @Override
-    void close();
-}
-```
-
-Good.
-
-I would add one important thing:
-
-```java
-String describe();
-```
-
-So the dashboard/log can say:
-
-```text
-simulated-camera
-snapshot-folder:data/camera/p1
-opencv:index=0
-```
-
-Final interface:
-
-```java
-package spaghettichef.camera;
-
-import java.util.Optional;
-
-public interface CameraDevice extends AutoCloseable {
-
-    Optional<CameraFrame> captureFrame();
-
-    boolean isAvailable();
-
-    String describe();
-
-    @Override
-    void close();
-}
-```
-
----
-
-## `CameraFrame`
-
-Keep it dumb.
-
-```text
-printerId
-capturedAt
-contentType
-bytes
-width optional
-height optional
-sourceDescription
-```
-
-Do not expose `BufferedImage` everywhere. Keep image decoding isolated.
-
----
-
-## `CameraCaptureService`
-
-Responsibility:
-
-```text
-- choose the right CameraDevice for a printer
-- capture one frame
-- store latest frame in memory
-- optionally persist metadata/event
-```
-
-This should not know spaghetti logic.
-
----
-
-## `FrameAnalyzer`
-
-Responsibility:
-
-```text
-CameraFrame previous
-CameraFrame current
-        ↓
-FrameAnalysisResult
-```
-
-This can be pure Java for 0.4.1, without OpenCV.
-
----
-
-## `SpaghettiDetectionService`
-
-Responsibility:
-
-```text
-FrameAnalysisResult + recent history + settings
-        ↓
-SpaghettiDetectionResult
-```
-
-It should make the decision, but not pause the printer directly.
-
----
-
-## `PrinterSafetyActionService`
-
-This can be a small bridge in 0.4.2.
-
-Package options:
-
-```text
-spaghettichef.camera.PrinterSafetyActionService
-```
-
-or better:
-
-```text
-spaghettichef.safety.PrinterSafetyActionService
-```
-
-I prefer a new package later:
-
-```text
-src/main/java/spaghettichef/safety
-```
-
-because future safety features may not be camera-only.
-
-Possible files:
-
-```text
-PrinterSafetyActionService.java
-PrinterSafetyAction.java
-PrinterSafetyDecision.java
-PrinterSafetyMode.java
-```
-
-This service should call existing printer command/job services, not serial directly.
-
----
-
-# Persistence additions
-
-Current persistence package is already crowded, but for consistency I would keep stores there.
-
-Add:
-
-```text
-src/main/java/spaghettichef/persistence/CameraSettings.java
-src/main/java/spaghettichef/persistence/CameraSettingsStore.java
-src/main/java/spaghettichef/persistence/CameraEvent.java
-src/main/java/spaghettichef/persistence/CameraEventStore.java
-src/main/java/spaghettichef/persistence/CameraSnapshotMetadata.java
-src/main/java/spaghettichef/persistence/CameraSnapshotMetadataStore.java
-```
-
-Do **not** store full image blobs in SQLite for the first version.
-
-Better:
-
-```text
-SQLite:
-  camera settings
-  camera events
-  latest snapshot metadata
-  anomaly metadata
-
-Filesystem:
-  actual snapshot image files
-```
-
-Example filesystem layout:
-
-```text
-data/camera/
-  p1/
-    latest.jpg
-    snapshots/
-      2026-05-18T10-42-03.123.jpg
-```
-
-Storage is a per-printer camera setting persisted in SQLite and editable from
-the selected-printer Camera dashboard view. The default setting is `camera`,
-resolved relative to the configured database directory, and the printer id is
-added by the capture service.
-
-```text
-camera
-```
-
----
-
-# Database tables
-
-## `camera_settings`
-
-```sql
-camera_settings
-- printer_id TEXT PRIMARY KEY
-- enabled INTEGER NOT NULL
-- source_type TEXT NOT NULL
-- source_value TEXT
-- capture_interval_seconds INTEGER NOT NULL
-- retention_snapshot_count INTEGER NOT NULL
-- analysis_enabled INTEGER NOT NULL
-- safety_enabled INTEGER NOT NULL
-- pause_on_confirmed_spaghetti INTEGER NOT NULL
-- confidence_threshold REAL NOT NULL
-- confirmations_required INTEGER NOT NULL
-- updated_at TEXT NOT NULL
-```
-
-For 0.4.0, many fields can exist but remain unused.
-
-## `camera_events`
-
-```sql
-camera_events
-- id INTEGER PRIMARY KEY AUTOINCREMENT
-- printer_id TEXT NOT NULL
-- event_type TEXT NOT NULL
-- message TEXT NOT NULL
-- confidence REAL
-- created_at TEXT NOT NULL
-```
-
-Event types:
-
-```text
-CAMERA_ENABLED
-CAMERA_DISABLED
-CAMERA_AVAILABLE
-CAMERA_UNAVAILABLE
-CAMERA_FRAME_CAPTURED
-CAMERA_CAPTURE_FAILED
-CAMERA_ANALYSIS_SKIPPED
-SPAGHETTI_SUSPECTED
-SPAGHETTI_CONFIRMED
-CAMERA_SAFETY_PAUSE_REQUESTED
-CAMERA_SAFETY_PAUSE_SUCCEEDED
-CAMERA_SAFETY_PAUSE_FAILED
-```
-
-## `camera_snapshot_metadata`
-
-```sql
-camera_snapshot_metadata
-- id INTEGER PRIMARY KEY AUTOINCREMENT
-- printer_id TEXT NOT NULL
-- captured_at TEXT NOT NULL
-- content_type TEXT NOT NULL
-- file_path TEXT NOT NULL
-- width INTEGER
-- height INTEGER
-- source_description TEXT
-```
-
----
-
-# Runtime integration: modify as little as possible
-
-## Modify `SpaghettiChefRuntime.java`
-
-Add camera services as optional subsystem.
-
-Minimal integration:
-
-```text
-SpaghettiChefRuntime
-  ├─ existing registry/cache/stores/services
-  └─ CameraMonitoringScheduler cameraMonitoringScheduler
-```
-
-Add startup/shutdown hooks only:
-
-```text
-cameraMonitoringScheduler.start()
-cameraMonitoringScheduler.stop()
-```
-
-This is the one unavoidable runtime integration point.
-
-Keep it small.
-
----
-
-## Modify `PrinterRuntimeNode.java`?
-
-Avoid it in 0.4.0 if possible.
-
-Camera config can be keyed by `printerId`, not embedded into the runtime node.
-
-Later, if needed, you can add:
-
-```java
-Optional<CameraStatus> cameraStatus()
-```
-
-But for merge safety, do not touch `PrinterRuntimeNode` unless necessary.
-
----
-
-## Modify `DatabaseInitializer.java`
-
-Yes.
-
-Add camera table creation.
-
-This is unavoidable.
-
-But keep it additive:
-
-```text
-CREATE TABLE IF NOT EXISTS camera_settings ...
-CREATE TABLE IF NOT EXISTS camera_events ...
-CREATE TABLE IF NOT EXISTS camera_snapshot_metadata ...
-```
-
-No migration of existing tables.
-
-No changes to printer/job tables.
-
----
-
-## Modify `OperationMessages.java`
-
-Yes, but only to add constants.
-
-Add:
-
-```text
-EVENT_CAMERA_AVAILABLE
-EVENT_CAMERA_UNAVAILABLE
-EVENT_CAMERA_FRAME_CAPTURED
-EVENT_CAMERA_CAPTURE_FAILED
-EVENT_SPAGHETTI_SUSPECTED
-EVENT_SPAGHETTI_CONFIRMED
-EVENT_CAMERA_SAFETY_PAUSE_REQUESTED
-EVENT_CAMERA_SAFETY_PAUSE_SUCCEEDED
-EVENT_CAMERA_SAFETY_PAUSE_FAILED
-```
-
-Do not reuse printer error messages. Camera events are a separate domain.
-
----
-
-# API additions
-
-Modify:
-
-```text
-src/main/java/spaghettichef/api/RemoteApiServer.java
-```
-
-Unfortunately this file is your central routing point, so it will need edits.
-
-But keep them shallow. Do not put camera business logic into `RemoteApiServer`.
-
-Add only route handlers that call a `CameraApiController`-style service if you create one.
-
-Since the project currently seems to keep API logic mostly inside `RemoteApiServer`, I would still add a helper class to reduce future pain:
-
-```text
-src/main/java/spaghettichef/api/CameraApiHandler.java
-```
-
-Then `RemoteApiServer` only delegates.
-
-Suggested endpoints:
-
-```text
-GET /printers/{id}/camera/status
-GET /printers/{id}/camera/snapshot
-POST /printers/{id}/camera/snapshot
-GET /printers/{id}/camera/events
-GET /printers/{id}/camera/settings
-PUT /printers/{id}/camera/settings
-```
-
-For 0.4.0, enough:
-
-```text
-GET /printers/{id}/camera/status
-GET /printers/{id}/camera/snapshot
-POST /printers/{id}/camera/snapshot
-GET /printers/{id}/camera/settings
-PUT /printers/{id}/camera/settings
-```
-
-I would not use:
-
-```text
-GET /printers/{id}/camera/anomalies
-```
-
-yet. Better to expose anomalies as events or analysis result later:
-
-```text
-GET /printers/{id}/camera/analysis
-```
-
----
-
-# Dashboard additions
-
-Add a separate view first.
-
-## New files
-
-```text
-src/main/resources/dashboard/views/printer-camera.js
-src/main/resources/dashboard/components/camera-card.js
-```
-
-Optional later:
-
-```text
-src/main/resources/dashboard/components/camera-analysis-card.js
-src/main/resources/dashboard/components/camera-settings-card.js
-```
-
-## Modify existing dashboard files
-
-Minimal required modifications:
-
-```text
-dashboard.js
-nav.js
-api.js
-state.js
-dashboard.css
-```
-
-Possibly:
-
-```text
-printer-home.js
-```
-
-Only if you want a small camera preview on the printer home page.
-
-I would do this in two steps:
-
-### 0.4.0 dashboard
-
-Add a dedicated selected-printer page:
-
-```text
-Selected Printer
-  Home
-  Print
-  Prepare
-  Control
-  SD Card
-  Camera
-  Info
-  History
-```
-
-The camera page shows:
-
-```text
-- camera enabled/disabled
-- source type
-- source value
-- availability
-- last snapshot
-- capture button
-- last camera event
-```
-
-### 0.4.1 dashboard
-
-Add analysis:
-
-```text
-- spaghetti confidence
-- last analysis result
-- reason code
-- detection history
-```
-
-### 0.4.2 dashboard
-
-Add safety:
-
-```text
-- safety mode
-- pause threshold
-- confirmations required
-- last safety action
-```
-
----
-
-# Security integration
-
-You now have:
-
-```text
-security
-├── ActionPermissionResolver
-├── AuthorizationService
-├── DangerousActionGuard
-├── Permission
-```
-
-Camera read access is low risk. Camera control and safety intervention are not.
-
-Modify:
-
-```text
-Permission.java
-ActionPermissionResolver.java
-```
-
-Add permissions such as:
-
-```text
-CAMERA_VIEW
-CAMERA_CONFIGURE
-CAMERA_CAPTURE
-CAMERA_SAFETY_CONFIGURE
-CAMERA_SAFETY_TRIGGER
-```
-
-But for 0.4.0 you can keep it simpler:
-
-```text
-CAMERA_VIEW
-CAMERA_MANAGE
-```
-
-Later expand if needed.
-
-Do not block yourself with too many permissions in the first implementation.
-
----
-
-# Testing additions
-
-Add:
-
-```text
-src/test/java/spaghettichef/camera
-```
-
-Suggested tests:
-
-```text
-CameraSettingsTest.java
-CameraSettingsStoreTest.java
-CameraEventStoreTest.java
-SimulatedCameraDeviceTest.java
-SnapshotFolderCameraDeviceTest.java
-CameraCaptureServiceTest.java
-CameraMonitoringTaskTest.java
-CameraMonitoringSchedulerTest.java
-SpaghettiDetectionServiceTest.java
-```
-
-Modify:
-
-```text
-DatabaseInitializerTest.java
-RemoteApiServerTest.java
-SpaghettiChefRuntimeTest.java
-```
-
-But only add camera assertions. Do not rewrite existing tests.
-
----
-
-# Files I would avoid touching
-
-Avoid touching unless absolutely necessary:
-
-```text
-SdCardUploadService.java
-SerialConnection.java
-SerialPortAdapter.java
-JSerialCommPortAdapter.java
-SimulatedPrinterPort.java
-PrintJobExecutionService.java
-PrintJobService.java
-PrinterMonitoringTask.java
-PrinterSnapshotStore.java
-PrinterRuntimeNode.java
-PrinterRuntimeNodeFactory.java
-```
-
-The camera feature should not destabilize those.
-
-Especially avoid:
-
-```text
-SdCardUploadService.java
-```
-
-The SD upload logic is already complex. Camera monitoring must not enter that code path.
-
----
-
-# Modified files summary
-
-## Add
-
-```text
-src/main/java/spaghettichef/camera/CameraDevice.java
-src/main/java/spaghettichef/camera/CameraFrame.java
-src/main/java/spaghettichef/camera/CameraStatus.java
-src/main/java/spaghettichef/camera/CameraSourceType.java
-src/main/java/spaghettichef/camera/CameraCaptureResult.java
-src/main/java/spaghettichef/camera/CameraCaptureService.java
-src/main/java/spaghettichef/camera/CameraMonitoringService.java
-src/main/java/spaghettichef/camera/CameraMonitoringTask.java
-src/main/java/spaghettichef/camera/CameraMonitoringScheduler.java
-src/main/java/spaghettichef/camera/CameraSettingsService.java
-src/main/java/spaghettichef/camera/FrameAnalyzer.java
-src/main/java/spaghettichef/camera/FrameAnalysisResult.java
-src/main/java/spaghettichef/camera/SpaghettiDetectionService.java
-src/main/java/spaghettichef/camera/SpaghettiDetectionResult.java
-src/main/java/spaghettichef/camera/SimulatedCameraDevice.java
-src/main/java/spaghettichef/camera/SnapshotFolderCameraDevice.java
-src/main/java/spaghettichef/camera/NoopCameraDevice.java
-
-src/main/java/spaghettichef/persistence/CameraSettings.java
-src/main/java/spaghettichef/persistence/CameraSettingsStore.java
-src/main/java/spaghettichef/persistence/CameraEvent.java
-src/main/java/spaghettichef/persistence/CameraEventStore.java
-src/main/java/spaghettichef/persistence/CameraSnapshotMetadata.java
-src/main/java/spaghettichef/persistence/CameraSnapshotMetadataStore.java
-
-src/main/java/spaghettichef/api/CameraApiHandler.java
-
-src/main/resources/dashboard/views/printer-camera.js
-src/main/resources/dashboard/components/camera-card.js
-```
-
-## Modify
-
-```text
-src/main/java/spaghettichef/runtime/SpaghettiChefRuntime.java
-src/main/java/spaghettichef/api/RemoteApiServer.java
-src/main/java/spaghettichef/persistence/DatabaseInitializer.java
-src/main/java/spaghettichef/OperationMessages.java
-src/main/java/spaghettichef/config/RuntimeDefaults.java
-src/main/java/spaghettichef/security/Permission.java
-src/main/java/spaghettichef/security/ActionPermissionResolver.java
-
-src/main/resources/dashboard/api.js
-src/main/resources/dashboard/dashboard.js
-src/main/resources/dashboard/state.js
-src/main/resources/dashboard/components/nav.js
-src/main/resources/dashboard/dashboard.css
-```
-
-Optional:
-
-```text
-src/main/resources/dashboard/views/printer-home.js
-```
-
-## Do not modify for 0.4.0
-
-```text
-src/main/java/spaghettichef/command/SdCardUploadService.java
-src/main/java/spaghettichef/job/PrintJobExecutionService.java
-src/main/java/spaghettichef/monitoring/PrinterMonitoringTask.java
-src/main/java/spaghettichef/SerialConnection.java
-```
-
----
-
-# Suggested 0.4.0 implementation order
-
-## Step A — Persistence foundation
-
-Add:
-
-```text
-CameraSettings
-CameraSettingsStore
-CameraEvent
-CameraEventStore
-CameraSnapshotMetadata
-CameraSnapshotMetadataStore
-```
-
-Modify:
-
-```text
-DatabaseInitializer
-DatabaseInitializerTest
-```
-
-This gives you stable schema first.
-
----
-
-## Step B — Camera abstraction
-
-Add:
-
-```text
-CameraDevice
-CameraFrame
-CameraSourceType
-CameraStatus
-CameraCaptureResult
-SimulatedCameraDevice
-SnapshotFolderCameraDevice
-NoopCameraDevice
-```
-
-No runtime integration yet.
-
----
-
-## Step C — Capture service
-
-Add:
-
-```text
-CameraCaptureService
-CameraSettingsService
-```
-
-Tests:
-
-```text
-CameraCaptureServiceTest
-CameraSettingsServiceTest
-```
-
-This validates:
-
-```text
-enabled camera -> snapshot captured
-disabled camera -> skipped
-missing camera -> unavailable
-snapshot folder -> reads latest test image
-simulated camera -> returns fixed image
-```
-
----
-
-## Step D — Scheduler
-
-Add:
-
-```text
-CameraMonitoringTask
-CameraMonitoringScheduler
-CameraMonitoringService
-```
-
-Modify:
-
-```text
-SpaghettiChefRuntime
-SpaghettiChefRuntimeTest
-RuntimeDefaults
-```
-
-Add defaults:
-
-```java
-DEFAULT_CAMERA_MONITORING_INTERVAL_SECONDS = 10
-DEFAULT_CAMERA_STORAGE_DIRECTORY = "camera"
-DEFAULT_CAMERA_ENABLED = false
-```
-
-Camera should be disabled by default.
-
-That avoids breaking existing users and CI.
-
----
-
-## Step E — REST API
-
-Add:
-
-```text
-CameraApiHandler
-```
-
-Modify:
-
-```text
-RemoteApiServer
-RemoteApiServerTest
-```
-
-Endpoints:
-
-```text
-GET /printers/{id}/camera/status
-GET /printers/{id}/camera/settings
-PUT /printers/{id}/camera/settings
-POST /printers/{id}/camera/snapshot
-GET /printers/{id}/camera/snapshot
-```
-
-For snapshot image response:
-
-```text
-Content-Type: image/jpeg
-Cache-Control: no-store
-```
-
-For missing snapshot:
-
-```text
-404
-{
-  "error": "camera_snapshot_not_available"
-}
-```
-
----
-
-## Step F — Dashboard
-
-Add:
-
-```text
-printer-camera.js
-camera-card.js
-```
-
-Modify:
-
-```text
-api.js
-dashboard.js
-state.js
-nav.js
-dashboard.css
-```
-
-First camera dashboard should be simple:
-
-```text
-Camera
-- Status
-- Enabled/disabled
-- Source type
-- Source value
-- Last frame age
-- Capture now
-- Latest snapshot
-```
-
-Do not add spaghetti UI in 0.4.0.
-
----
-
-# Configuration model
-
-Recommended camera source types:
-
-```text
-disabled
-simulated
-snapshot-folder
-opencv-index
-opencv-device
-http-snapshot
-```
-
-For 0.4.0 implement only:
-
-```text
-simulated
-snapshot-folder
-disabled
-```
-
-Later:
-
-```text
-opencv-index
-opencv-device
-http-snapshot
-```
-
-Example settings JSON:
-
-```json
-{
-  "enabled": true,
-  "sourceType": "snapshot-folder",
-  "sourceValue": "data/camera/p1",
-  "storageDirectory": "camera",
-  "captureIntervalSeconds": 10,
-  "retentionSnapshotCount": 20,
-  "analysisEnabled": false,
-  "safetyEnabled": false,
-  "pauseOnConfirmedSpaghetti": false,
-  "confidenceThreshold": 0.85,
-  "confirmationsRequired": 3
-}
-```
-
-For simulated CI:
-
-```json
-{
-  "enabled": true,
-  "sourceType": "simulated",
-  "sourceValue": "default",
-  "captureIntervalSeconds": 10
-}
-```
-
----
-
-# Important design correction
-
-Your draft says:
-
-```text
-CameraCaptureService
-CameraDevice
-FrameAnalyzer
-SpaghettiDetectionService
-PrinterSafetyActionService
-Dashboard JS view
-```
-
-I would refine it to:
-
-```text
-CameraDevice
-  low-level source abstraction
-
-CameraCaptureService
-  one snapshot capture
-
-CameraMonitoringTask
-  repeated scheduled observation
-
-FrameAnalyzer
-  visual difference/feature extraction
-
-SpaghettiDetectionService
-  decision from analysis history
-
-PrinterSafetyActionService
-  bridge from detection to printer action
-
-CameraApiHandler
-  REST layer
-
-CameraSettingsStore / CameraEventStore / CameraSnapshotMetadataStore
-  persistence
-```
-
-The missing piece in your first sketch is the **scheduler/task layer**. You need it because camera monitoring must run independently, just like printer monitoring.
-
----
-
-# Safety principle
-
-For 0.4.2, the rule should be:
-
-```text
-Detection does not equal action.
-```
-
-Instead:
-
-```text
-frame anomaly
-  -> suspicion
-  -> repeated suspicion
-  -> confirmation
-  -> safety decision
-  -> command request
-  -> persisted action result
-```
-
-That avoids one bad frame stopping a valid print.
-
-Recommended default:
-
-```text
-analysisEnabled=false
-safetyEnabled=false
-pauseOnConfirmedSpaghetti=false
-```
-
-The user must explicitly enable safety action.
-
- 
----
- 

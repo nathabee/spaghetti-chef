@@ -73,8 +73,8 @@ Example:
 
 ```bash
 cargo run -- \
-  --from-snapshot ../../camera/p1/previous.jpg \
-  --to-snapshot ../../camera/p1/latest.jpg \
+  --from-snapshot ../../camera/p1/snapshots/1/002523_snapshot.jpg \
+  --to-snapshot ../../camera/p1/snapshots/1/002524_snapshot.jpg \
   --method delta-basic \
   --threshold 0.20
 ```
@@ -83,9 +83,9 @@ Example with optional delta frame:
 
 ```bash
 cargo run -- \
-  --from-snapshot ../../camera/p1/previous.jpg \
-  --to-snapshot ../../camera/p1/latest.jpg \
-  --delta-frame ../../camera/p1/delta.jpg \
+  --from-snapshot ../../camera/p1/snapshots/1/002523_snapshot.jpg \
+  --to-snapshot ../../camera/p1/snapshots/1/002524_snapshot.jpg \
+  --delta-frame ../../camera/p1/deltas/1/1/002523_002524_delta.jpg \
   --method delta-basic \
   --threshold 0.20
 ```
@@ -137,7 +137,7 @@ Example:
 ```json
 {
   "engineName": "RUST_CLI_DELTA",
-  "engineVersion": "0.5.5",
+  "engineVersion": "0.5.6",
   "algorithmVariant": "FRAME_DELTA",
   "confidence": 0.78,
   "suspected": true,
@@ -177,7 +177,7 @@ The stable CLI and JSON behavior is documented in [docs/result-contract.md](docs
 Current version:
 
 ```text
-0.5.5
+0.5.6
 Standalone Rust prototype.
 No Java integration yet.
 ```

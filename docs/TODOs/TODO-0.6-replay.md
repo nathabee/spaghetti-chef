@@ -5,10 +5,35 @@ This doc is [/docs/TODOs/TODO-0.6-replay.md]
 
 
 
-## 0.6.x — Replay, Compression, And Simulation Review
+## 0.6.x — Purge, Replay, Compression, And Simulation Review
 
 
-### 0.6.0 replay in dashboard
+### 0.6.0 purge snapshots in database, filesystem and dashboard
+status: planned
+
+
+### 0.6.1 delete jobs in database, filesystem and dashboard
+status: planned
+
+
+
+### 0.6.2 delete delta in database, filesystem and dashboard
+status: planned
+
+
+### 0.6.3 display image deltas, before, after to understand a result 
+status: planned
+
+
+
+
+### 0.6.4 check replay
+
+status: planned
+
+
+
+### 0.6.5 replay with many engines in dashboard
 status: planned
 
 

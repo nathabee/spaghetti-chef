@@ -1,6 +1,7 @@
 package spaghettichef.camera;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -239,7 +240,7 @@ class CameraDeltaSetServiceTest {
         assertEquals("JAVA_BASIC_DELTA", javaRun.engineName());
         assertEquals("RUST_CLI_DELTA", rustRun.engineName());
         assertEquals("SUCCESS", rustRun.engineStatus());
-        assertEquals("0.5.5", rustRun.engineVersion());
+        assertEquals("0.5.6", rustRun.engineVersion());
         assertEquals(2, rustRun.resultCount());
 
         List<CameraCalculationResult> rustResults = new CameraCalculationResultStore()
@@ -275,6 +276,48 @@ class CameraDeltaSetServiceTest {
         assertEquals("INVALID_RESPONSE", rustRun.engineStatus());
         assertEquals(0, rustRun.resultCount());
         assertTrue(rustRun.message().contains("invalid JSON"));
+    }
+
+    @Test
+    void comparisonServiceComparesRunsForSameDeltaSet() throws Exception {
+        useDatabase("camera-calculation-comparison.db");
+        CameraJob job = saveCameraJob("printer-1");
+        saveCameraSettings("printer-1");
+        saveSnapshots("printer-1", job.requireId(), 3);
+        CameraDeltaSetGenerationResult deltaResult = service().generate(
+                "printer-1",
+                job.requireId(),
+                1,
+                null,
+                null);
+
+        CameraCalculationRun javaRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "threshold-v1",
+                0.85,
+                null,
+                "java run",
+                "JAVA_BASIC_DELTA");
+        CameraCalculationRun rustRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "rust-cli-delta",
+                0.65,
+                null,
+                "rust run",
+                "RUST_CLI_DELTA",
+                scriptPath("fake-rust-analyzer-success.sh").toString());
+
+        CameraCalculationRunComparison comparison = new CameraCalculationComparisonService()
+                .compare(javaRun.requireId(), rustRun.requireId(), "printer-1");
+
+        assertEquals(javaRun.requireId(), comparison.left().run().requireId());
+        assertEquals(rustRun.requireId(), comparison.right().run().requireId());
+        assertEquals(2, comparison.left().resultCount());
+        assertEquals(2, comparison.right().resultCount());
+        assertEquals(2, comparison.comparedFrameCount());
+        assertEquals(2, comparison.frames().size());
+        assertTrue(comparison.averageAbsoluteConfidenceDifference() >= 0.0);
+        assertFalse(comparison.frames().get(0).deltaFrameId() <= 0L);
     }
 
     private CameraDeltaSetService service() {

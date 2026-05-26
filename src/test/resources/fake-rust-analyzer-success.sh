@@ -3,7 +3,7 @@ echo "fake analyzer diagnostic" >&2
 cat <<'JSON'
 {
   "engineName": "RUST_CLI_DELTA",
-  "engineVersion": "0.5.5",
+  "engineVersion": "0.5.6",
   "algorithmVariant": "FRAME_DELTA",
   "confidence": 0.78,
   "suspected": true,

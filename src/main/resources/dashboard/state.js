@@ -42,6 +42,7 @@ export const state = {
   adminCameraDeltaFrames: [],
   adminCameraCalculationRuns: [],
   adminCameraTraceRows: [],
+  adminCameraRunComparison: null,
   adminCameraSelectedJobId: null,
   adminCameraSelectedDeltaSetId: null,
   adminCameraSelectedCalculationRunId: null,
@@ -156,6 +157,7 @@ export function setAdminCameraPrinter(printerId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraRunComparison = null;
   state.adminCameraSelectedJobId = null;
   state.adminCameraSelectedDeltaSetId = null;
   state.adminCameraSelectedCalculationRunId = null;
@@ -169,13 +171,22 @@ export function setAdminCameraTimeline(jobId, timeline) {
   state.adminCameraSelectedEntryId = state.adminCameraTimeline[0]?.id ?? null;
 }
 
-export function setAdminCameraAnalysisData(deltaSets, deltaFrames, calculationRuns, traceRows, selectedDeltaSetId, selectedCalculationRunId) {
+export function setAdminCameraAnalysisData(
+  deltaSets,
+  deltaFrames,
+  calculationRuns,
+  traceRows,
+  selectedDeltaSetId,
+  selectedCalculationRunId,
+  runComparison = null
+) {
   state.adminCameraDeltaSets = Array.isArray(deltaSets) ? deltaSets : [];
   state.adminCameraDeltaFrames = Array.isArray(deltaFrames) ? deltaFrames : [];
   state.adminCameraCalculationRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
   state.adminCameraTraceRows = Array.isArray(traceRows) ? traceRows : [];
   state.adminCameraSelectedDeltaSetId = selectedDeltaSetId == null ? null : Number(selectedDeltaSetId);
   state.adminCameraSelectedCalculationRunId = selectedCalculationRunId == null ? null : Number(selectedCalculationRunId);
+  state.adminCameraRunComparison = runComparison || null;
 }
 
 export function setAdminCameraSelectedDeltaSet(deltaSetId) {
@@ -183,6 +194,7 @@ export function setAdminCameraSelectedDeltaSet(deltaSetId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraRunComparison = null;
   state.adminCameraSelectedCalculationRunId = null;
 }
 
@@ -191,6 +203,7 @@ export function setAdminCameraSelectedCalculationRun(calculationRunId) {
     ? null
     : Number(calculationRunId);
   state.adminCameraTraceRows = [];
+  state.adminCameraRunComparison = null;
 }
 
 export function setAdminCameraSelectedEntry(entryId) {

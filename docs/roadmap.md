@@ -3654,7 +3654,7 @@ Goals:
 
 ### 0.5.6 — Engine Comparison And Benchmarking
 
-status: planned
+status: done
 
 Goals:
 

@@ -308,8 +308,8 @@ Use `Capture now` to test the camera.
 Expected result:
 
 * latest image updates
-* `latest.jpg` or `latest.png` is written
-* an archive/snapshot file is written
+* the persisted source snapshot is written under the configured camera root
+* `latest.jpg` is refreshed as a volatile preview file
 * a camera event is recorded
 
 If capture fails, read the camera event message. It should include the ffmpeg exit detail.
@@ -337,9 +337,9 @@ The sample table shows the values that will later become graph series:
 | Average delta | Average pixel difference |
 | Reason codes | Detector/analysis reasons |
 | Message | Human-readable result |
-| Latest snapshot | Image used as latest frame |
-| Previous snapshot | Image used as previous frame |
-| Delta snapshot | Generated delta image path |
+| Latest snapshot | Persisted source snapshot used as the newer frame |
+| Previous snapshot | Persisted source snapshot used as the older frame |
+| Delta snapshot | Persisted generated delta image path |
 
 This table is intentionally plain. It is the debugging view before graph polish.
 

@@ -293,11 +293,14 @@ Snapshot storage:
 <resolved camera base>/<safe printer id>/
   latest.jpg
   previous.jpg
-  archive/
-  snapshots/
+  delta.jpg
+  snapshots/<cameraJobId>/
+  deltas/<cameraJobId>/<deltaSetId>/
 ```
 
 Only metadata and paths are stored in SQLite. Image bytes stay on disk.
+
+`latest.jpg`, `previous.jpg`, and `delta.jpg` are volatile preview files. Persisted camera history uses named source snapshots, delta frames, and database rows.
 
 ---
 
@@ -316,7 +319,8 @@ sequenceDiagram
     Capture->>Device: create source-specific device
     Capture->>Device: captureFrame()
     Device-->>Capture: CameraFrame
-    Capture->>Files: write snapshot/archive/latest/previous
+    Capture->>Files: write persisted snapshot path
+    Capture->>Files: update latest/previous preview files
     Capture->>Store: save snapshot metadata
     Capture->>Store: record camera event
 ```
