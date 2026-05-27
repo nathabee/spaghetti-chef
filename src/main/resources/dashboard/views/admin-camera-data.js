@@ -214,7 +214,17 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
       <button type="button" class="button-secondary" data-admin-camera-generate-delta="${escapeHtml(selectedJobId)}">Generate delta set</button>
       <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(selectedJobId)}">Preview recalculation</button>
       <button type="button" class="button-secondary" data-admin-camera-purge-job="${escapeHtml(selectedJobId)}">Purge old snapshots</button>
-      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete retained snapshots</button>
+    </div>
+    <div class="form-grid compact-form">
+      <label class="checkbox-field"><input id="adminCameraDeleteSnapshotFilesInput" type="checkbox" checked> Snapshot files</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteSnapshotRowsInput" type="checkbox" checked> Snapshot rows</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteDeltaFilesInput" type="checkbox" checked> Delta files</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteDeltaRowsInput" type="checkbox" checked> Delta rows</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCalculationRunsInput" type="checkbox" checked> Calculation runs</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCameraJobInput" type="checkbox" checked> Camera job row</label>
+    </div>
+    <div class="inline-actions">
+      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete camera job data</button>
     </div>
   `;
 }

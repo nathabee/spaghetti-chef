@@ -11,6 +11,7 @@ see ROADMAP.md
 ## 0.6.x Replay, Purge, And Data Management
 
 - 0.6.0 — Snapshot Purge
+- 0.6.1 — Camera Job Delete
 
 
 ## 0.5.x Rust Image Analysis Track

@@ -100,6 +100,31 @@ public final class CameraDeltaFrameStore {
         }
     }
 
+    public List<CameraDeltaFrame> findByCameraJobId(long cameraJobId) {
+        String sql = selectColumns() + """
+                FROM camera_delta_frames
+                WHERE camera_job_id = ?
+                ORDER BY from_captured_at ASC, id ASC;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(cameraJobId, "cameraJobId"));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CameraDeltaFrame> frames = new ArrayList<>();
+                while (resultSet.next()) {
+                    frames.add(mapRow(resultSet));
+                }
+                return frames;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera delta frames", exception);
+        }
+    }
+
     public Optional<CameraDeltaFrame> findBySnapshotPair(long cameraJobId, long fromSnapshotId, long toSnapshotId) {
         String sql = selectColumns() + """
                 FROM camera_delta_frames
@@ -127,6 +152,20 @@ public final class CameraDeltaFrameStore {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("Failed to load camera delta frame", exception);
+        }
+    }
+
+    public int deleteByCameraJobId(long cameraJobId) {
+        String sql = "DELETE FROM camera_delta_frames WHERE camera_job_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(cameraJobId, "cameraJobId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera delta frames", exception);
         }
     }
 

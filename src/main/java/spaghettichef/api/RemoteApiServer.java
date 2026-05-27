@@ -74,6 +74,9 @@ import spaghettichef.camera.CameraCalculationComparisonFrame;
 import spaghettichef.camera.CameraCalculationComparisonService;
 import spaghettichef.camera.CameraCalculationRunComparison;
 import spaghettichef.camera.CameraCalculationRunSummary;
+import spaghettichef.camera.CameraJobDeletionReport;
+import spaghettichef.camera.CameraJobDeletionRequest;
+import spaghettichef.camera.CameraJobDeletionService;
 import spaghettichef.camera.CameraAnalysisSessionService;
 import spaghettichef.camera.CameraSafetyDecisionService;
 import spaghettichef.camera.CameraSettingsService;
@@ -82,6 +85,7 @@ import spaghettichef.persistence.CameraSnapshotEntry;
 import spaghettichef.persistence.CameraSnapshotEntryStore;
 import spaghettichef.persistence.CameraSnapshotJobSummary;
 import spaghettichef.persistence.CameraSettings;
+import spaghettichef.persistence.CameraJobStore;
 import spaghettichef.persistence.CameraDeltaFrame;
 import spaghettichef.persistence.CameraDeltaFrameStore;
 import spaghettichef.persistence.CameraDeltaSet;
@@ -148,6 +152,7 @@ public final class RemoteApiServer {
     private final CameraMonitoringScheduler cameraMonitoringScheduler;
     private final CameraSnapshotManagementService cameraSnapshotManagementService;
     private final CameraSnapshotPurgeService cameraSnapshotPurgeService;
+    private final CameraJobDeletionService cameraJobDeletionService;
     private final CameraDeltaSetService cameraDeltaSetService;
     private final CameraDeltaSetStore cameraDeltaSetStore;
     private final CameraDeltaFrameStore cameraDeltaFrameStore;
@@ -275,7 +280,11 @@ public final class RemoteApiServer {
         SpaghettiChefLog.info("Default camera storage base: "
                 + this.cameraStorageDirectory.toAbsolutePath().normalize());
 
-        CameraJobService cameraJobService = new CameraJobService();
+        CameraJobStore cameraJobStore = new CameraJobStore();
+        CameraJobService cameraJobService = new CameraJobService(
+                cameraJobStore,
+                new spaghettichef.persistence.PrintJobStore(),
+                java.time.Clock.systemUTC());
 
         CameraCaptureService cameraCaptureService = new CameraCaptureService(
                 cameraSettingsService,
@@ -304,6 +313,14 @@ public final class RemoteApiServer {
         this.cameraCalculationRunService = new CameraCalculationRunService();
         this.cameraCalculationRunStore = new CameraCalculationRunStore();
         this.cameraCalculationResultStore = new CameraCalculationResultStore();
+        this.cameraJobDeletionService = new CameraJobDeletionService(
+                cameraSettingsService,
+                cameraJobStore,
+                cameraSnapshotEntryStore,
+                this.cameraDeltaSetStore,
+                this.cameraDeltaFrameStore,
+                this.cameraCalculationRunStore,
+                this.cameraCalculationResultStore);
         this.cameraAnalysisTraceService = new CameraAnalysisTraceService(
                 this.cameraCalculationRunStore,
                 this.cameraCalculationResultStore,
@@ -825,6 +842,11 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (path.startsWith("/admin/camera/jobs/")) {
+            handleAdminCameraJob(exchange, path);
+            return;
+        }
+
         if (path.startsWith("/admin/camera/delta-sets/")) {
             handleAdminCameraDeltaSet(exchange, path);
             return;
@@ -1136,6 +1158,34 @@ public final class RemoteApiServer {
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(bytes);
         }
+    }
+
+    private void handleAdminCameraJob(HttpExchange exchange, String path) throws IOException {
+        if (!"DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        String idValue = path.substring("/admin/camera/jobs/".length());
+        long cameraJobId = parsePositiveLong(idValue, "cameraJobId");
+        String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+        if (printerId == null || printerId.isBlank()) {
+            sendJson(exchange, 400, errorJson("printerId is required"));
+            return;
+        }
+
+        String body = readBody(exchange);
+        CameraJobDeletionRequest request = new CameraJobDeletionRequest(
+                optionalJsonBoolean(body, "deleteSnapshotFiles", true),
+                optionalJsonBoolean(body, "deleteSnapshotRows", true),
+                optionalJsonBoolean(body, "deleteDeltaFiles", true),
+                optionalJsonBoolean(body, "deleteDeltaRows", true),
+                optionalJsonBoolean(body, "deleteCalculationRuns", true),
+                optionalJsonBoolean(body, "deleteCameraJob", true),
+                optionalJsonString(body, "requiredConfirmation", null));
+
+        CameraJobDeletionReport report = cameraJobDeletionService.delete(printerId, cameraJobId, request);
+        sendJson(exchange, 200, cameraJobDeletionReportJson(report));
     }
 
     private void handleMonitoring(HttpExchange exchange) throws IOException {
@@ -2905,6 +2955,25 @@ public final class RemoteApiServer {
                 + "}";
     }
 
+    private String cameraJobDeletionReportJson(CameraJobDeletionReport report) {
+        return "{"
+                + "\"printerId\":\"" + escapeJson(report.printerId()) + "\","
+                + "\"cameraJobId\":" + report.cameraJobId() + ","
+                + "\"deletedSnapshotFiles\":" + report.deletedSnapshotFiles() + ","
+                + "\"deletedSnapshotBytes\":" + report.deletedSnapshotBytes() + ","
+                + "\"deletedSnapshotRows\":" + report.deletedSnapshotRows() + ","
+                + "\"deletedDeltaFiles\":" + report.deletedDeltaFiles() + ","
+                + "\"deletedDeltaBytes\":" + report.deletedDeltaBytes() + ","
+                + "\"deletedDeltaRows\":" + report.deletedDeltaRows() + ","
+                + "\"deletedDeltaSetRows\":" + report.deletedDeltaSetRows() + ","
+                + "\"deletedCalculationRunRows\":" + report.deletedCalculationRunRows() + ","
+                + "\"deletedCalculationResultRows\":" + report.deletedCalculationResultRows() + ","
+                + "\"deletedCameraJobRows\":" + report.deletedCameraJobRows() + ","
+                + "\"failedFiles\":" + stringsJson(report.failedFiles()) + ","
+                + "\"message\":\"" + escapeJson(report.message()) + "\""
+                + "}";
+    }
+
     private static String longsJson(List<Long> values) {
         StringBuilder json = new StringBuilder();
         json.append("[");
@@ -2915,6 +2984,23 @@ public final class RemoteApiServer {
                 json.append(",");
             }
             json.append(value);
+            first = false;
+        }
+
+        json.append("]");
+        return json.toString();
+    }
+
+    private String stringsJson(List<String> values) {
+        StringBuilder json = new StringBuilder();
+        json.append("[");
+
+        boolean first = true;
+        for (String value : values) {
+            if (!first) {
+                json.append(",");
+            }
+            json.append("\"").append(escapeJson(value)).append("\"");
             first = false;
         }
 

@@ -224,6 +224,26 @@ public final class CameraJobStore {
         return updated;
     }
 
+    public int deleteByPrinterIdAndId(String printerId, long id) {
+        String normalizedPrinterId = requireText(printerId, "printerId");
+        if (id <= 0L) {
+            throw new IllegalArgumentException("id must be greater than zero");
+        }
+
+        String sql = "DELETE FROM camera_jobs WHERE printer_id = ? AND id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+            statement.setLong(2, id);
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera job", exception);
+        }
+    }
+
     private static String selectColumns() {
         return """
                 SELECT

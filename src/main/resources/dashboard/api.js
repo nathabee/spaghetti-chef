@@ -463,6 +463,25 @@ export async function deleteCameraSnapshotJob(jobId, printerId) {
   });
 }
 
+export async function deleteCameraJobData(jobId, printerId, options = {}) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/jobs/${encodeURIComponent(jobId)}${query}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      deleteSnapshotFiles: options.deleteSnapshotFiles !== false,
+      deleteSnapshotRows: options.deleteSnapshotRows !== false,
+      deleteDeltaFiles: options.deleteDeltaFiles !== false,
+      deleteDeltaRows: options.deleteDeltaRows !== false,
+      deleteCalculationRuns: options.deleteCalculationRuns !== false,
+      deleteCameraJob: options.deleteCameraJob !== false,
+      requiredConfirmation: options.requiredConfirmation || "DELETE_CAMERA_JOB"
+    })
+  });
+}
+
 export async function purgeCameraSnapshotJob(jobId, parameters = {}) {
   const query = parameters.printerId ? `?printerId=${encodeURIComponent(parameters.printerId)}` : "";
   return requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/purge${query}`, {

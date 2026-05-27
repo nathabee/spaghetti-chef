@@ -101,6 +101,20 @@ public final class CameraCalculationResultStore {
         }
     }
 
+    public int deleteByCalculationRunId(long calculationRunId) {
+        String sql = "DELETE FROM camera_calculation_results WHERE calculation_run_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(calculationRunId, "calculationRunId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera calculation results", exception);
+        }
+    }
+
     private static String selectColumns() {
         return """
                 SELECT

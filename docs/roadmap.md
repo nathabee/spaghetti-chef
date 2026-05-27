@@ -3681,7 +3681,7 @@ Purpose:
 Make persisted camera jobs easier to review, clean up, and replay after the 0.4 camera storage model and the 0.5 calculation-engine work.
 
 - 0.6.0 — Snapshot Purge: done
-- 0.6.1 — Camera Job Delete: planned
+- 0.6.1 — Camera Job Delete: done
 
 Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
@@ -3713,3 +3713,14 @@ delete:
 
 ---
 
+### 0.6.1 — Camera Job Delete
+
+status : done
+
+Goals :
+
+Delete selected camera job data from the admin camera data view with explicit choices for source snapshot files and rows, delta files and rows, calculation runs/results, and the camera job row.
+
+The delete path validates the selected printer and camera job ownership, refuses preview files, keeps operations scoped to the configured printer camera root, and reports deleted files, rows, and failures.
+
+---

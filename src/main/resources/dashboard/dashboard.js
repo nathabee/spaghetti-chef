@@ -13,7 +13,7 @@ import {
   getJobs,
   getAppVersion,
   adminCameraSnapshotEntryUrl,
-  deleteCameraSnapshotJob,
+  deleteCameraJobData,
   getCameraCalculationRuns,
   getCameraCalculationComparison,
   getCameraCalculationTrace,
@@ -488,19 +488,27 @@ async function handleAdminCameraDeleteJob(jobId) {
   }
 
   const confirmed = window.confirm(
-    `Delete retained source snapshots for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
+    `Delete camera job data for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
   );
   if (!confirmed) {
     return;
   }
 
   try {
-    const report = await deleteCameraSnapshotJob(jobId, state.adminCameraPrinterId);
+    const report = await deleteCameraJobData(jobId, state.adminCameraPrinterId, {
+      deleteSnapshotFiles: document.getElementById("adminCameraDeleteSnapshotFilesInput")?.checked !== false,
+      deleteSnapshotRows: document.getElementById("adminCameraDeleteSnapshotRowsInput")?.checked !== false,
+      deleteDeltaFiles: document.getElementById("adminCameraDeleteDeltaFilesInput")?.checked !== false,
+      deleteDeltaRows: document.getElementById("adminCameraDeleteDeltaRowsInput")?.checked !== false,
+      deleteCalculationRuns: document.getElementById("adminCameraDeleteCalculationRunsInput")?.checked !== false,
+      deleteCameraJob: document.getElementById("adminCameraDeleteCameraJobInput")?.checked !== false,
+      requiredConfirmation: "DELETE_CAMERA_JOB"
+    });
     setAdminCameraActionResult(report);
     setAdminCameraTimeline(null, []);
     await refreshCameraSnapshotJobs();
   } catch (error) {
-    setAdminCameraActionResult({ error: `Failed to delete camera snapshot job: ${error.message}` });
+    setAdminCameraActionResult({ error: `Failed to delete camera job data: ${error.message}` });
   }
 }
 

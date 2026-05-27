@@ -338,7 +338,7 @@ show deleted marker for purged snapshots
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -438,13 +438,13 @@ reload job list after success
 
 ## Acceptance Checklist
 
-* [ ] Admin can delete selected camera job data with confirmation.
-* [ ] Delete report shows removed snapshots, deltas, calculation runs, and failures.
-* [ ] Delete validates selected printer/job ownership.
-* [ ] Delete never touches preview files.
-* [ ] Delete never touches another printer's files.
-* [ ] Delete handles already-missing files.
-* [ ] `mvn test` passes.
+* [x] Admin can delete selected camera job data with confirmation.
+* [x] Delete report shows removed snapshots, deltas, calculation runs, and failures.
+* [x] Delete validates selected printer/job ownership.
+* [x] Delete never touches preview files.
+* [x] Delete never touches another printer's files.
+* [x] Delete handles already-missing files.
+* [x] `mvn test` passes.
 
 ---
 
