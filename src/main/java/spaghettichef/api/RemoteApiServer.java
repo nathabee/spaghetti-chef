@@ -67,6 +67,9 @@ import spaghettichef.camera.CameraSnapshotManagementService;
 import spaghettichef.camera.CameraCaptureService;
 import spaghettichef.camera.CameraCalculationRunService;
 import spaghettichef.camera.CameraDeltaSetGenerationResult;
+import spaghettichef.camera.CameraDeltaSetDeletionReport;
+import spaghettichef.camera.CameraDeltaSetDeletionRequest;
+import spaghettichef.camera.CameraDeltaSetDeletionService;
 import spaghettichef.camera.CameraDeltaSetService;
 import spaghettichef.camera.CameraAnalysisTraceRow;
 import spaghettichef.camera.CameraAnalysisTraceService;
@@ -153,6 +156,7 @@ public final class RemoteApiServer {
     private final CameraSnapshotManagementService cameraSnapshotManagementService;
     private final CameraSnapshotPurgeService cameraSnapshotPurgeService;
     private final CameraJobDeletionService cameraJobDeletionService;
+    private final CameraDeltaSetDeletionService cameraDeltaSetDeletionService;
     private final CameraDeltaSetService cameraDeltaSetService;
     private final CameraDeltaSetStore cameraDeltaSetStore;
     private final CameraDeltaFrameStore cameraDeltaFrameStore;
@@ -317,6 +321,12 @@ public final class RemoteApiServer {
                 cameraSettingsService,
                 cameraJobStore,
                 cameraSnapshotEntryStore,
+                this.cameraDeltaSetStore,
+                this.cameraDeltaFrameStore,
+                this.cameraCalculationRunStore,
+                this.cameraCalculationResultStore);
+        this.cameraDeltaSetDeletionService = new CameraDeltaSetDeletionService(
+                cameraSettingsService,
                 this.cameraDeltaSetStore,
                 this.cameraDeltaFrameStore,
                 this.cameraCalculationRunStore,
@@ -1004,6 +1014,25 @@ public final class RemoteApiServer {
             }
 
             sendJson(exchange, 200, "{\"deltaSet\":" + cameraDeltaSetJson(deltaSet.get()) + "}");
+            return;
+        }
+
+        if (parts.length == 1 && "DELETE".equalsIgnoreCase(method)) {
+            String printerId = queryParameter(exchange.getRequestURI().getRawQuery(), "printerId");
+            if (printerId == null || printerId.isBlank()) {
+                sendJson(exchange, 400, errorJson("printerId is required"));
+                return;
+            }
+
+            String body = readBody(exchange);
+            CameraDeltaSetDeletionRequest request = new CameraDeltaSetDeletionRequest(
+                    optionalJsonBoolean(body, "deleteDeltaFiles", true),
+                    optionalJsonBoolean(body, "deleteDeltaRows", true),
+                    optionalJsonBoolean(body, "deleteCalculationRuns", true),
+                    optionalJsonString(body, "requiredConfirmation", null));
+
+            CameraDeltaSetDeletionReport report = cameraDeltaSetDeletionService.delete(printerId, deltaSetId, request);
+            sendJson(exchange, 200, cameraDeltaSetDeletionReportJson(report));
             return;
         }
 
@@ -2969,6 +2998,22 @@ public final class RemoteApiServer {
                 + "\"deletedCalculationRunRows\":" + report.deletedCalculationRunRows() + ","
                 + "\"deletedCalculationResultRows\":" + report.deletedCalculationResultRows() + ","
                 + "\"deletedCameraJobRows\":" + report.deletedCameraJobRows() + ","
+                + "\"failedFiles\":" + stringsJson(report.failedFiles()) + ","
+                + "\"message\":\"" + escapeJson(report.message()) + "\""
+                + "}";
+    }
+
+    private String cameraDeltaSetDeletionReportJson(CameraDeltaSetDeletionReport report) {
+        return "{"
+                + "\"printerId\":\"" + escapeJson(report.printerId()) + "\","
+                + "\"cameraJobId\":" + report.cameraJobId() + ","
+                + "\"deltaSetId\":" + report.deltaSetId() + ","
+                + "\"deletedDeltaFiles\":" + report.deletedDeltaFiles() + ","
+                + "\"deletedDeltaBytes\":" + report.deletedDeltaBytes() + ","
+                + "\"deletedDeltaRows\":" + report.deletedDeltaRows() + ","
+                + "\"deletedDeltaSetRows\":" + report.deletedDeltaSetRows() + ","
+                + "\"deletedCalculationRunRows\":" + report.deletedCalculationRunRows() + ","
+                + "\"deletedCalculationResultRows\":" + report.deletedCalculationResultRows() + ","
                 + "\"failedFiles\":" + stringsJson(report.failedFiles()) + ","
                 + "\"message\":\"" + escapeJson(report.message()) + "\""
                 + "}";

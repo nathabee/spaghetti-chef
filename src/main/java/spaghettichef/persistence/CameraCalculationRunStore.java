@@ -156,6 +156,20 @@ public final class CameraCalculationRunStore {
         }
     }
 
+    public int deleteByDeltaSetId(long deltaSetId) {
+        String sql = "DELETE FROM camera_calculation_runs WHERE delta_set_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(deltaSetId, "deltaSetId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera calculation runs", exception);
+        }
+    }
+
     public CameraCalculationRun updateResultCount(long id, int resultCount) {
         if (resultCount < 0) {
             throw new IllegalArgumentException("resultCount must not be negative");

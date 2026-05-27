@@ -529,6 +529,22 @@ export async function getCameraDeltaFrames(deltaSetId, printerId) {
   return Array.isArray(data.frames) ? data.frames : [];
 }
 
+export async function deleteCameraDeltaSet(deltaSetId, printerId, options = {}) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}${query}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      deleteDeltaFiles: options.deleteDeltaFiles !== false,
+      deleteDeltaRows: options.deleteDeltaRows !== false,
+      deleteCalculationRuns: options.deleteCalculationRuns !== false,
+      requiredConfirmation: options.requiredConfirmation || "DELETE_DELTA_SET"
+    })
+  });
+}
+
 export async function getCameraCalculationRuns(deltaSetId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}/calculation-runs${query}`);

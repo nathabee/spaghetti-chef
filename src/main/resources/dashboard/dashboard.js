@@ -13,6 +13,7 @@ import {
   getJobs,
   getAppVersion,
   adminCameraSnapshotEntryUrl,
+  deleteCameraDeltaSet,
   deleteCameraJobData,
   getCameraCalculationRuns,
   getCameraCalculationComparison,
@@ -436,6 +437,32 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to run camera calculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraDeleteDeltaSet(deltaSetId) {
+  if (!state.adminCameraPrinterId || !state.adminCameraSelectedJobId || !deltaSetId) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete delta set ${deltaSetId} for printer ${state.adminCameraPrinterId}? Source snapshots and the camera job will be kept.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const report = await deleteCameraDeltaSet(deltaSetId, state.adminCameraPrinterId, {
+      deleteDeltaFiles: true,
+      deleteDeltaRows: true,
+      deleteCalculationRuns: true,
+      requiredConfirmation: "DELETE_DELTA_SET"
+    });
+    await loadAdminCameraAnalysisData(state.adminCameraSelectedJobId);
+    setAdminCameraActionResult(report);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to delete delta set: ${error.message}` });
   }
 }
 
@@ -927,6 +954,13 @@ function bindGlobalListeners() {
     const adminCameraRunCalculationButton = event.target.closest("[data-admin-camera-run-calculation]");
     if (adminCameraRunCalculationButton) {
       await handleAdminCameraRunCalculation(adminCameraRunCalculationButton.dataset.adminCameraRunCalculation);
+      renderApp();
+      return;
+    }
+
+    const adminCameraDeleteDeltaSetButton = event.target.closest("[data-admin-camera-delete-delta-set]");
+    if (adminCameraDeleteDeltaSetButton) {
+      await handleAdminCameraDeleteDeltaSet(adminCameraDeleteDeltaSetButton.dataset.adminCameraDeleteDeltaSet);
       renderApp();
       return;
     }

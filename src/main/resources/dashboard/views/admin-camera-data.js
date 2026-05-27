@@ -171,7 +171,6 @@ function renderJobTable(jobs) {
               <td>
                 <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(cameraJobId)}">Load</button>
                 <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(cameraJobId)}">Recalculate</button>
-                <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(cameraJobId)}">Delete</button>
               </td>
             </tr>
           `;
@@ -288,6 +287,9 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, run
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-run-calculation="${escapeHtml(String(selectedDeltaSetId || ""))}" ${selectedDeltaSetId ? "" : "disabled"}>
         Run calculation
+      </button>
+      <button type="button" class="button-danger" data-admin-camera-delete-delta-set="${escapeHtml(String(selectedDeltaSetId || ""))}" ${selectedDeltaSetId ? "" : "disabled"}>
+        Delete delta set
       </button>
     </div>
     ${renderRunComparison(safeRuns)}

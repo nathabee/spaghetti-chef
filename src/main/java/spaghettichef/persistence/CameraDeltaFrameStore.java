@@ -169,6 +169,20 @@ public final class CameraDeltaFrameStore {
         }
     }
 
+    public int deleteByDeltaSetId(long deltaSetId) {
+        String sql = "DELETE FROM camera_delta_frames WHERE delta_set_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(deltaSetId, "deltaSetId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera delta frames", exception);
+        }
+    }
+
     private static void bind(PreparedStatement statement, CameraDeltaFrame frame) throws SQLException {
         statement.setLong(1, frame.deltaSetId());
         statement.setString(2, frame.printerId());

@@ -4,9 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -460,8 +457,6 @@ public final class CameraCaptureService {
             Files.move(pendingSnapshotPath, snapshotPath, StandardCopyOption.REPLACE_EXISTING);
             snapshotEntry = snapshotEntryStore.updateSnapshotPath(snapshotEntryId, snapshotPath.toString());
 
-            enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
-
             snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
                     frame.printerId(),
                     frame.capturedAt(),
@@ -560,33 +555,6 @@ public final class CameraCaptureService {
                     settings.printerId(),
                     OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
                     OperationMessages.cameraAnalysisFailed(exception.getMessage()));
-        }
-    }
-
-    private static void enforceSnapshotRetention(Path snapshotsDirectory, int retainedSnapshots) throws IOException {
-        if (retainedSnapshots < 1 || !Files.isDirectory(snapshotsDirectory)) {
-            return;
-        }
-
-        List<Path> snapshots = new ArrayList<>();
-        try (var paths = Files.list(snapshotsDirectory)) {
-            paths
-                    .filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(CameraCaptureService::lastModified))
-                    .forEach(snapshots::add);
-        }
-
-        int deleteCount = snapshots.size() - retainedSnapshots;
-        for (int index = 0; index < deleteCount; index++) {
-            Files.deleteIfExists(snapshots.get(index));
-        }
-    }
-
-    private static Instant lastModified(Path path) {
-        try {
-            return Files.getLastModifiedTime(path).toInstant();
-        } catch (IOException exception) {
-            return Instant.EPOCH;
         }
     }
 

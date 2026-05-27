@@ -452,7 +452,7 @@ reload job list after success
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -506,13 +506,13 @@ Request JSON:
 
 ## Acceptance Checklist
 
-* [ ] Admin can delete one selected delta set.
-* [ ] Physical delta files for that delta set are deleted.
-* [ ] Calculation runs/results depending on that delta set are deleted or marked invalid.
-* [ ] Source snapshots remain untouched.
-* [ ] Other delta sets remain untouched.
-* [ ] Preview files remain untouched.
-* [ ] `mvn test` passes.
+* [x] Admin can delete one selected delta set.
+* [x] Physical delta files for that delta set are deleted.
+* [x] Calculation runs/results depending on that delta set are deleted or marked invalid.
+* [x] Source snapshots remain untouched.
+* [x] Other delta sets remain untouched.
+* [x] Preview files remain untouched.
+* [x] `mvn test` passes.
 
 ---
 

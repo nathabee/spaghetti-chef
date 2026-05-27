@@ -3682,6 +3682,7 @@ Make persisted camera jobs easier to review, clean up, and replay after the 0.4 
 
 - 0.6.0 — Snapshot Purge: done
 - 0.6.1 — Camera Job Delete: done
+- 0.6.2 — Delta Set Delete: done
 
 Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
@@ -3722,5 +3723,17 @@ Goals :
 Delete selected camera job data from the admin camera data view with explicit choices for source snapshot files and rows, delta files and rows, calculation runs/results, and the camera job row.
 
 The delete path validates the selected printer and camera job ownership, refuses preview files, keeps operations scoped to the configured printer camera root, and reports deleted files, rows, and failures.
+
+---
+
+### 0.6.2 — Delta Set Delete
+
+status : done
+
+Goals :
+
+Delete one selected delta set from the admin camera data view, including its physical delta files, delta frame rows, delta set row, and dependent calculation runs/results.
+
+The delete path keeps source snapshots, the camera job, preview files, and sibling delta sets untouched.
 
 ---
