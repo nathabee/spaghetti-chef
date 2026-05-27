@@ -13,19 +13,6 @@ This roadmap separates the SpaghettiChef project into three architectural stages
 
 ---
 
-## 0.6.x — Camera Replay, Purge, And Data Management
-
-status: active
-
-Purpose:
-
-Make persisted camera jobs easier to review, clean up, and replay after the 0.4 camera storage model and the 0.5 calculation-engine work.
-
-- 0.6.0 — Snapshot Purge: done
-- 0.6.1 — Camera Job Delete: planned
-
-Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
-
 ---
 
 <details >
@@ -3677,9 +3664,52 @@ Goals:
 * compare Java and Rust calculation runs
 * expose execution metrics and engine metadata
 * support algorithm and performance evaluation
-```
+ 
 
 This keeps the roadmap concise while your `TODO-0.5-rust.md` keeps the real implementation detail.
 
 
 ---
+
+
+## 0.6.x — Camera Replay, Purge, And Data Management
+
+status: active
+
+Purpose:
+
+Make persisted camera jobs easier to review, clean up, and replay after the 0.4 camera storage model and the 0.5 calculation-engine work.
+
+- 0.6.0 — Snapshot Purge: done
+- 0.6.1 — Camera Job Delete: planned
+
+Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
+
+
+
+### 0.6.0 — Snapshot Purge
+
+status : done
+
+
+Goals :
+
+Free disk space by deleting some persisted source snapshot image files while keeping enough images for review and retaining metadata in the database.
+
+Purge is different from delete:
+
+```text
+purge:
+  removes selected physical snapshot files
+  keeps camera_snapshot_entries rows
+  marks deleted/missing files in database
+  does not delete delta frames
+  does not delete calculation runs
+
+delete:
+  removes selected job data more deeply
+  may delete snapshots, deltas, calculations, and database rows
+```
+
+---
+
