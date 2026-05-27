@@ -683,6 +683,7 @@ public final class CameraApiHandler {
             builder.append("{")
                     .append(jsonField("id", event.id().orElse(null))).append(",")
                     .append(jsonField("printerId", event.printerId())).append(",")
+                    .append(jsonField("cameraJobId", event.cameraJobId().orElse(null))).append(",")
                     .append(jsonField("eventType", event.eventType())).append(",")
                     .append(jsonField("message", event.message())).append(",")
                     .append(jsonField("confidence", event.confidence().isPresent()

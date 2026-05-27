@@ -16,6 +16,7 @@ import {
   deleteCameraDeltaSet,
   deleteCameraJobData,
   getCameraCalculationRuns,
+  getCameraCalculationVisual,
   getCameraCalculationComparison,
   getCameraCalculationTrace,
   getCameraDeltaFrames,
@@ -106,6 +107,7 @@ import {
   setAdminCameraSelectedDeltaSet,
   setAdminCameraSelectedEntry,
   setAdminCameraTimeline,
+  setAdminCameraVisualResult,
   setCameraSnapshotJobs,
   setLastRefreshLabel,
   setMessage,
@@ -509,6 +511,19 @@ async function handleAdminCameraSelectCalculationRun(calculationRunId) {
   }
 }
 
+async function handleAdminCameraViewCalculationResult(calculationResultId) {
+  if (!state.adminCameraPrinterId || !calculationResultId) {
+    return;
+  }
+
+  try {
+    const result = await getCameraCalculationVisual(calculationResultId, state.adminCameraPrinterId);
+    setAdminCameraVisualResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to load calculation result inspector: ${error.message}` });
+  }
+}
+
 async function handleAdminCameraDeleteJob(jobId) {
   if (!state.adminCameraPrinterId || !jobId) {
     return;
@@ -528,6 +543,7 @@ async function handleAdminCameraDeleteJob(jobId) {
       deleteDeltaFiles: document.getElementById("adminCameraDeleteDeltaFilesInput")?.checked !== false,
       deleteDeltaRows: document.getElementById("adminCameraDeleteDeltaRowsInput")?.checked !== false,
       deleteCalculationRuns: document.getElementById("adminCameraDeleteCalculationRunsInput")?.checked !== false,
+      deleteCameraEvents: document.getElementById("adminCameraDeleteCameraEventsInput")?.checked !== false,
       deleteCameraJob: document.getElementById("adminCameraDeleteCameraJobInput")?.checked !== false,
       requiredConfirmation: "DELETE_CAMERA_JOB"
     });
@@ -672,6 +688,7 @@ function renderPage() {
       state.adminCameraSelectedDeltaSetId,
       state.adminCameraSelectedCalculationRunId,
       state.adminCameraActionResult,
+      state.adminCameraVisualResult,
       adminCameraSnapshotEntryUrl
     );
     return;
@@ -961,6 +978,15 @@ function bindGlobalListeners() {
     const adminCameraDeleteDeltaSetButton = event.target.closest("[data-admin-camera-delete-delta-set]");
     if (adminCameraDeleteDeltaSetButton) {
       await handleAdminCameraDeleteDeltaSet(adminCameraDeleteDeltaSetButton.dataset.adminCameraDeleteDeltaSet);
+      renderApp();
+      return;
+    }
+
+    const adminCameraViewCalculationResultButton = event.target.closest("[data-admin-camera-view-calculation-result]");
+    if (adminCameraViewCalculationResultButton) {
+      await handleAdminCameraViewCalculationResult(
+        adminCameraViewCalculationResultButton.dataset.adminCameraViewCalculationResult
+      );
       renderApp();
       return;
     }

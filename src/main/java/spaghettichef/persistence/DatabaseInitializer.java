@@ -120,6 +120,7 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "camera_settings", "diagnostic_logging_enabled", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "camera_settings", "purge_automatically", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "camera_settings", "purge_retention_frequency", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "camera_events", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
             ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
@@ -551,6 +552,7 @@ public final class DatabaseInitializer {
                 CREATE TABLE IF NOT EXISTS camera_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     printer_id TEXT NOT NULL,
+                    camera_job_id INTEGER,
                     event_type TEXT NOT NULL,
                     message TEXT NOT NULL,
                     confidence REAL,

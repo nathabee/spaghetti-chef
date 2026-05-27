@@ -42,6 +42,7 @@ export const state = {
   adminCameraDeltaFrames: [],
   adminCameraCalculationRuns: [],
   adminCameraTraceRows: [],
+  adminCameraVisualResult: null,
   adminCameraRunComparison: null,
   adminCameraSelectedJobId: null,
   adminCameraSelectedDeltaSetId: null,
@@ -157,6 +158,7 @@ export function setAdminCameraPrinter(printerId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
   state.adminCameraSelectedJobId = null;
   state.adminCameraSelectedDeltaSetId = null;
@@ -184,6 +186,7 @@ export function setAdminCameraAnalysisData(
   state.adminCameraDeltaFrames = Array.isArray(deltaFrames) ? deltaFrames : [];
   state.adminCameraCalculationRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
   state.adminCameraTraceRows = Array.isArray(traceRows) ? traceRows : [];
+  state.adminCameraVisualResult = null;
   state.adminCameraSelectedDeltaSetId = selectedDeltaSetId == null ? null : Number(selectedDeltaSetId);
   state.adminCameraSelectedCalculationRunId = selectedCalculationRunId == null ? null : Number(selectedCalculationRunId);
   state.adminCameraRunComparison = runComparison || null;
@@ -194,6 +197,7 @@ export function setAdminCameraSelectedDeltaSet(deltaSetId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
   state.adminCameraSelectedCalculationRunId = null;
 }
@@ -203,6 +207,7 @@ export function setAdminCameraSelectedCalculationRun(calculationRunId) {
     ? null
     : Number(calculationRunId);
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
 }
 
@@ -212,6 +217,10 @@ export function setAdminCameraSelectedEntry(entryId) {
 
 export function setAdminCameraActionResult(result) {
   state.adminCameraActionResult = result || null;
+}
+
+export function setAdminCameraVisualResult(result) {
+  state.adminCameraVisualResult = result || null;
 }
 
 export function setPrimaryView(viewId) {

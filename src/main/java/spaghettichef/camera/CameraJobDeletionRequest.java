@@ -6,6 +6,7 @@ public record CameraJobDeletionRequest(
         boolean deleteDeltaFiles,
         boolean deleteDeltaRows,
         boolean deleteCalculationRuns,
+        boolean deleteCameraEvents,
         boolean deleteCameraJob,
         String requiredConfirmation
 ) {
@@ -17,6 +18,7 @@ public record CameraJobDeletionRequest(
 
     public static CameraJobDeletionRequest safeDefault(String requiredConfirmation) {
         return new CameraJobDeletionRequest(
+                true,
                 true,
                 true,
                 true,

@@ -15,6 +15,7 @@ import spaghettichef.persistence.CameraCalculationRunStore;
 import spaghettichef.persistence.CameraDeltaFrame;
 import spaghettichef.persistence.CameraDeltaFrameStore;
 import spaghettichef.persistence.CameraDeltaSetStore;
+import spaghettichef.persistence.CameraEventStore;
 import spaghettichef.persistence.CameraJob;
 import spaghettichef.persistence.CameraJobStore;
 import spaghettichef.persistence.CameraSettings;
@@ -32,6 +33,7 @@ public final class CameraJobDeletionService {
     private final CameraDeltaFrameStore deltaFrameStore;
     private final CameraCalculationRunStore calculationRunStore;
     private final CameraCalculationResultStore calculationResultStore;
+    private final CameraEventStore eventStore;
 
     public CameraJobDeletionService(CameraSettingsService settingsService) {
         this(
@@ -41,7 +43,8 @@ public final class CameraJobDeletionService {
                 new CameraDeltaSetStore(),
                 new CameraDeltaFrameStore(),
                 new CameraCalculationRunStore(),
-                new CameraCalculationResultStore());
+                new CameraCalculationResultStore(),
+                new CameraEventStore());
     }
 
     public CameraJobDeletionService(
@@ -51,7 +54,8 @@ public final class CameraJobDeletionService {
             CameraDeltaSetStore deltaSetStore,
             CameraDeltaFrameStore deltaFrameStore,
             CameraCalculationRunStore calculationRunStore,
-            CameraCalculationResultStore calculationResultStore) {
+            CameraCalculationResultStore calculationResultStore,
+            CameraEventStore eventStore) {
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.cameraJobStore = Objects.requireNonNull(cameraJobStore, "cameraJobStore");
         this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
@@ -59,6 +63,7 @@ public final class CameraJobDeletionService {
         this.deltaFrameStore = Objects.requireNonNull(deltaFrameStore, "deltaFrameStore");
         this.calculationRunStore = Objects.requireNonNull(calculationRunStore, "calculationRunStore");
         this.calculationResultStore = Objects.requireNonNull(calculationResultStore, "calculationResultStore");
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
     }
 
     public CameraJobDeletionReport delete(String printerId, long cameraJobId, CameraJobDeletionRequest request) {
@@ -92,6 +97,7 @@ public final class CameraJobDeletionService {
         int deletedDeltaSetRows = 0;
         int deletedCalculationRunRows = 0;
         int deletedCalculationResultRows = 0;
+        int deletedCameraEventRows = 0;
         int deletedCameraJobRows = 0;
 
         if (effectiveRequest.deleteSnapshotFiles()) {
@@ -120,6 +126,10 @@ public final class CameraJobDeletionService {
             deletedDeltaSetRows = deltaSetStore.deleteByCameraJobId(cameraJobId);
         }
 
+        if (effectiveRequest.deleteCameraEvents()) {
+            deletedCameraEventRows = eventStore.deleteByCameraJobId(cameraJobId);
+        }
+
         if (effectiveRequest.deleteSnapshotRows()) {
             deletedSnapshotRows = snapshotEntryStore.deleteByPrinterIdAndJobId(
                     normalizedPrinterId,
@@ -146,6 +156,7 @@ public final class CameraJobDeletionService {
                 deletedDeltaSetRows,
                 deletedCalculationRunRows,
                 deletedCalculationResultRows,
+                deletedCameraEventRows,
                 deletedCameraJobRows,
                 failedFiles,
                 message);

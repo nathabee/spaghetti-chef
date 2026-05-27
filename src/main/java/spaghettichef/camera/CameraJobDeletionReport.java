@@ -14,6 +14,7 @@ public record CameraJobDeletionReport(
         int deletedDeltaSetRows,
         int deletedCalculationRunRows,
         int deletedCalculationResultRows,
+        int deletedCameraEventRows,
         int deletedCameraJobRows,
         List<String> failedFiles,
         String message

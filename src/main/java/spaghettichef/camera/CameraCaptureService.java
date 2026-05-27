@@ -213,6 +213,7 @@ public final class CameraCaptureService {
         if (!settings.enabled()) {
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED,
                     OperationMessages.CAMERA_DISABLED);
 
@@ -230,6 +231,7 @@ public final class CameraCaptureService {
             if (!device.isAvailable()) {
                 eventStore.record(
                         settings.printerId(),
+                        cameraJob.requireId(),
                         OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                         OperationMessages.CAMERA_UNAVAILABLE);
 
@@ -245,6 +247,7 @@ public final class CameraCaptureService {
                         + " device=" + device.describe());
                 eventStore.record(
                         settings.printerId(),
+                        cameraJob.requireId(),
                         OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                         OperationMessages.CAMERA_RETURNED_NO_FRAME);
 
@@ -262,6 +265,7 @@ public final class CameraCaptureService {
 
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_FRAME_CAPTURED,
                     OperationMessages.CAMERA_FRAME_CAPTURED);
 
@@ -275,6 +279,7 @@ public final class CameraCaptureService {
                     + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                     OperationMessages.cameraCaptureFailed(exception.getMessage()));
 
@@ -573,6 +578,7 @@ public final class CameraCaptureService {
             if (!analysisResult.completed()) {
                 eventStore.record(
                         settings.printerId(),
+                        persistedPaths.cameraJobId(),
                         OperationMessages.EVENT_CAMERA_ANALYSIS_SKIPPED,
                         analysisMessage(OperationMessages.CAMERA_ANALYSIS_SKIPPED, analysisResult));
 
@@ -581,6 +587,7 @@ public final class CameraCaptureService {
 
             eventStore.record(
                     settings.printerId(),
+                    persistedPaths.cameraJobId(),
                     OperationMessages.EVENT_CAMERA_ANALYSIS_COMPLETED,
                     analysisMessage(OperationMessages.CAMERA_ANALYSIS_COMPLETED, analysisResult));
 
@@ -589,6 +596,7 @@ public final class CameraCaptureService {
             if (detectionResult.suspected()) {
                 eventStore.record(
                         settings.printerId(),
+                        persistedPaths.cameraJobId(),
                         OperationMessages.EVENT_SPAGHETTI_SUSPECTED,
                         detectionMessage(detectionResult),
                         detectionResult.confidence());
@@ -596,6 +604,7 @@ public final class CameraCaptureService {
         } catch (RuntimeException exception) {
             eventStore.record(
                     settings.printerId(),
+                    persistedPaths.cameraJobId(),
                     OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
                     OperationMessages.cameraAnalysisFailed(exception.getMessage()));
         }

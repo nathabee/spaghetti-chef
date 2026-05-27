@@ -476,6 +476,7 @@ export async function deleteCameraJobData(jobId, printerId, options = {}) {
       deleteDeltaFiles: options.deleteDeltaFiles !== false,
       deleteDeltaRows: options.deleteDeltaRows !== false,
       deleteCalculationRuns: options.deleteCalculationRuns !== false,
+      deleteCameraEvents: options.deleteCameraEvents !== false,
       deleteCameraJob: options.deleteCameraJob !== false,
       requiredConfirmation: options.requiredConfirmation || "DELETE_CAMERA_JOB"
     })
@@ -565,6 +566,11 @@ export async function getCameraCalculationTrace(calculationRunId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/calculation-runs/${encodeURIComponent(calculationRunId)}/trace${query}`);
   return Array.isArray(data.trace) ? data.trace : [];
+}
+
+export async function getCameraCalculationVisual(calculationResultId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/calculation-results/${encodeURIComponent(calculationResultId)}/visual${query}`);
 }
 
 export async function getCameraCalculationComparison(leftRunId, rightRunId, printerId) {

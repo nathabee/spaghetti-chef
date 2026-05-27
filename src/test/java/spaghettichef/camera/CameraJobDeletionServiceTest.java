@@ -23,6 +23,7 @@ import spaghettichef.persistence.CameraDeltaFrame;
 import spaghettichef.persistence.CameraDeltaFrameStore;
 import spaghettichef.persistence.CameraDeltaSet;
 import spaghettichef.persistence.CameraDeltaSetStore;
+import spaghettichef.persistence.CameraEventStore;
 import spaghettichef.persistence.CameraJob;
 import spaghettichef.persistence.CameraJobStore;
 import spaghettichef.persistence.CameraSettings;
@@ -53,6 +54,8 @@ class CameraJobDeletionServiceTest {
         CameraDeltaSet deltaSet = saveDeltaSet(stores, "printer-1", job.requireId());
         Path deltaPath = saveDeltaFrame(stores, "printer-1", job.requireId(), deltaSet.requireId(), 1L, 1L);
         CameraCalculationRun run = saveCalculationRun(stores, "printer-1", job.requireId(), deltaSet.requireId());
+        stores.eventStore().record("printer-1", job.requireId(), "CAMERA_FRAME_CAPTURED", "job event");
+        stores.eventStore().record("printer-1", 999L, "CAMERA_FRAME_CAPTURED", "other event");
         stores.calculationResultStore().save(new CameraCalculationResult(
                 null,
                 run.requireId(),
@@ -77,6 +80,7 @@ class CameraJobDeletionServiceTest {
         assertEquals(1, report.deletedDeltaSetRows());
         assertEquals(1, report.deletedCalculationRunRows());
         assertEquals(1, report.deletedCalculationResultRows());
+        assertEquals(1, report.deletedCameraEventRows());
         assertEquals(1, report.deletedCameraJobRows());
         assertTrue(report.failedFiles().isEmpty());
         assertFalse(Files.exists(snapshotPath));
@@ -127,7 +131,8 @@ class CameraJobDeletionServiceTest {
                 stores.deltaSetStore(),
                 stores.deltaFrameStore(),
                 stores.calculationRunStore(),
-                stores.calculationResultStore());
+                stores.calculationResultStore(),
+                stores.eventStore());
     }
 
     private CameraJob saveCameraJob(Stores stores, String printerId) {
@@ -257,7 +262,8 @@ class CameraJobDeletionServiceTest {
                 new CameraDeltaSetStore(),
                 new CameraDeltaFrameStore(),
                 new CameraCalculationRunStore(),
-                new CameraCalculationResultStore());
+                new CameraCalculationResultStore(),
+                new CameraEventStore());
     }
 
     private void useDatabase(String fileName) {
@@ -273,7 +279,8 @@ class CameraJobDeletionServiceTest {
             CameraDeltaSetStore deltaSetStore,
             CameraDeltaFrameStore deltaFrameStore,
             CameraCalculationRunStore calculationRunStore,
-            CameraCalculationResultStore calculationResultStore
+            CameraCalculationResultStore calculationResultStore,
+            CameraEventStore eventStore
     ) {
     }
 }

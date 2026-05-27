@@ -16,6 +16,7 @@ export function renderAdminCameraDataPage(
   selectedDeltaSetId = null,
   selectedCalculationRunId = null,
   actionResult = null,
+  visualResult = null,
   snapshotEntryUrl = () => ""
 ) {
   if (!hasPermission("CAMERA_DATA_MANAGE")) {
@@ -121,6 +122,17 @@ export function renderAdminCameraDataPage(
         ${renderTraceReview(deltaFrames, traceRows)}
       </article>
     </section>
+
+    <section class="placeholder-card">
+      <div class="section-header compact">
+        <div>
+          <h3>Calculation result inspector</h3>
+          <p class="placeholder-caption">Open a trace row to inspect its source snapshots, delta frame, and calculation metadata.</p>
+        </div>
+        <span class="badge badge-real">visual</span>
+      </div>
+      ${renderVisualInspector(visualResult)}
+    </section>
   `;
 }
 
@@ -220,6 +232,7 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
       <label class="checkbox-field"><input id="adminCameraDeleteDeltaFilesInput" type="checkbox" checked> Delta files</label>
       <label class="checkbox-field"><input id="adminCameraDeleteDeltaRowsInput" type="checkbox" checked> Delta rows</label>
       <label class="checkbox-field"><input id="adminCameraDeleteCalculationRunsInput" type="checkbox" checked> Calculation runs</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCameraEventsInput" type="checkbox" checked> Camera events</label>
       <label class="checkbox-field"><input id="adminCameraDeleteCameraJobInput" type="checkbox" checked> Camera job row</label>
     </div>
     <div class="inline-actions">
@@ -429,6 +442,7 @@ function renderTraceReview(deltaFrames, traceRows) {
             <th>Confidence</th>
             <th>State</th>
             <th>Reason codes</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -446,11 +460,72 @@ function renderTraceReview(deltaFrames, traceRows) {
               <td>${formatPercent(row.confidence)}</td>
               <td>${row.suspected ? '<span class="badge status-error">Suspicious</span>' : '<span class="badge badge-enabled">Good</span>'}</td>
               <td>${escapeHtml(row.reasonCodes ?? "-")}</td>
+              <td>
+                <button type="button" class="button-secondary" data-admin-camera-view-calculation-result="${escapeHtml(String(row.calculationResultId ?? ""))}">
+                  View
+                </button>
+              </td>
             </tr>
           `).join("")}
         </tbody>
       </table>
     </div>
+  `;
+}
+
+function renderVisualInspector(visualResult) {
+  if (!visualResult) {
+    return `<p class="muted">Select View in the trace table to inspect one calculation result.</p>`;
+  }
+
+  const result = visualResult.calculationResult || {};
+  const run = visualResult.calculationRun || {};
+  const frame = visualResult.deltaFrame || {};
+  const fromSnapshot = visualResult.fromSnapshot || {};
+  const toSnapshot = visualResult.toSnapshot || {};
+  const imageUrls = visualResult.imageUrls || {};
+
+  return `
+    <div class="camera-snapshot-preview-stack">
+      ${renderVisualImage("From snapshot", fromSnapshot, imageUrls.fromSnapshot)}
+      ${renderVisualImage("To snapshot", toSnapshot, imageUrls.toSnapshot)}
+      ${renderVisualImage("Delta frame", frame, imageUrls.deltaFrame)}
+    </div>
+    <dl class="metric-list">
+      <div><dt>Result</dt><dd>${escapeHtml(String(result.id ?? "-"))}</dd></div>
+      <div><dt>Run</dt><dd>${escapeHtml(String(run.id ?? "-"))}</dd></div>
+      <div><dt>Engine</dt><dd>${escapeHtml(run.engineName ?? "-")}</dd></div>
+      <div><dt>Variant</dt><dd>${escapeHtml(run.algorithmVariant ?? "-")}</dd></div>
+      <div><dt>Version</dt><dd>${escapeHtml(run.engineVersion ?? "-")}</dd></div>
+      <div><dt>Confidence</dt><dd>${formatPercent(result.confidence)}</dd></div>
+      <div><dt>State</dt><dd>${result.suspected ? "Suspicious" : "Good"}</dd></div>
+      <div><dt>Reason codes</dt><dd>${escapeHtml(result.reasonCodes ?? "-")}</dd></div>
+      <div><dt>Delta frame</dt><dd>${escapeHtml(String(frame.id ?? "-"))}</dd></div>
+      <div><dt>Source snapshots</dt><dd>${escapeHtml(String(frame.fromSnapshotId ?? "-"))} -> ${escapeHtml(String(frame.toSnapshotId ?? "-"))}</dd></div>
+      <div><dt>Created</dt><dd>${escapeHtml(result.createdAt ?? "-")}</dd></div>
+      <div><dt>Message</dt><dd>${escapeHtml(result.message ?? run.message ?? "-")}</dd></div>
+    </dl>
+  `;
+}
+
+function renderVisualImage(label, item, url) {
+  const deleted = item?.fileDeleted === true;
+  const path = item?.snapshotPath || item?.deltaPath || "";
+  if (!url || deleted) {
+    return `
+      <figure class="camera-snapshot-preview">
+        <figcaption>${escapeHtml(label)}</figcaption>
+        <p class="muted">${deleted ? "File deleted by purge." : "File unavailable."}</p>
+        <code>${escapeHtml(path || "-")}</code>
+      </figure>
+    `;
+  }
+
+  return `
+    <figure class="camera-snapshot-preview">
+      <figcaption>${escapeHtml(label)} - ${escapeHtml(fileName(path))}</figcaption>
+      <img src="${escapeHtml(url)}" alt="${escapeHtml(label)}">
+    </figure>
   `;
 }
 

@@ -3683,6 +3683,7 @@ Make persisted camera jobs easier to review, clean up, and replay after the 0.4 
 - 0.6.0 — Snapshot Purge: done
 - 0.6.1 — Camera Job Delete: done
 - 0.6.2 — Delta Set Delete: done
+- 0.6.3 — Calculation Result Visual Inspector: done
 
 Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
@@ -3735,5 +3736,17 @@ Goals :
 Delete one selected delta set from the admin camera data view, including its physical delta files, delta frame rows, delta set row, and dependent calculation runs/results.
 
 The delete path keeps source snapshots, the camera job, preview files, and sibling delta sets untouched.
+
+---
+
+### 0.6.3 — Calculation Result Visual Inspector
+
+status : done
+
+Goals :
+
+Open one persisted calculation result from the trace review and inspect its from snapshot, to snapshot, delta frame, engine metadata, confidence, state, reason codes, and file state.
+
+The inspector uses persisted snapshot and delta-frame records, refuses deleted/missing files through the image endpoints, and does not use preview files as history.
 
 ---

@@ -444,6 +444,7 @@ reload job list after success
 * [x] Delete never touches preview files.
 * [x] Delete never touches another printer's files.
 * [x] Delete handles already-missing files.
+* [x] Delete removes camera events with a reliable `cameraJobId` link.
 * [x] `mvn test` passes.
 
 ---
@@ -520,7 +521,7 @@ Request JSON:
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -616,12 +617,12 @@ missing/deleted file warning
 
 ## Acceptance Checklist
 
-* [ ] Trace rows have a View button.
-* [ ] Inspector shows from snapshot, to snapshot, and delta image.
-* [ ] Inspector shows calculation metadata.
-* [ ] Inspector handles purged/deleted snapshot files.
-* [ ] Inspector never uses preview files as history.
-* [ ] `mvn test` passes.
+* [x] Trace rows have a View button.
+* [x] Inspector shows from snapshot, to snapshot, and delta image.
+* [x] Inspector shows calculation metadata.
+* [x] Inspector handles purged/deleted snapshot files.
+* [x] Inspector never uses preview files as history.
+* [x] `mvn test` passes.
 
 ---
 
