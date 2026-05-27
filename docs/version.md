@@ -8,6 +8,11 @@ see ROADMAP.md
 
  
 
+## 0.6.x Replay, Purge, And Data Management
+
+- 0.6.0 — Snapshot Purge
+
+
 ## 0.5.x Rust Image Analysis Track
 
 Goal: add Rust to SpaghettiChef as an independent image-analysis track first, without coupling it too early to the existing Java backend.

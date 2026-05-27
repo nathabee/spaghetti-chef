@@ -200,11 +200,20 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
         Method
         <input id="adminCameraDeltaMethodInput" type="text" value="image-delta">
       </label>
+      <label>
+        Purge keep latest
+        <input id="adminCameraPurgeRetentionInput" type="number" min="0" step="1" value="20">
+      </label>
+      <label>
+        Purge frequency
+        <input id="adminCameraPurgeFrequencyInput" type="number" min="1" step="1" value="5">
+      </label>
     </div>
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(selectedJobId)}">Reload timeline</button>
       <button type="button" class="button-secondary" data-admin-camera-generate-delta="${escapeHtml(selectedJobId)}">Generate delta set</button>
       <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(selectedJobId)}">Preview recalculation</button>
+      <button type="button" class="button-secondary" data-admin-camera-purge-job="${escapeHtml(selectedJobId)}">Purge old snapshots</button>
       <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete retained snapshots</button>
     </div>
   `;
@@ -447,19 +456,26 @@ function renderTimelineTable(timeline, selectedEntryId) {
             <th>Retained at</th>
             <th>Bytes</th>
             <th>Source</th>
+            <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          ${timeline.map((entry) => `
+          ${timeline.map((entry) => {
+            const deleted = entry.fileDeleted === true;
+            return `
             <tr class="${Number(entry.id) === Number(selectedEntryId) ? "selected-row" : ""}">
               <td>${escapeHtml(entry.capturedAt ?? "-")}</td>
               <td>${escapeHtml(entry.retainedAt ?? "-")}</td>
               <td>${escapeHtml(String(entry.sizeBytes ?? 0))}</td>
               <td>${escapeHtml(entry.sourceType ?? "-")}</td>
-              <td><button type="button" class="button-secondary" data-admin-camera-select-entry="${escapeHtml(String(entry.id))}">View</button></td>
+              <td>${deleted ? `<span class="badge status-error">deleted</span>` : `<span class="badge badge-enabled">file</span>`}</td>
+              <td>${deleted
+                ? `<span class="muted">${escapeHtml(entry.deletionReason ?? "purged")}</span>`
+                : `<button type="button" class="button-secondary" data-admin-camera-select-entry="${escapeHtml(String(entry.id))}">View</button>`}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     </div>
@@ -473,6 +489,20 @@ function renderSelectedEntry(timeline, selectedEntryId, snapshotEntryUrl) {
 
   if (!entry) {
     return `<p class="muted">Select a timeline row to preview the snapshot image.</p>`;
+  }
+
+  if (entry.fileDeleted === true) {
+    return `
+      <p class="muted">This snapshot file was deleted by purge, but the metadata row is kept for replay history.</p>
+      <dl class="metric-list">
+        <div><dt>Printer</dt><dd>${escapeHtml(entry.printerId ?? "-")}</dd></div>
+        <div><dt>Camera job</dt><dd>${escapeHtml(entry.cameraJobKey ?? entry.cameraJobId ?? entry.jobKey ?? "-")}</dd></div>
+        <div><dt>Captured at</dt><dd>${escapeHtml(entry.capturedAt ?? "-")}</dd></div>
+        <div><dt>Deleted at</dt><dd>${escapeHtml(entry.deletedAt ?? "-")}</dd></div>
+        <div><dt>Reason</dt><dd>${escapeHtml(entry.deletionReason ?? "-")}</dd></div>
+        <div><dt>Snapshot path</dt><dd>${escapeHtml(entry.snapshotPath ?? "-")}</dd></div>
+      </dl>
+    `;
   }
 
   const imageUrl = snapshotEntryUrl(entry.id);

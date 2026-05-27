@@ -12,6 +12,7 @@ import spaghettichef.camera.CameraStatus;
 
 import spaghettichef.camera.CameraJobService;
 import spaghettichef.camera.CameraMonitoringScheduler;
+import spaghettichef.camera.CameraSnapshotPurgeService;
 import spaghettichef.persistence.CameraJob;
 import spaghettichef.camera.ResolvedCameraSnapshotFile;
 import spaghettichef.persistence.CameraAnalysisSample;
@@ -46,6 +47,7 @@ public final class CameraApiHandler {
     private final CameraSnapshotService snapshotService;
     private final CameraJobService cameraJobService;
     private final CameraMonitoringScheduler cameraMonitoringScheduler;
+    private final CameraSnapshotPurgeService cameraSnapshotPurgeService;
 
     public CameraApiHandler(
             CameraCaptureService captureService,
@@ -60,6 +62,7 @@ public final class CameraApiHandler {
                 snapshotMetadataStore,
                 analysisSessionService,
                 new CameraJobService(),
+                null,
                 null);
     }
 
@@ -71,6 +74,26 @@ public final class CameraApiHandler {
             CameraAnalysisSessionService analysisSessionService,
             CameraJobService cameraJobService,
             CameraMonitoringScheduler cameraMonitoringScheduler) {
+        this(
+                captureService,
+                settingsService,
+                eventStore,
+                snapshotMetadataStore,
+                analysisSessionService,
+                cameraJobService,
+                cameraMonitoringScheduler,
+                null);
+    }
+
+    public CameraApiHandler(
+            CameraCaptureService captureService,
+            spaghettichef.camera.CameraSettingsService settingsService,
+            CameraEventStore eventStore,
+            CameraSnapshotMetadataStore snapshotMetadataStore,
+            CameraAnalysisSessionService analysisSessionService,
+            CameraJobService cameraJobService,
+            CameraMonitoringScheduler cameraMonitoringScheduler,
+            CameraSnapshotPurgeService cameraSnapshotPurgeService) {
         this.captureService = Objects.requireNonNull(captureService, "captureService");
         this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore");
@@ -78,6 +101,7 @@ public final class CameraApiHandler {
         this.analysisSessionService = Objects.requireNonNull(analysisSessionService, "analysisSessionService");
         this.cameraJobService = Objects.requireNonNull(cameraJobService, "cameraJobService");
         this.cameraMonitoringScheduler = cameraMonitoringScheduler;
+        this.cameraSnapshotPurgeService = cameraSnapshotPurgeService;
         this.snapshotService = new CameraSnapshotService(this.settingsService);
     }
 
@@ -367,6 +391,7 @@ public final class CameraApiHandler {
         }
 
         try {
+            CameraSettings settings = settingsService.load(printerId);
             if (cameraMonitoringScheduler != null) {
                 cameraMonitoringScheduler.stopMonitoring(printerId);
             }
@@ -374,6 +399,14 @@ public final class CameraApiHandler {
             Optional<CameraJob> stopped = cameraJobService.completeActive(
                     printerId,
                     "Camera job stopped from dashboard");
+            if (stopped.isPresent() && settings.purgeAutomatically() && cameraSnapshotPurgeService != null) {
+                cameraSnapshotPurgeService.purge(
+                        printerId,
+                        stopped.get().requireId(),
+                        settings.retentionSnapshotCount(),
+                        settings.purgeRetentionFrequency(),
+                        "automatic snapshot purge after camera job stop");
+            }
 
             Optional<CameraSnapshotMetadata> latestSnapshot = snapshotMetadataStore.findLatestByPrinterId(printerId);
 
@@ -545,6 +578,12 @@ public final class CameraApiHandler {
         boolean diagnosticLoggingEnabled = readBooleanField(body, "diagnosticLoggingEnabled")
                 .orElse(current.diagnosticLoggingEnabled());
 
+        boolean purgeAutomatically = readBooleanField(body, "purgeAutomatically")
+                .orElse(current.purgeAutomatically());
+
+        int purgeRetentionFrequency = readIntegerField(body, "purgeRetentionFrequency")
+                .orElse(current.purgeRetentionFrequency());
+
         return new CameraSettings(
                 current.printerId(),
                 enabled,
@@ -564,6 +603,8 @@ public final class CameraApiHandler {
                 ffmpegJpegQuality,
                 storageDirectory,
                 diagnosticLoggingEnabled,
+                purgeAutomatically,
+                purgeRetentionFrequency,
                 Instant.now());
     }
 
@@ -600,6 +641,8 @@ public final class CameraApiHandler {
                 + jsonField("ffmpegJpegQuality", settings.ffmpegJpegQuality()) + ","
                 + jsonField("storageDirectory", settings.storageDirectory()) + ","
                 + jsonField("diagnosticLoggingEnabled", settings.diagnosticLoggingEnabled()) + ","
+                + jsonField("purgeAutomatically", settings.purgeAutomatically()) + ","
+                + jsonField("purgeRetentionFrequency", settings.purgeRetentionFrequency()) + ","
                 + jsonField("updatedAt", settings.updatedAt().toString())
                 + "}";
     }

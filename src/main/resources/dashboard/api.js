@@ -463,6 +463,17 @@ export async function deleteCameraSnapshotJob(jobId, printerId) {
   });
 }
 
+export async function purgeCameraSnapshotJob(jobId, parameters = {}) {
+  const query = parameters.printerId ? `?printerId=${encodeURIComponent(parameters.printerId)}` : "";
+  return requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/purge${query}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(parameters)
+  });
+}
+
 export async function getCameraSnapshotJobTimeline(jobId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/timeline${query}`);

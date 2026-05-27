@@ -8,7 +8,23 @@ This roadmap separates the SpaghettiChef project into three architectural stages
 - `0.0.x` — prototype foundation
 - `0.1.x` — local farm runtime architecture
 - `0.2.x` — local runtime administration and job management
+- `0.6.x` — camera replay, purge, and data management
 - `1.0.x` — central VPS multi-farm management
+
+---
+
+## 0.6.x — Camera Replay, Purge, And Data Management
+
+status: active
+
+Purpose:
+
+Make persisted camera jobs easier to review, clean up, and replay after the 0.4 camera storage model and the 0.5 calculation-engine work.
+
+- 0.6.0 — Snapshot Purge: done
+- 0.6.1 — Camera Job Delete: planned
+
+Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
 ---
 

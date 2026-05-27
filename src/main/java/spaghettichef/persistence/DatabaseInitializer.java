@@ -118,9 +118,14 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "camera_settings", "storage_directory",
                     "TEXT NOT NULL DEFAULT '" + RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY + "'");
             ensureColumn(connection, "camera_settings", "diagnostic_logging_enabled", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_settings", "purge_automatically", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_settings", "purge_retention_frequency", "INTEGER NOT NULL DEFAULT 5");
             ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
             ensureColumn(connection, "camera_snapshot_entries", "retained_at", "TEXT");
+            ensureColumn(connection, "camera_snapshot_entries", "file_deleted", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_snapshot_entries", "deleted_at", "TEXT");
+            ensureColumn(connection, "camera_snapshot_entries", "deletion_reason", "TEXT");
             ensureColumn(connection, "camera_calculation_runs", "engine_name",
                     "TEXT NOT NULL DEFAULT 'JAVA_BASIC_DELTA'");
             ensureColumn(connection, "camera_calculation_runs", "algorithm_variant", "TEXT");
@@ -532,6 +537,8 @@ public final class DatabaseInitializer {
                     ffmpeg_jpeg_quality INTEGER NOT NULL DEFAULT 3,
                     storage_directory TEXT NOT NULL DEFAULT 'camera',
                     diagnostic_logging_enabled INTEGER NOT NULL DEFAULT 0,
+                    purge_automatically INTEGER NOT NULL DEFAULT 0,
+                    purge_retention_frequency INTEGER NOT NULL DEFAULT 5,
                     updated_at TEXT NOT NULL
                 );
                 """;
@@ -584,7 +591,10 @@ public final class DatabaseInitializer {
                     captured_at TEXT NOT NULL,
                     retained_at TEXT NOT NULL,
                     source_type TEXT,
-                    message TEXT
+                    message TEXT,
+                    file_deleted INTEGER NOT NULL DEFAULT 0,
+                    deleted_at TEXT,
+                    deletion_reason TEXT
                 );
                 """;
 

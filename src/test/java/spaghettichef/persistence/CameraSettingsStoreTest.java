@@ -82,6 +82,8 @@ class CameraSettingsStoreTest {
                                     ffmpeg_timeout_ms,
                                     ffmpeg_jpeg_quality,
                                     storage_directory,
+                                    purge_automatically,
+                                    purge_retention_frequency,
                                     updated_at
                                 FROM camera_settings
                                 WHERE printer_id = ?
@@ -107,6 +109,8 @@ class CameraSettingsStoreTest {
                 assertEquals(6000, resultSet.getInt("ffmpeg_timeout_ms"));
                 assertEquals(4, resultSet.getInt("ffmpeg_jpeg_quality"));
                 assertEquals("/tmp/camera-storage", resultSet.getString("storage_directory"));
+                assertEquals(0, resultSet.getInt("purge_automatically"));
+                assertEquals(5, resultSet.getInt("purge_retention_frequency"));
                 assertEquals("2026-05-18T10:00:00Z", resultSet.getString("updated_at"));
             }
         }
@@ -140,6 +144,9 @@ class CameraSettingsStoreTest {
                 7000,
                 2,
                 "/tmp/camera-storage",
+                false,
+                true,
+                6,
                 Instant.parse("2026-05-18T10:05:00Z")));
 
         CameraSettings loaded = store.findByPrinterId("printer-1").orElseThrow();
@@ -160,6 +167,8 @@ class CameraSettingsStoreTest {
         assertEquals(7000, loaded.ffmpegTimeoutMs());
         assertEquals(2, loaded.ffmpegJpegQuality());
         assertEquals("/tmp/camera-storage", loaded.storageDirectory());
+        assertTrue(loaded.purgeAutomatically());
+        assertEquals(6, loaded.purgeRetentionFrequency());
         assertEquals(Instant.parse("2026-05-18T10:05:00Z"), loaded.updatedAt());
     }
 
@@ -185,6 +194,8 @@ class CameraSettingsStoreTest {
         assertEquals("printer-1", settings.printerId());
         assertFalse(settings.enabled());
         assertEquals(CameraSourceType.DISABLED, settings.sourceType());
+        assertFalse(settings.purgeAutomatically());
+        assertEquals(5, settings.purgeRetentionFrequency());
     }
 
     @Test

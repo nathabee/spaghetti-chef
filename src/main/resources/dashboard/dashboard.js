@@ -42,6 +42,7 @@ import {
   registerPrintFile,
   pauseJob,
   previewCameraSnapshotRecalculation,
+  purgeCameraSnapshotJob,
   restartJob,
   resumeJob,
   runCameraCalculation,
@@ -371,6 +372,41 @@ async function handleAdminCameraGenerateDeltaSet(jobId) {
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to generate delta set: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraPurgeJob(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  const retentionInput = document.getElementById("adminCameraPurgeRetentionInput");
+  const frequencyInput = document.getElementById("adminCameraPurgeFrequencyInput");
+  const retentionSnapshotCount = Number.parseInt(retentionInput?.value || "20", 10);
+  const purgeRetentionFrequency = Number.parseInt(frequencyInput?.value || "5", 10);
+  const confirmed = window.confirm(
+    `Purge old snapshot files for printer ${state.adminCameraPrinterId}, camera job ${jobId}? Database rows and delta data will be kept.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const result = await purgeCameraSnapshotJob(jobId, {
+      printerId: state.adminCameraPrinterId,
+      retentionSnapshotCount: Number.isFinite(retentionSnapshotCount) && retentionSnapshotCount >= 0
+        ? retentionSnapshotCount
+        : 20,
+      purgeRetentionFrequency: Number.isFinite(purgeRetentionFrequency) && purgeRetentionFrequency > 0
+        ? purgeRetentionFrequency
+        : 5,
+      message: "dashboard snapshot purge"
+    });
+    await loadAdminCameraTimeline(jobId);
+    setAdminCameraActionResult(result);
+    await refreshCameraSnapshotJobs();
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to purge camera snapshot job: ${error.message}` });
   }
 }
 
@@ -869,6 +905,13 @@ function bindGlobalListeners() {
     const adminCameraGenerateDeltaButton = event.target.closest("[data-admin-camera-generate-delta]");
     if (adminCameraGenerateDeltaButton) {
       await handleAdminCameraGenerateDeltaSet(adminCameraGenerateDeltaButton.dataset.adminCameraGenerateDelta);
+      renderApp();
+      return;
+    }
+
+    const adminCameraPurgeJobButton = event.target.closest("[data-admin-camera-purge-job]");
+    if (adminCameraPurgeJobButton) {
+      await handleAdminCameraPurgeJob(adminCameraPurgeJobButton.dataset.adminCameraPurgeJob);
       renderApp();
       return;
     }

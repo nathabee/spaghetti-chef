@@ -28,9 +28,12 @@ public final class CameraSnapshotEntryStore {
                     captured_at,
                     retained_at,
                     source_type,
-                    message
+                    message,
+                    file_deleted,
+                    deleted_at,
+                    deletion_reason
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """;
 
         try (
@@ -51,6 +54,9 @@ public final class CameraSnapshotEntryStore {
             statement.setString(8, entry.retainedAt().toString());
             statement.setString(9, entry.sourceType());
             statement.setString(10, entry.message());
+            statement.setInt(11, entry.fileDeleted() ? 1 : 0);
+            statement.setString(12, entry.deletedAt() == null ? null : entry.deletedAt().toString());
+            statement.setString(13, entry.deletionReason());
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -66,7 +72,10 @@ public final class CameraSnapshotEntryStore {
                             entry.capturedAt(),
                             entry.retainedAt(),
                             entry.sourceType(),
-                            entry.message());
+                            entry.message(),
+                            entry.fileDeleted(),
+                            entry.deletedAt(),
+                            entry.deletionReason());
                 }
             }
 
@@ -200,6 +209,44 @@ public final class CameraSnapshotEntryStore {
         }
     }
 
+    public CameraSnapshotEntry markFileDeleted(long id, Instant deletedAt, String deletionReason) {
+        if (id <= 0L) {
+            throw new IllegalArgumentException("camera snapshot entry id must be greater than zero");
+        }
+        if (deletedAt == null) {
+            throw new IllegalArgumentException("deletedAt must not be null");
+        }
+
+        String sql = """
+                UPDATE camera_snapshot_entries
+                SET file_deleted = 1,
+                    deleted_at = ?,
+                    deletion_reason = ?
+                WHERE id = ?;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, deletedAt.toString());
+            statement.setString(2, deletionReason == null || deletionReason.isBlank()
+                    ? null
+                    : deletionReason.trim());
+            statement.setLong(3, id);
+            int updated = statement.executeUpdate();
+
+            if (updated != 1) {
+                throw new IllegalStateException("Camera snapshot entry not found: " + id);
+            }
+
+            return findById(id)
+                    .orElseThrow(() -> new IllegalStateException("Camera snapshot entry not found: " + id));
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to mark camera snapshot entry as deleted", exception);
+        }
+    }
+
     public List<CameraSnapshotEntry> findByJobId(String jobId) {
         Long cameraJobId = parseCameraJobId(jobId);
 
@@ -304,7 +351,10 @@ public final class CameraSnapshotEntryStore {
                     captured_at,
                     retained_at,
                     source_type,
-                    message
+                    message,
+                    file_deleted,
+                    deleted_at,
+                    deletion_reason
                 """;
     }
 
@@ -322,7 +372,18 @@ public final class CameraSnapshotEntryStore {
                 Instant.parse(resultSet.getString("captured_at")),
                 Instant.parse(resultSet.getString("retained_at")),
                 resultSet.getString("source_type"),
-                resultSet.getString("message"));
+                resultSet.getString("message"),
+                resultSet.getInt("file_deleted") == 1,
+                nullableInstant(resultSet, "deleted_at"),
+                resultSet.getString("deletion_reason"));
+    }
+
+    private static Instant nullableInstant(ResultSet resultSet, String columnName) throws SQLException {
+        String value = resultSet.getString(columnName);
+        if (resultSet.wasNull() || value == null || value.isBlank()) {
+            return null;
+        }
+        return Instant.parse(value);
     }
 
     private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
