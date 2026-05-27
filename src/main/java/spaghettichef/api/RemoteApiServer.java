@@ -3020,8 +3020,8 @@ public final class RemoteApiServer {
                 + "\"fromSnapshot\":" + cameraSnapshotEntryJson(fromSnapshot) + ","
                 + "\"toSnapshot\":" + cameraSnapshotEntryJson(toSnapshot) + ","
                 + "\"imageUrls\":{"
-                + "\"fromSnapshot\":\"/admin/camera/snapshot/files/" + fromSnapshot.id().orElseThrow() + "\","
-                + "\"toSnapshot\":\"/admin/camera/snapshot/files/" + toSnapshot.id().orElseThrow() + "\","
+                + "\"fromSnapshot\":\"/admin/camera/snapshot/files/" + fromSnapshot.id() + "\","
+                + "\"toSnapshot\":\"/admin/camera/snapshot/files/" + toSnapshot.id() + "\","
                 + "\"deltaFrame\":\"/admin/camera/delta-frames/" + frame.requireId() + "/file" + printerQuery + "\""
                 + "}"
                 + "}";
@@ -3061,7 +3061,7 @@ public final class RemoteApiServer {
     private String cameraSnapshotEntryJson(CameraSnapshotEntry entry) {
         String cameraJobKey = entry.cameraJobKey();
         return "{"
-                + "\"id\":" + nullableLong(entry.id().orElse(null)) + ","
+                + "\"id\":" + nullableLong(entry.id()) + ","
                 + "\"type\":\"snapshot\","
                 + "\"printerId\":\"" + escapeJson(entry.printerId()) + "\","
                 + "\"cameraJobId\":" + nullableLong(entry.cameraJobId()) + ","
