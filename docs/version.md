@@ -15,6 +15,7 @@ see ROADMAP.md
 - 0.6.2 — Delta Set Delete
 - 0.6.3 — Calculation Result Visual Inspector
 - 0.6.4 — Replay In Dashboard
+- 0.6.5 — Capture Crop Region
 
 
 ## 0.5.x Rust Image Analysis Track

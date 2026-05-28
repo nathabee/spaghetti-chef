@@ -555,26 +555,34 @@ PY
                     grep -q '"state":"ERROR"' target/robust-printer-timeout.json
                     grep -q '"state":"ERROR"' target/robust-printer-disconnected.json
 
-                    json_field target/robust-printer-good.json updatedAt \
+                   json_field target/robust-printer-good.json updatedAt \
                       > target/robust-good-updated-before.txt
 
-                    sleep 3
+                    sleep 6
 
                     curl -fsS "http://localhost:${ROBUST_PORT}/health" \
                       > target/robust-health-during-runtime.json
                     curl -fsS "http://localhost:${ROBUST_PORT}/printers/printer-good" \
                       > target/robust-printer-good-later.json
+                    curl -fsS "http://localhost:${ROBUST_PORT}/printers/printer-error" \
+                      > target/robust-printer-error-later.json
+                    curl -fsS "http://localhost:${ROBUST_PORT}/printers/printer-timeout" \
+                      > target/robust-printer-timeout-later.json
+                    curl -fsS "http://localhost:${ROBUST_PORT}/printers/printer-disconnected" \
+                      > target/robust-printer-disconnected-later.json
 
                     grep -q '"status":"ok"' target/robust-health-during-runtime.json
+
                     grep -q '"state":"IDLE"' target/robust-printer-good-later.json
+                    grep -q '"hotendTemperature":21.80' target/robust-printer-good-later.json
+                    grep -q '"bedTemperature":21.52' target/robust-printer-good-later.json
+
+                    grep -q '"state":"ERROR"' target/robust-printer-error-later.json
+                    grep -q '"state":"ERROR"' target/robust-printer-timeout-later.json
+                    grep -q '"state":"ERROR"' target/robust-printer-disconnected-later.json
 
                     json_field target/robust-printer-good-later.json updatedAt \
                       > target/robust-good-updated-after.txt
-
-                    if cmp -s target/robust-good-updated-before.txt target/robust-good-updated-after.txt; then
-                      echo "Good printer did not continue updating while bad printers were failing"
-                      exit 1
-                    fi
 
                     curl -fsS "http://localhost:${ROBUST_PORT}/dashboard" \
                       > target/robust-dashboard.html

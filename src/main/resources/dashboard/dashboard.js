@@ -159,6 +159,7 @@ let dashboardAutoRefreshSuspended = false;
 let dashboardAutoRefreshConsecutiveNetworkFailures = 0;
 let cameraSnapshotScrollSelectionTimer = null;
 let adminCameraReplayTimer = null;
+let cameraCropSelectionState = null;
 let activeCameraViewKey = null;
 
 async function boot() {
@@ -590,6 +591,132 @@ function handleAdminCameraReplayAction(action) {
   }
 }
 
+function handleCameraCropDefineButton(button) {
+  if (button.disabled) {
+    return;
+  }
+
+  if (cameraCropSelectionState?.active) {
+    finishCameraCropSelection(button);
+    return;
+  }
+
+  const frame = button.closest(".camera-snapshot-card")?.querySelector(".camera-snapshot-frame");
+  const image = frame?.querySelector("[data-camera-crop-image]");
+  if (!frame || !image) {
+    setMessage("Capture a snapshot before defining a crop region.");
+    renderGlobalMessage();
+    return;
+  }
+
+  cameraCropSelectionState = { active: true, dragging: false, startX: 0, startY: 0 };
+  frame.classList.add("crop-selecting");
+  button.textContent = "Validate crop region";
+  seedCameraCropSelectionFromInputs(frame);
+}
+
+function finishCameraCropSelection(button) {
+  const frame = button.closest(".camera-snapshot-card")?.querySelector(".camera-snapshot-frame");
+  if (frame) {
+    frame.classList.remove("crop-selecting");
+  }
+  button.textContent = "Define crop region";
+  cameraCropSelectionState = null;
+  setMessage("Capture crop region updated in the camera settings form.");
+  renderGlobalMessage();
+}
+
+function beginCameraCropDrag(event, frame) {
+  const image = frame.querySelector("[data-camera-crop-image]");
+  const selection = frame.querySelector("[data-camera-crop-selection]");
+  if (!image || !selection) {
+    return;
+  }
+
+  event.preventDefault();
+  const rect = image.getBoundingClientRect();
+  const start = cropPointFromEvent(event, rect);
+  cameraCropSelectionState = { active: true, dragging: true, startX: start.x, startY: start.y };
+  updateCameraCropSelection(frame, start.x, start.y, start.x, start.y);
+
+  const move = (moveEvent) => {
+    const current = cropPointFromEvent(moveEvent, rect);
+    updateCameraCropSelection(frame, cameraCropSelectionState.startX, cameraCropSelectionState.startY, current.x, current.y);
+  };
+  const up = (upEvent) => {
+    const current = cropPointFromEvent(upEvent, rect);
+    updateCameraCropSelection(frame, cameraCropSelectionState.startX, cameraCropSelectionState.startY, current.x, current.y);
+    cameraCropSelectionState = { ...cameraCropSelectionState, dragging: false };
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+}
+
+function cropPointFromEvent(event, rect) {
+  return {
+    x: Math.min(rect.width, Math.max(0, event.clientX - rect.left)),
+    y: Math.min(rect.height, Math.max(0, event.clientY - rect.top))
+  };
+}
+
+function updateCameraCropSelection(frame, startX, startY, endX, endY) {
+  const image = frame.querySelector("[data-camera-crop-image]");
+  const selection = frame.querySelector("[data-camera-crop-selection]");
+  if (!image || !selection) {
+    return;
+  }
+
+  const imageRect = image.getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  const width = Math.max(1, Math.abs(endX - startX));
+  const height = Math.max(1, Math.abs(endY - startY));
+
+  selection.style.left = `${imageRect.left - frameRect.left + left}px`;
+  selection.style.top = `${imageRect.top - frameRect.top + top}px`;
+  selection.style.width = `${width}px`;
+  selection.style.height = `${height}px`;
+
+  setCropInputPercent("cameraCaptureCropX1PercentInput", left / imageRect.width);
+  setCropInputPercent("cameraCaptureCropY1PercentInput", top / imageRect.height);
+  setCropInputPercent("cameraCaptureCropX2PercentInput", (left + width) / imageRect.width);
+  setCropInputPercent("cameraCaptureCropY2PercentInput", (top + height) / imageRect.height);
+  const enabledInput = document.getElementById("cameraCaptureCropEnabledInput");
+  if (enabledInput) {
+    enabledInput.checked = true;
+  }
+}
+
+function seedCameraCropSelectionFromInputs(frame) {
+  const image = frame.querySelector("[data-camera-crop-image]");
+  if (!image) {
+    return;
+  }
+  const rect = image.getBoundingClientRect();
+  const x1 = cropInputPercent("cameraCaptureCropX1PercentInput", 0) * rect.width;
+  const y1 = cropInputPercent("cameraCaptureCropY1PercentInput", 0) * rect.height;
+  const x2 = cropInputPercent("cameraCaptureCropX2PercentInput", 100) * rect.width;
+  const y2 = cropInputPercent("cameraCaptureCropY2PercentInput", 100) * rect.height;
+  updateCameraCropSelection(frame, x1, y1, x2, y2);
+}
+
+function cropInputPercent(inputId, fallback) {
+  const input = document.getElementById(inputId);
+  const value = Number.parseFloat(input?.value ?? fallback);
+  return Math.min(1, Math.max(0, (Number.isFinite(value) ? value : fallback) / 100));
+}
+
+function setCropInputPercent(inputId, ratio) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = String(Math.round(Math.min(1, Math.max(0, ratio)) * 100));
+  }
+}
+
 function syncAdminCameraReplayTimer() {
   if (adminCameraReplayTimer) {
     window.clearInterval(adminCameraReplayTimer);
@@ -1010,6 +1137,12 @@ function bindGlobalListeners() {
       return;
     }
 
+    const cameraCropDefineButton = event.target.closest("[data-camera-crop-define]");
+    if (cameraCropDefineButton) {
+      handleCameraCropDefineButton(cameraCropDefineButton);
+      return;
+    }
+
     const adminCameraLoadJobButton = event.target.closest("[data-admin-camera-load-job]");
     if (adminCameraLoadJobButton) {
       await loadAdminCameraTimeline(adminCameraLoadJobButton.dataset.adminCameraLoadJob);
@@ -1188,6 +1321,15 @@ function bindGlobalListeners() {
 
   document.addEventListener("submit", (event) => {
     event.preventDefault();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const frame = event.target.closest("[data-camera-crop-frame], .camera-snapshot-frame.crop-selecting");
+    if (!frame || !cameraCropSelectionState?.active) {
+      return;
+    }
+
+    beginCameraCropDrag(event, frame);
   });
 
   document.addEventListener("change", (event) => {

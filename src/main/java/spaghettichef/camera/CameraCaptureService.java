@@ -1,5 +1,8 @@
 package spaghettichef.camera;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -8,6 +11,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+
+import javax.imageio.ImageIO;
 
 import spaghettichef.OperationMessages;
 import spaghettichef.SpaghettiChefLog;
@@ -254,7 +259,8 @@ public final class CameraCaptureService {
                 return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
             }
 
-            PersistedCameraFramePaths persistedPaths = persistFrame(settings, frame.get(), cameraJob);
+            CameraFrame storedFrame = applyCaptureCrop(settings, frame.get());
+            PersistedCameraFramePaths persistedPaths = persistFrame(settings, storedFrame, cameraJob);
 
             if (settings.diagnosticLoggingEnabled()) {
                 SpaghettiChefLog.info("Camera capture persisted printerId=" + settings.printerId()
@@ -348,7 +354,8 @@ public final class CameraCaptureService {
                 return CameraCaptureResult.failed(OperationMessages.CAMERA_RETURNED_NO_FRAME);
             }
 
-            PersistedDiagnosticFramePaths persistedPaths = persistDiagnosticFrame(settings, frame.get());
+            CameraFrame storedFrame = applyCaptureCrop(settings, frame.get());
+            PersistedDiagnosticFramePaths persistedPaths = persistDiagnosticFrame(settings, storedFrame);
 
             if (settings.diagnosticLoggingEnabled()) {
                 SpaghettiChefLog.info("Camera diagnostic capture persisted printerId=" + settings.printerId()
@@ -481,6 +488,72 @@ public final class CameraCaptureService {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist camera frame", exception);
         }
+    }
+
+    private CameraFrame applyCaptureCrop(CameraSettings settings, CameraFrame frame) {
+        if (!settings.captureCropEnabled()
+                || (settings.captureCropX1Percent() == CameraSettings.DEFAULT_CAPTURE_CROP_X1_PERCENT
+                && settings.captureCropY1Percent() == CameraSettings.DEFAULT_CAPTURE_CROP_Y1_PERCENT
+                && settings.captureCropX2Percent() == CameraSettings.DEFAULT_CAPTURE_CROP_X2_PERCENT
+                && settings.captureCropY2Percent() == CameraSettings.DEFAULT_CAPTURE_CROP_Y2_PERCENT)) {
+            return frame;
+        }
+
+        try {
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(frame.bytes()));
+            if (source == null) {
+                throw new IllegalStateException("Camera frame could not be decoded for capture crop region");
+            }
+
+            int width = source.getWidth();
+            int height = source.getHeight();
+            int x1 = Math.floorDiv(width * settings.captureCropX1Percent(), 100);
+            int y1 = Math.floorDiv(height * settings.captureCropY1Percent(), 100);
+            int x2 = Math.ceilDiv(width * settings.captureCropX2Percent(), 100);
+            int y2 = Math.ceilDiv(height * settings.captureCropY2Percent(), 100);
+            int cropWidth = Math.max(1, x2 - x1);
+            int cropHeight = Math.max(1, y2 - y1);
+
+            BufferedImage cropped = source.getSubimage(x1, y1, cropWidth, cropHeight);
+            BufferedImage writable = writableImage(cropped, frame.contentType());
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            String format = imageFormat(frame.contentType());
+            if (!ImageIO.write(writable, format, output)) {
+                throw new IllegalStateException("No image writer for cropped camera frame content type: "
+                        + frame.contentType());
+            }
+
+            return new CameraFrame(
+                    frame.printerId(),
+                    frame.capturedAt(),
+                    frame.contentType(),
+                    output.toByteArray(),
+                    cropWidth,
+                    cropHeight,
+                    frame.sourceDescription().orElse(null));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to apply capture crop region", exception);
+        }
+    }
+
+    private static BufferedImage writableImage(BufferedImage image, String contentType) {
+        int type = "image/jpeg".equalsIgnoreCase(contentType)
+                ? BufferedImage.TYPE_INT_RGB
+                : BufferedImage.TYPE_INT_ARGB;
+        BufferedImage copy = new BufferedImage(image.getWidth(), image.getHeight(), type);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                copy.setRGB(x, y, image.getRGB(x, y));
+            }
+        }
+        return copy;
+    }
+
+    private static String imageFormat(String contentType) {
+        if ("image/png".equalsIgnoreCase(contentType)) {
+            return "png";
+        }
+        return "jpg";
     }
 
     private PersistedDiagnosticFramePaths persistDiagnosticFrame(CameraSettings settings, CameraFrame frame) {
