@@ -769,7 +769,7 @@ missing/deleted file indicators
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
@@ -999,23 +999,23 @@ The term `region of interest` may be used internally or in documentation, but th
 
 ## Acceptance Checklist
 
-* Camera settings include persisted crop region values.
-* Default crop values preserve the full raw camera frame.
-* Backend validates crop percentage values.
-* Backend applies the crop before storing the snapshot file.
-* Backend does not require crop values after the snapshot has been stored.
-* Delta generation works from the already-cropped stored snapshots.
-* Frame analysis works from the already-cropped stored snapshots.
-* Replay/dashboard image display works from the already-cropped stored snapshots.
-* Camera settings API exposes the crop settings.
-* Camera settings UI allows direct editing of crop percentage values.
-* Snapshot card provides a graphical crop selection mode.
-* `Define crop region` is disabled while a camera job is active.
-* During graphical selection, the button label changes to `Validate crop region`.
-* Validating the graphical selection updates the crop percentage settings.
-* `Purge automatically` checkbox uses the same design as the other checkboxes.
-* Camera settings card is grouped into meaningful sections.
-* The roadmap and UI do not call this feature `zoom`.
+* [x] Camera settings include persisted crop region values.
+* [x] Default crop values preserve the full raw camera frame.
+* [x] Backend validates crop percentage values.
+* [x] Backend applies the crop before storing the snapshot file.
+* [x] Backend does not require crop values after the snapshot has been stored.
+* [x] Delta generation works from the already-cropped stored snapshots.
+* [x] Frame analysis works from the already-cropped stored snapshots.
+* [x] Replay/dashboard image display works from the already-cropped stored snapshots.
+* [x] Camera settings API exposes the crop settings.
+* [x] Camera settings UI allows direct editing of crop percentage values.
+* [x] Snapshot card provides a graphical crop selection mode.
+* [x] `Define crop region` is disabled while a camera job is active.
+* [x] During graphical selection, the button label changes to `Validate crop region`.
+* [x] Validating the graphical selection updates the crop percentage settings.
+* [x] `Purge automatically` checkbox uses the same design as the other checkboxes.
+* [x] Camera settings card is grouped into meaningful sections.
+* [x] The roadmap and UI do not call this feature `zoom`.
 
 ---
 

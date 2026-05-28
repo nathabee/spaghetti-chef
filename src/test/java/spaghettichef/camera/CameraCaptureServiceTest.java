@@ -111,6 +111,55 @@ class CameraCaptureServiceTest {
     }
 
     @Test
+    void captureAppliesConfiguredCropRegionBeforeStoringSnapshot() throws Exception {
+        useDatabase("camera-capture-crop-region.db");
+
+        CameraSettingsService settingsService = settingsService();
+        CameraSettings simulated = withTestStorage(settingsService.enableSimulated("printer-1"));
+        settingsService.save(new CameraSettings(
+                simulated.printerId(),
+                simulated.enabled(),
+                simulated.sourceType(),
+                simulated.sourceValue().orElse(null),
+                simulated.captureIntervalSeconds(),
+                simulated.retentionSnapshotCount(),
+                simulated.analysisEnabled(),
+                simulated.safetyEnabled(),
+                simulated.pauseOnConfirmedSpaghetti(),
+                simulated.confidenceThreshold(),
+                simulated.confirmationsRequired(),
+                simulated.ffmpegCommand(),
+                simulated.ffmpegInputFormat().orElse(null),
+                simulated.ffmpegVideoSize().orElse(null),
+                simulated.ffmpegTimeoutMs(),
+                simulated.ffmpegJpegQuality(),
+                simulated.storageDirectory(),
+                simulated.diagnosticLoggingEnabled(),
+                simulated.purgeAutomatically(),
+                simulated.purgeRetentionFrequency(),
+                true,
+                25,
+                25,
+                75,
+                75,
+                simulated.updatedAt()));
+
+        CameraCaptureResult result = captureService(settingsService).capture("printer-1");
+
+        assertTrue(result.success());
+
+        CameraSnapshotMetadata metadata = new CameraSnapshotMetadataStore()
+                .findLatestByPrinterId("printer-1")
+                .orElseThrow();
+        assertEquals(160, metadata.width().orElseThrow());
+        assertEquals(120, metadata.height().orElseThrow());
+
+        BufferedImage stored = ImageIO.read(Path.of(metadata.filePath()).toFile());
+        assertEquals(160, stored.getWidth());
+        assertEquals(120, stored.getHeight());
+    }
+
+    @Test
     void captureStoresSnapshotEntryUnderCameraJobId() throws Exception {
         useDatabase("camera-capture-camera-job.db");
 

@@ -87,178 +87,58 @@ export function renderCameraSettingsCard(settings) {
         </div>
       </div>
 
-      <form id="cameraSettingsForm" class="form-grid">
-        <label class="checkbox-label">
-          <input id="cameraEnabledInput" name="enabled" type="checkbox" ${settings?.enabled ? "checked" : ""}>
-          Enable camera monitoring
-        </label>
+      <form id="cameraSettingsForm" class="camera-settings-form">
+        <fieldset class="camera-settings-section">
+          <legend>Camera behavior</legend>
+          <label class="checkbox-label"><input id="cameraEnabledInput" name="enabled" type="checkbox" ${settings?.enabled ? "checked" : ""}>Enable camera monitoring</label>
+          <label class="checkbox-label"><input id="cameraAnalysisEnabledInput" name="analysisEnabled" type="checkbox" ${settings?.analysisEnabled ? "checked" : ""}>Enable frame analysis</label>
+          <label class="checkbox-label"><input id="cameraSafetyEnabledInput" name="safetyEnabled" type="checkbox" ${settings?.safetyEnabled ? "checked" : ""}>Enable safety decisions</label>
+          <label class="checkbox-label"><input id="cameraPauseOnConfirmedInput" name="pauseOnConfirmedSpaghetti" type="checkbox" ${settings?.pauseOnConfirmedSpaghetti ? "checked" : ""}>Pause on confirmed spaghetti</label>
+          <label class="checkbox-label"><input id="cameraDiagnosticLoggingInput" name="diagnosticLoggingEnabled" type="checkbox" ${settings?.diagnosticLoggingEnabled ? "checked" : ""}>Enable camera diagnostic logs</label>
+        </fieldset>
 
-        <label class="checkbox-label">
-          <input id="cameraAnalysisEnabledInput" name="analysisEnabled" type="checkbox" ${settings?.analysisEnabled ? "checked" : ""}>
-          Enable frame analysis
-        </label>
+        <fieldset class="camera-settings-section">
+          <legend>Camera source</legend>
+          <div class="form-grid">
+            <label>Source type<select id="cameraSourceTypeInput" name="sourceType"><option value="disabled" ${sourceType === "disabled" ? "selected" : ""}>disabled</option><option value="simulated" ${sourceType === "simulated" ? "selected" : ""}>simulated</option><option value="snapshot-folder" ${sourceType === "snapshot-folder" ? "selected" : ""}>snapshot-folder</option><option value="ffmpeg" ${sourceType === "ffmpeg" ? "selected" : ""}>ffmpeg webcam</option></select></label>
+            <label>Storage directory<input id="cameraStorageDirectoryInput" name="storageDirectory" type="text" value="${escapeHtml(settings?.storageDirectory || "camera")}" placeholder="camera or C:\\spaghettichef\\data\\camera"></label>
+            <label>Source value<input id="cameraSourceValueInput" name="sourceValue" type="text" value="${escapeHtml(settings?.sourceValue || "")}" placeholder="/dev/video0 or video=Integrated Camera"></label>
+            <label>ffmpeg command<input id="cameraFfmpegCommandInput" name="ffmpegCommand" type="text" value="${escapeHtml(settings?.ffmpegCommand || "ffmpeg")}" placeholder="ffmpeg"></label>
+            <label>ffmpeg input format<input id="cameraFfmpegInputFormatInput" name="ffmpegInputFormat" type="text" value="${escapeHtml(settings?.ffmpegInputFormat || "")}" placeholder="v4l2 or dshow"></label>
+            <label>ffmpeg video size<input id="cameraFfmpegVideoSizeInput" name="ffmpegVideoSize" type="text" value="${escapeHtml(settings?.ffmpegVideoSize || "640x480")}" placeholder="640x480"></label>
+            <label>ffmpeg timeout ms<input id="cameraFfmpegTimeoutMsInput" name="ffmpegTimeoutMs" type="number" step="100" min="100" value="${escapeHtml(settings?.ffmpegTimeoutMs ?? 5000)}"></label>
+            <label>ffmpeg JPEG quality<input id="cameraFfmpegJpegQualityInput" name="ffmpegJpegQuality" type="number" step="1" min="1" value="${escapeHtml(settings?.ffmpegJpegQuality ?? 3)}"></label>
+            <label>Capture interval seconds<input id="cameraCaptureIntervalSecondsInput" name="captureIntervalSeconds" type="number" step="1" min="1" value="${escapeHtml(settings?.captureIntervalSeconds ?? 10)}"></label>
+          </div>
+        </fieldset>
 
-        <label class="checkbox-label">
-          <input id="cameraSafetyEnabledInput" name="safetyEnabled" type="checkbox" ${settings?.safetyEnabled ? "checked" : ""}>
-          Enable safety decisions
-        </label>
+        <fieldset class="camera-settings-section">
+          <legend>Capture crop region</legend>
+          <label class="checkbox-label"><input id="cameraCaptureCropEnabledInput" name="captureCropEnabled" type="checkbox" ${settings?.captureCropEnabled ? "checked" : ""}>Enable capture crop region</label>
+          <div class="form-grid compact-form">
+            <label>Crop X1 %<input id="cameraCaptureCropX1PercentInput" name="captureCropX1Percent" type="number" step="1" min="0" max="100" value="${escapeHtml(settings?.captureCropX1Percent ?? 0)}"></label>
+            <label>Crop Y1 %<input id="cameraCaptureCropY1PercentInput" name="captureCropY1Percent" type="number" step="1" min="0" max="100" value="${escapeHtml(settings?.captureCropY1Percent ?? 0)}"></label>
+            <label>Crop X2 %<input id="cameraCaptureCropX2PercentInput" name="captureCropX2Percent" type="number" step="1" min="0" max="100" value="${escapeHtml(settings?.captureCropX2Percent ?? 100)}"></label>
+            <label>Crop Y2 %<input id="cameraCaptureCropY2PercentInput" name="captureCropY2Percent" type="number" step="1" min="0" max="100" value="${escapeHtml(settings?.captureCropY2Percent ?? 100)}"></label>
+          </div>
+        </fieldset>
 
-        <label class="checkbox-label">
-          <input id="cameraPauseOnConfirmedInput" name="pauseOnConfirmedSpaghetti" type="checkbox" ${settings?.pauseOnConfirmedSpaghetti ? "checked" : ""}>
-          Pause on confirmed spaghetti
-        </label>
+        <fieldset class="camera-settings-section">
+          <legend>Snapshot purge</legend>
+          <div class="form-grid compact-form">
+            <label>Retained snapshots<input id="cameraRetentionSnapshotCountInput" name="retentionSnapshotCount" type="number" step="1" min="1" value="${escapeHtml(settings?.retentionSnapshotCount ?? 20)}"></label>
+            <label>Purge frequency<input id="cameraPurgeRetentionFrequencyInput" name="purgeRetentionFrequency" type="number" step="1" min="1" value="${escapeHtml(settings?.purgeRetentionFrequency ?? 5)}"></label>
+            <label class="checkbox-label"><input id="cameraPurgeAutomaticallyInput" name="purgeAutomatically" type="checkbox" ${settings?.purgeAutomatically ? "checked" : ""}>Purge automatically</label>
+          </div>
+        </fieldset>
 
-        <label class="checkbox-label">
-          <input id="cameraDiagnosticLoggingInput" name="diagnosticLoggingEnabled" type="checkbox" ${settings?.diagnosticLoggingEnabled ? "checked" : ""}>
-          Enable camera diagnostic logs
-        </label>
-
-        <label>
-          Source type
-          <select id="cameraSourceTypeInput" name="sourceType">
-            <option value="disabled" ${sourceType === "disabled" ? "selected" : ""}>disabled</option>
-            <option value="simulated" ${sourceType === "simulated" ? "selected" : ""}>simulated</option>
-            <option value="snapshot-folder" ${sourceType === "snapshot-folder" ? "selected" : ""}>snapshot-folder</option>
-            <option value="ffmpeg" ${sourceType === "ffmpeg" ? "selected" : ""}>ffmpeg webcam</option>
-          </select>
-        </label>
-
-        <label>
-          Storage directory
-          <input
-            id="cameraStorageDirectoryInput"
-            name="storageDirectory"
-            type="text"
-            value="${escapeHtml(settings?.storageDirectory || "camera")}"
-            placeholder="camera or C:\\spaghettichef\\data\\camera">
-        </label>
-
-        <label>
-          Source value
-          <input
-            id="cameraSourceValueInput"
-            name="sourceValue"
-            type="text"
-            value="${escapeHtml(settings?.sourceValue || "")}"
-            placeholder="/dev/video0 or video=Integrated Camera">
-        </label>
-
-        <label>
-          ffmpeg command
-          <input
-            id="cameraFfmpegCommandInput"
-            name="ffmpegCommand"
-            type="text"
-            value="${escapeHtml(settings?.ffmpegCommand || "ffmpeg")}"
-            placeholder="ffmpeg">
-        </label>
-
-        <label>
-          ffmpeg input format
-          <input
-            id="cameraFfmpegInputFormatInput"
-            name="ffmpegInputFormat"
-            type="text"
-            value="${escapeHtml(settings?.ffmpegInputFormat || "")}"
-            placeholder="v4l2 or dshow">
-        </label>
-
-        <label>
-          ffmpeg video size
-          <input
-            id="cameraFfmpegVideoSizeInput"
-            name="ffmpegVideoSize"
-            type="text"
-            value="${escapeHtml(settings?.ffmpegVideoSize || "640x480")}"
-            placeholder="640x480">
-        </label>
-
-        <label>
-          ffmpeg timeout ms
-          <input
-            id="cameraFfmpegTimeoutMsInput"
-            name="ffmpegTimeoutMs"
-            type="number"
-            step="100"
-            min="100"
-            value="${escapeHtml(settings?.ffmpegTimeoutMs ?? 5000)}">
-        </label>
-
-        <label>
-          ffmpeg JPEG quality
-          <input
-            id="cameraFfmpegJpegQualityInput"
-            name="ffmpegJpegQuality"
-            type="number"
-            step="1"
-            min="1"
-            value="${escapeHtml(settings?.ffmpegJpegQuality ?? 3)}">
-        </label>
-
-        <label>
-          Capture interval seconds
-          <input
-            id="cameraCaptureIntervalSecondsInput"
-            name="captureIntervalSeconds"
-            type="number"
-            step="1"
-            min="1"
-            value="${escapeHtml(settings?.captureIntervalSeconds ?? 10)}">
-        </label>
-
-        <label>
-          Retained snapshots
-          <input
-            id="cameraRetentionSnapshotCountInput"
-            name="retentionSnapshotCount"
-            type="number"
-            step="1"
-            min="1"
-            value="${escapeHtml(settings?.retentionSnapshotCount ?? 20)}">
-        </label>
-
-        <label>
-          Purge frequency
-          <input
-            id="cameraPurgeRetentionFrequencyInput"
-            name="purgeRetentionFrequency"
-            type="number"
-            step="1"
-            min="1"
-            value="${escapeHtml(settings?.purgeRetentionFrequency ?? 5)}">
-        </label>
-
-        <label>
-          Confidence threshold
-          <input
-            id="cameraConfidenceThresholdInput"
-            name="confidenceThreshold"
-            type="number"
-            step="0.01"
-            min="0.01"
-            max="1"
-            value="${escapeHtml(settings?.confidenceThreshold ?? 0.85)}">
-        </label>
-
-        <label class="checkbox-field">
-          <input
-            id="cameraPurgeAutomaticallyInput"
-            name="purgeAutomatically"
-            type="checkbox"
-            ${settings?.purgeAutomatically ? "checked" : ""}>
-          Purge automatically
-        </label>
-
-        <label>
-          Confirmations required
-          <input
-            id="cameraConfirmationsRequiredInput"
-            name="confirmationsRequired"
-            type="number"
-            step="1"
-            min="1"
-            value="${escapeHtml(settings?.confirmationsRequired ?? 3)}">
-        </label>
+        <fieldset class="camera-settings-section">
+          <legend>Analysis thresholds</legend>
+          <div class="form-grid compact-form">
+            <label>Confidence threshold<input id="cameraConfidenceThresholdInput" name="confidenceThreshold" type="number" step="0.01" min="0.01" max="1" value="${escapeHtml(settings?.confidenceThreshold ?? 0.85)}"></label>
+            <label>Confirmations required<input id="cameraConfirmationsRequiredInput" name="confirmationsRequired" type="number" step="1" min="1" value="${escapeHtml(settings?.confirmationsRequired ?? 3)}"></label>
+          </div>
+        </fieldset>
 
         <div class="form-actions">
           <button type="submit">Save camera settings</button>
@@ -300,17 +180,21 @@ export function renderCameraLatestSnapshotCard(printerId, status, settings, acti
           <button type="button" class="secondary-button" data-camera-refresh="${escapeHtml(printerId)}">Refresh</button>
           <button type="button" class="secondary-button" data-camera-sync-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Live view</button>
           <button type="button" class="secondary-button" data-camera-sync-stop="${escapeHtml(printerId)}">Stop live</button>
+          <button type="button" class="secondary-button" data-camera-crop-define="${escapeHtml(printerId)}" ${cameraJobActive ? "disabled" : ""}>Define crop region</button>
+          <button type="button" class="secondary-button" data-camera-crop-reset="${escapeHtml(printerId)}" ${cameraJobActive ? "disabled" : ""}>Reset crop</button>
         </div>
       </div>
 
       ${status?.lastCaptureAt
       ? `
-            <div class="camera-snapshot-frame">
+            <div class="camera-snapshot-frame" data-camera-crop-frame="${escapeHtml(printerId)}">
               <img
                 data-camera-latest-image="${escapeHtml(printerId)}" 
+                data-camera-crop-image="${escapeHtml(printerId)}"
                 src="${cameraSnapshotUrl(printerId, latestSnapshotVersion)}"
                 alt="Latest camera snapshot for ${escapeHtml(printerId)}"
                 loading="lazy">
+              <div class="camera-crop-selection" data-camera-crop-selection="${escapeHtml(printerId)}"></div>
               <p class="muted">
                 Latest displayed:
                 <span data-camera-latest-updated-at="${escapeHtml(printerId)}">

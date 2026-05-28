@@ -197,6 +197,7 @@ function cameraSettingsPayload(form) {
   const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
   const diagnosticLoggingEnabled = form.querySelector("#cameraDiagnosticLoggingInput")?.checked === true;
   const purgeAutomatically = form.querySelector("#cameraPurgeAutomaticallyInput")?.checked === true;
+  const captureCropEnabled = form.querySelector("#cameraCaptureCropEnabledInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const storageDirectoryInput = form.querySelector("#cameraStorageDirectoryInput");
@@ -210,6 +211,10 @@ function cameraSettingsPayload(form) {
   const ffmpegVideoSizeInput = form.querySelector("#cameraFfmpegVideoSizeInput");
   const ffmpegTimeoutMsInput = form.querySelector("#cameraFfmpegTimeoutMsInput");
   const ffmpegJpegQualityInput = form.querySelector("#cameraFfmpegJpegQualityInput");
+  const cropX1Input = form.querySelector("#cameraCaptureCropX1PercentInput");
+  const cropY1Input = form.querySelector("#cameraCaptureCropY1PercentInput");
+  const cropX2Input = form.querySelector("#cameraCaptureCropX2PercentInput");
+  const cropY2Input = form.querySelector("#cameraCaptureCropY2PercentInput");
 
   const sourceType = sourceTypeInput?.value || "disabled";
 
@@ -226,6 +231,11 @@ function cameraSettingsPayload(form) {
     safetyEnabled,
     pauseOnConfirmedSpaghetti,
     diagnosticLoggingEnabled,
+    captureCropEnabled,
+    captureCropX1Percent: percentInteger(cropX1Input?.value, 0),
+    captureCropY1Percent: percentInteger(cropY1Input?.value, 0),
+    captureCropX2Percent: percentInteger(cropX2Input?.value, 100),
+    captureCropY2Percent: percentInteger(cropY2Input?.value, 100),
     confidenceThreshold: ratio(confidenceThresholdInput?.value, 0.85),
     confirmationsRequired: positiveInteger(confirmationsRequiredInput?.value, 3),
     ffmpegCommand: ffmpegCommandInput?.value?.trim() || "ffmpeg",
@@ -234,6 +244,14 @@ function cameraSettingsPayload(form) {
     ffmpegTimeoutMs: positiveInteger(ffmpegTimeoutMsInput?.value, 5000),
     ffmpegJpegQuality: positiveInteger(ffmpegJpegQualityInput?.value, 3)
   };
+}
+
+function percentInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(100, Math.max(0, parsed));
 }
 
 function positiveInteger(value, fallback) {

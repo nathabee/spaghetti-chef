@@ -3685,6 +3685,7 @@ Make persisted camera jobs easier to review, clean up, and replay after the 0.4 
 - 0.6.2 — Delta Set Delete: done
 - 0.6.3 — Calculation Result Visual Inspector: done
 - 0.6.4 — Replay In Dashboard: done
+- 0.6.5 — Capture Crop Region: done
 
 Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
@@ -3761,5 +3762,17 @@ Goals :
 Replay persisted camera data in the admin picture/data management view without reading preview files as history.
 
 The dashboard supports source snapshot replay, delta-frame replay, and calculation-result replay with play, pause, stop, previous/next frame, speed, persisted image preview, metadata, and deleted-file indicators.
+
+---
+
+### 0.6.5 — Capture Crop Region
+
+status : done
+
+Goals :
+
+Store and analyze only a configured crop region from the raw camera frame while preserving full-frame behavior by default.
+
+The crop region is configured as percentages, persisted in camera settings, applied only during snapshot capture, and editable from the camera settings card or by selecting a rectangle on the latest snapshot.
 
 ---

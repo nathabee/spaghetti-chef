@@ -120,6 +120,11 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "camera_settings", "diagnostic_logging_enabled", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "camera_settings", "purge_automatically", "INTEGER NOT NULL DEFAULT 0");
             ensureColumn(connection, "camera_settings", "purge_retention_frequency", "INTEGER NOT NULL DEFAULT 5");
+            ensureColumn(connection, "camera_settings", "capture_crop_enabled", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_settings", "capture_crop_x1_percent", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_settings", "capture_crop_y1_percent", "INTEGER NOT NULL DEFAULT 0");
+            ensureColumn(connection, "camera_settings", "capture_crop_x2_percent", "INTEGER NOT NULL DEFAULT 100");
+            ensureColumn(connection, "camera_settings", "capture_crop_y2_percent", "INTEGER NOT NULL DEFAULT 100");
             ensureColumn(connection, "camera_events", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "camera_job_id", "INTEGER");
             ensureColumn(connection, "camera_snapshot_entries", "linked_print_job_id", "TEXT");
@@ -540,6 +545,11 @@ public final class DatabaseInitializer {
                     diagnostic_logging_enabled INTEGER NOT NULL DEFAULT 0,
                     purge_automatically INTEGER NOT NULL DEFAULT 0,
                     purge_retention_frequency INTEGER NOT NULL DEFAULT 5,
+                    capture_crop_enabled INTEGER NOT NULL DEFAULT 0,
+                    capture_crop_x1_percent INTEGER NOT NULL DEFAULT 0,
+                    capture_crop_y1_percent INTEGER NOT NULL DEFAULT 0,
+                    capture_crop_x2_percent INTEGER NOT NULL DEFAULT 100,
+                    capture_crop_y2_percent INTEGER NOT NULL DEFAULT 100,
                     updated_at TEXT NOT NULL
                 );
                 """;

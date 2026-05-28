@@ -37,6 +37,11 @@ public final class CameraSettingsStore {
                     diagnostic_logging_enabled,
                     purge_automatically,
                     purge_retention_frequency,
+                    capture_crop_enabled,
+                    capture_crop_x1_percent,
+                    capture_crop_y1_percent,
+                    capture_crop_x2_percent,
+                    capture_crop_y2_percent,
                     updated_at
                 FROM camera_settings
                 WHERE printer_id = ?;
@@ -93,9 +98,14 @@ public final class CameraSettingsStore {
                     diagnostic_logging_enabled,
                     purge_automatically,
                     purge_retention_frequency,
+                    capture_crop_enabled,
+                    capture_crop_x1_percent,
+                    capture_crop_y1_percent,
+                    capture_crop_x2_percent,
+                    capture_crop_y2_percent,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(printer_id) DO UPDATE SET
                     enabled = excluded.enabled,
                     source_type = excluded.source_type,
@@ -116,6 +126,11 @@ public final class CameraSettingsStore {
                     diagnostic_logging_enabled = excluded.diagnostic_logging_enabled,
                     purge_automatically = excluded.purge_automatically,
                     purge_retention_frequency = excluded.purge_retention_frequency,
+                    capture_crop_enabled = excluded.capture_crop_enabled,
+                    capture_crop_x1_percent = excluded.capture_crop_x1_percent,
+                    capture_crop_y1_percent = excluded.capture_crop_y1_percent,
+                    capture_crop_x2_percent = excluded.capture_crop_x2_percent,
+                    capture_crop_y2_percent = excluded.capture_crop_y2_percent,
                     updated_at = excluded.updated_at;
                 """;
 
@@ -143,7 +158,12 @@ public final class CameraSettingsStore {
             statement.setInt(18, settings.diagnosticLoggingEnabled() ? 1 : 0);
             statement.setInt(19, settings.purgeAutomatically() ? 1 : 0);
             statement.setInt(20, settings.purgeRetentionFrequency());
-            statement.setString(21, settings.updatedAt().toString());
+            statement.setInt(21, settings.captureCropEnabled() ? 1 : 0);
+            statement.setInt(22, settings.captureCropX1Percent());
+            statement.setInt(23, settings.captureCropY1Percent());
+            statement.setInt(24, settings.captureCropX2Percent());
+            statement.setInt(25, settings.captureCropY2Percent());
+            statement.setString(26, settings.updatedAt().toString());
 
             statement.executeUpdate();
             return settings;
@@ -180,8 +200,37 @@ public final class CameraSettingsStore {
                         resultSet,
                         "purge_retention_frequency",
                         CameraSettings.DEFAULT_PURGE_RETENTION_FREQUENCY),
+                readBooleanOrDefault(
+                        resultSet,
+                        "capture_crop_enabled",
+                        CameraSettings.DEFAULT_CAPTURE_CROP_ENABLED),
+                readIntOrDefault(
+                        resultSet,
+                        "capture_crop_x1_percent",
+                        CameraSettings.DEFAULT_CAPTURE_CROP_X1_PERCENT),
+                readIntOrDefault(
+                        resultSet,
+                        "capture_crop_y1_percent",
+                        CameraSettings.DEFAULT_CAPTURE_CROP_Y1_PERCENT),
+                readIntOrDefault(
+                        resultSet,
+                        "capture_crop_x2_percent",
+                        CameraSettings.DEFAULT_CAPTURE_CROP_X2_PERCENT),
+                readIntOrDefault(
+                        resultSet,
+                        "capture_crop_y2_percent",
+                        CameraSettings.DEFAULT_CAPTURE_CROP_Y2_PERCENT),
                 parseInstant(resultSet.getString("updated_at"))
         );
+    }
+
+    private static boolean readBooleanOrDefault(ResultSet resultSet, String columnName, boolean fallback)
+            throws SQLException {
+        int value = resultSet.getInt(columnName);
+        if (resultSet.wasNull()) {
+            return fallback;
+        }
+        return value == 1;
     }
 
     private static String readStringOrDefault(ResultSet resultSet, String columnName, String fallback)

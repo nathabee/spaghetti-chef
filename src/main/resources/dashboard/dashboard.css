@@ -1185,12 +1185,51 @@ progress::-moz-progress-bar {
   min-width: 0;
 }
 
+.camera-snapshot-frame {
+  position: relative;
+}
+
 .camera-snapshot-frame img {
   display: block;
   width: 100%;
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-small);
+}
+
+.camera-crop-selection {
+  display: none;
+  position: absolute;
+  border: 2px solid var(--primary);
+  background: rgba(123, 170, 230, 0.18);
+  pointer-events: none;
+}
+
+.camera-snapshot-frame.crop-selecting {
+  cursor: crosshair;
+}
+
+.camera-snapshot-frame.crop-selecting .camera-crop-selection {
+  display: block;
+}
+
+.camera-settings-form,
+.camera-settings-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.camera-settings-section {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--bg-surface-muted);
+}
+
+.camera-settings-section legend {
+  padding: 0 0.35rem;
+  color: var(--text-strong);
+  font-weight: 700;
 }
 
 .camera-analysis-snapshots {

@@ -584,6 +584,21 @@ public final class CameraApiHandler {
         int purgeRetentionFrequency = readIntegerField(body, "purgeRetentionFrequency")
                 .orElse(current.purgeRetentionFrequency());
 
+        boolean captureCropEnabled = readBooleanField(body, "captureCropEnabled")
+                .orElse(current.captureCropEnabled());
+
+        int captureCropX1Percent = readIntegerField(body, "captureCropX1Percent")
+                .orElse(current.captureCropX1Percent());
+
+        int captureCropY1Percent = readIntegerField(body, "captureCropY1Percent")
+                .orElse(current.captureCropY1Percent());
+
+        int captureCropX2Percent = readIntegerField(body, "captureCropX2Percent")
+                .orElse(current.captureCropX2Percent());
+
+        int captureCropY2Percent = readIntegerField(body, "captureCropY2Percent")
+                .orElse(current.captureCropY2Percent());
+
         return new CameraSettings(
                 current.printerId(),
                 enabled,
@@ -605,6 +620,11 @@ public final class CameraApiHandler {
                 diagnosticLoggingEnabled,
                 purgeAutomatically,
                 purgeRetentionFrequency,
+                captureCropEnabled,
+                captureCropX1Percent,
+                captureCropY1Percent,
+                captureCropX2Percent,
+                captureCropY2Percent,
                 Instant.now());
     }
 
@@ -643,6 +663,11 @@ public final class CameraApiHandler {
                 + jsonField("diagnosticLoggingEnabled", settings.diagnosticLoggingEnabled()) + ","
                 + jsonField("purgeAutomatically", settings.purgeAutomatically()) + ","
                 + jsonField("purgeRetentionFrequency", settings.purgeRetentionFrequency()) + ","
+                + jsonField("captureCropEnabled", settings.captureCropEnabled()) + ","
+                + jsonField("captureCropX1Percent", settings.captureCropX1Percent()) + ","
+                + jsonField("captureCropY1Percent", settings.captureCropY1Percent()) + ","
+                + jsonField("captureCropX2Percent", settings.captureCropX2Percent()) + ","
+                + jsonField("captureCropY2Percent", settings.captureCropY2Percent()) + ","
                 + jsonField("updatedAt", settings.updatedAt().toString())
                 + "}";
     }
