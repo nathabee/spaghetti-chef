@@ -3684,6 +3684,7 @@ Make persisted camera jobs easier to review, clean up, and replay after the 0.4 
 - 0.6.1 — Camera Job Delete: done
 - 0.6.2 — Delta Set Delete: done
 - 0.6.3 — Calculation Result Visual Inspector: done
+- 0.6.4 — Replay In Dashboard: done
 
 Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
 
@@ -3748,5 +3749,17 @@ Goals :
 Open one persisted calculation result from the trace review and inspect its from snapshot, to snapshot, delta frame, engine metadata, confidence, state, reason codes, and file state.
 
 The inspector uses persisted snapshot and delta-frame records, refuses deleted/missing files through the image endpoints, and does not use preview files as history.
+
+---
+
+### 0.6.4 — Replay In Dashboard
+
+status : done
+
+Goals :
+
+Replay persisted camera data in the admin picture/data management view without reading preview files as history.
+
+The dashboard supports source snapshot replay, delta-frame replay, and calculation-result replay with play, pause, stop, previous/next frame, speed, persisted image preview, metadata, and deleted-file indicators.
 
 ---

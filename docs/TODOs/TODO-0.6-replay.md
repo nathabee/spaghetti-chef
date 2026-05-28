@@ -630,13 +630,16 @@ missing/deleted file warning
 
 ## Status
 
-Planned.
+Done.
 
 ## Purpose
 
 Add admin review tools for replaying persisted camera jobs, source snapshots, delta sets, and calculation results.
 
 Replay is read-only.
+
+CR Dashboard CSS :
+- Lists must be put in scrollable. See cards : Camera snapshot jobs, Replay timeline, Spaghetti trace review. The same way it was done in the camera menu : card events and analyse session
 
 ## Replay Modes
 
@@ -745,21 +748,278 @@ missing/deleted file indicators
 
 ## Acceptance Checklist
 
-* [ ] Admin can replay source snapshots for one selected camera job.
-* [ ] Admin can replay delta frames for one selected delta set.
-* [ ] Admin can replay calculation results for one selected calculation run.
-* [ ] Replay display ms controls playback speed.
-* [ ] Admin can pause replay.
-* [ ] Admin can step to previous and next frame.
-* [ ] Selected frame preview displays the correct persisted file.
-* [ ] Selected metadata panel shows persisted IDs and file paths.
-* [ ] Replay marks purged/deleted files clearly.
-* [ ] Replay never uses `latest.jpg`, `previous.jpg`, or `delta.jpg` as history.
-* [ ] `mvn test` passes.
+* [x] Admin can replay source snapshots for one selected camera job.
+* [x] Admin can replay delta frames for one selected delta set.
+* [x] Admin can replay calculation results for one selected calculation run.
+* [x] Replay display ms controls playback speed.
+* [x] Admin can pause replay.
+* [x] Admin can step to previous and next frame.
+* [x] Selected frame preview displays the correct persisted file.
+* [x] Selected metadata panel shows persisted IDs and file paths.
+* [x] Replay marks purged/deleted files clearly.
+* [x] Replay never uses `latest.jpg`, `previous.jpg`, or `delta.jpg` as history.
+* [x] `mvn test` passes.
 
 ---
 
-# 0.6.5 — Simulation Review
+
+
+
+## 0.6.5 — Capture Crop Region
+
+## Status
+
+Planned.
+
+## Purpose
+
+Add a configurable capture crop region so that camera snapshots can focus on the relevant printer area instead of storing and analyzing the full raw camera frame.
+
+At the moment, the camera snapshot uses the complete frame provided by ffmpeg:
+
+```text
+(0, 0) to (Xmax, Ymax)
+```
+
+For a wide webcam image, this may include irrelevant areas such as space under the bed, too much left side, too much right side, or background around the printer. This wastes storage and sends unnecessary pixels into the frame analysis pipeline.
+
+The goal is to define a rectangular region of interest inside the raw camera frame and store only that cropped region as the snapshot.
+
+The crop region is configured as percentages of the raw frame dimensions, not as absolute pixels.
+
+Default crop region:
+
+```text
+P1 = (0%, 0%)
+P2 = (100%, 100%)
+```
+
+This means that, by default, the full camera frame is used and existing behavior is preserved.
+
+Example crop region:
+
+```text
+P1 = (20%, 10%)
+P2 = (80%, 90%)
+```
+
+This means:
+
+* start the snapshot at 20% of the raw frame width
+* start the snapshot at 10% of the raw frame height
+* end the snapshot at 80% of the raw frame width
+* end the snapshot at 90% of the raw frame height
+
+The crop settings are only needed at capture time. After the cropped snapshot has been stored, later processing such as delta generation, frame analysis, replay, and dashboard display should use the stored snapshot file directly.
+
+## Required Settings
+
+Add camera settings for the capture crop region.
+
+Recommended names:
+
+```text
+captureCropEnabled = false
+captureCropX1Percent = 0
+captureCropY1Percent = 0
+captureCropX2Percent = 100
+captureCropY2Percent = 100
+```
+
+Validation rules:
+
+* `captureCropX1Percent` must be between `0` and `100`
+* `captureCropY1Percent` must be between `0` and `100`
+* `captureCropX2Percent` must be between `0` and `100`
+* `captureCropY2Percent` must be between `0` and `100`
+* `captureCropX1Percent` must be smaller than `captureCropX2Percent`
+* `captureCropY1Percent` must be smaller than `captureCropY2Percent`
+* default values must preserve the full raw frame
+
+## Backend Requirements
+
+The backend must support the new crop settings in the camera configuration model.
+
+Required backend behavior:
+
+* add default values for the crop settings
+* persist the crop settings in the database
+* expose the crop settings through the camera settings API
+* cache or load the crop settings consistently with the existing camera settings mechanism
+* apply the crop before storing the snapshot file
+* keep existing behavior unchanged when the crop region is disabled or set to the full frame
+* validate invalid crop values before saving or before applying them
+* avoid applying the crop later in the delta, analysis, or replay pipeline
+
+The crop must happen during snapshot creation, after the raw ffmpeg frame is available and before the final snapshot file is stored.
+
+## Frontend Requirements
+
+The frontend must expose the crop settings in the camera configuration UI.
+
+The user must be able to configure the crop region in two ways:
+
+1. by editing percentage values directly in the camera settings card
+2. by graphically selecting the crop region on the displayed snapshot
+
+## Snapshot Card Requirements
+
+Add a button to the snapshot card:
+
+```text
+Define crop region
+```
+
+The button must only be enabled when no camera job is active.
+
+When the user clicks the button, the displayed snapshot enters a selection mode where the user can graphically select the rectangular crop region.
+
+During selection mode, the button label changes to:
+
+```text
+Validate crop region
+```
+
+When the user confirms the selection, the selected rectangle is converted into percentage values and written to the camera settings form.
+
+The user can then save the camera settings using the normal settings save button.
+
+The graphical selection is a helper for editing the same crop settings. It must not introduce a second hidden configuration mechanism.
+
+## Camera Settings Card Requirements
+
+The camera settings card should be reorganized into clearer sections.
+
+The current layout is difficult to read because unrelated settings are displayed together.
+
+Recommended sections:
+
+### Camera behavior
+
+```text
+Enable camera monitoring
+Enable frame analysis
+Enable safety decisions
+Pause on confirmed spaghetti
+Enable camera diagnostic logs
+```
+
+### Camera source
+
+```text
+Source type
+Storage directory
+Source value
+ffmpeg command
+ffmpeg input format
+ffmpeg video size
+ffmpeg timeout ms
+ffmpeg JPEG quality
+Capture interval seconds
+```
+
+### Capture crop region
+
+```text
+Enable capture crop region
+Crop X1 %
+Crop Y1 %
+Crop X2 %
+Crop Y2 %
+```
+
+Default values:
+
+```text
+Enable capture crop region = false
+Crop X1 % = 0
+Crop Y1 % = 0
+Crop X2 % = 100
+Crop Y2 % = 100
+```
+
+### Snapshot purge
+
+```text
+Retained snapshots
+Purge frequency
+Purge automatically
+```
+
+The `Purge automatically` checkbox must use the same visual design as the other checkboxes.
+
+### Analysis thresholds
+
+```text
+Confidence threshold
+Confirmations required
+```
+
+### Save action
+
+```text
+Save camera settings
+```
+
+## Naming Requirements
+
+Use `crop` or `crop region` in the roadmap, code, and UI.
+
+Preferred wording:
+
+```text
+Capture crop region
+Define crop region
+Validate crop region
+Enable capture crop region
+```
+
+Avoid using `zoom` for this feature.
+
+Reason:
+
+* this feature does not control optical camera zoom
+* it does not necessarily scale the image
+* it selects a rectangle from the raw camera frame
+* `crop region` is more technically accurate
+* `region of interest` is also correct, but less user-friendly for the dashboard
+
+The term `region of interest` may be used internally or in documentation, but the dashboard should preferably use `crop region`.
+
+## Goals
+
+* reduce irrelevant image area in stored snapshots
+* reduce irrelevant pixels sent to frame analysis
+* allow wide webcams to focus on the printer bed and print area
+* preserve existing behavior by default
+* make crop configuration understandable in the dashboard
+* allow graphical crop selection from the snapshot card
+* keep crop logic limited to the snapshot capture phase
+* avoid changing delta, replay, and analysis logic unnecessarily
+
+## Acceptance Checklist
+
+* Camera settings include persisted crop region values.
+* Default crop values preserve the full raw camera frame.
+* Backend validates crop percentage values.
+* Backend applies the crop before storing the snapshot file.
+* Backend does not require crop values after the snapshot has been stored.
+* Delta generation works from the already-cropped stored snapshots.
+* Frame analysis works from the already-cropped stored snapshots.
+* Replay/dashboard image display works from the already-cropped stored snapshots.
+* Camera settings API exposes the crop settings.
+* Camera settings UI allows direct editing of crop percentage values.
+* Snapshot card provides a graphical crop selection mode.
+* `Define crop region` is disabled while a camera job is active.
+* During graphical selection, the button label changes to `Validate crop region`.
+* Validating the graphical selection updates the crop percentage settings.
+* `Purge automatically` checkbox uses the same design as the other checkboxes.
+* Camera settings card is grouped into meaningful sections.
+* The roadmap and UI do not call this feature `zoom`.
+
+---
+
+# 0.6.6 — Simulation Review
 
 ## Status
 

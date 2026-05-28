@@ -11,12 +11,7 @@ CameraCaptureService.java  -> orchestration only, no duplicated event constants
 
 
 
-## requirements purge 
 
-
-Below is a cleaned requirements list you can put in a file and later compare against the roadmap/TODO to detect drift.
-
-````markdown
 # Camera Data Purge and Deletion Requirements
 
 ## 1. Scope
@@ -419,8 +414,5 @@ The feature is acceptable only if the following are true:
 * Delta deletion removes selected delta files from disk.
 * Delta deletion removes associated delta database entries.
 
-```
 
-The important correction is this: **purge** and **delete** must not be used as synonyms in the roadmap. Purge is a partial filesystem cleanup with database traceability. Delete is a destructive cleanup of selected job/delta data, potentially including database rows.
-```
 

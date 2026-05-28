@@ -1210,6 +1210,47 @@ progress::-moz-progress-bar {
   background: var(--bg-surface);
 }
 
+.admin-camera-scroll-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-camera-jobs-scroll,
+.admin-camera-timeline-scroll,
+.admin-camera-trace-scroll {
+  max-height: clamp(18rem, 48vh, 34rem);
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.admin-camera-jobs-scroll .data-table th,
+.admin-camera-timeline-scroll .data-table th,
+.admin-camera-trace-scroll .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-surface);
+}
+
+.admin-camera-replay-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-camera-replay-frame {
+  display: grid;
+  grid-template-columns: minmax(min(24rem, 100%), 1.1fr) minmax(0, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.admin-camera-replay-frame > code {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
 .camera-snapshot-gallery {
   display: grid;
   grid-template-columns: minmax(min(18rem, 100%), 0.75fr) minmax(0, 2.25fr);

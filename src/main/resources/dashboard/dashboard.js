@@ -108,6 +108,7 @@ import {
   setAdminCameraSelectedEntry,
   setAdminCameraTimeline,
   setAdminCameraVisualResult,
+  setAdminCameraReplay,
   setCameraSnapshotJobs,
   setLastRefreshLabel,
   setMessage,
@@ -157,6 +158,7 @@ let dashboardAutoRefreshInFlight = false;
 let dashboardAutoRefreshSuspended = false;
 let dashboardAutoRefreshConsecutiveNetworkFailures = 0;
 let cameraSnapshotScrollSelectionTimer = null;
+let adminCameraReplayTimer = null;
 let activeCameraViewKey = null;
 
 async function boot() {
@@ -555,6 +557,79 @@ async function handleAdminCameraDeleteJob(jobId) {
   }
 }
 
+function handleAdminCameraReplayAction(action) {
+  const frameCount = adminCameraReplayFrameCount();
+  const currentIndex = Number(state.adminCameraReplay.frameIndex) || 0;
+  if (frameCount <= 0) {
+    setAdminCameraReplay({ frameIndex: 0, playing: false });
+    return;
+  }
+
+  if (action === "play") {
+    setAdminCameraReplay({ playing: true });
+    return;
+  }
+
+  if (action === "pause") {
+    setAdminCameraReplay({ playing: false });
+    return;
+  }
+
+  if (action === "stop") {
+    setAdminCameraReplay({ frameIndex: 0, playing: false });
+    return;
+  }
+
+  if (action === "previous") {
+    setAdminCameraReplay({ frameIndex: currentIndex <= 0 ? frameCount - 1 : currentIndex - 1, playing: false });
+    return;
+  }
+
+  if (action === "next") {
+    setAdminCameraReplay({ frameIndex: (currentIndex + 1) % frameCount, playing: false });
+  }
+}
+
+function syncAdminCameraReplayTimer() {
+  if (adminCameraReplayTimer) {
+    window.clearInterval(adminCameraReplayTimer);
+    adminCameraReplayTimer = null;
+  }
+
+  if (state.activePrimaryView !== PRIMARY_VIEW_IDS.ADMIN_CAMERA || !state.adminCameraReplay.playing) {
+    return;
+  }
+
+  const frameCount = adminCameraReplayFrameCount();
+  if (frameCount <= 1) {
+    setAdminCameraReplay({ playing: false });
+    return;
+  }
+
+  adminCameraReplayTimer = window.setInterval(() => {
+    const nextFrameCount = adminCameraReplayFrameCount();
+    if (state.activePrimaryView !== PRIMARY_VIEW_IDS.ADMIN_CAMERA || !state.adminCameraReplay.playing || nextFrameCount <= 0) {
+      setAdminCameraReplay({ playing: false });
+      syncAdminCameraReplayTimer();
+      renderApp();
+      return;
+    }
+
+    setAdminCameraReplay({ frameIndex: ((Number(state.adminCameraReplay.frameIndex) || 0) + 1) % nextFrameCount });
+    renderApp();
+  }, state.adminCameraReplay.displayMs);
+}
+
+function adminCameraReplayFrameCount() {
+  if (state.adminCameraReplay.mode === "delta") {
+    return state.adminCameraDeltaFrames.length;
+  }
+  if (state.adminCameraReplay.mode === "calculation") {
+    return state.adminCameraTraceRows.length;
+  }
+  return state.adminCameraTimeline.length;
+}
+
 async function refreshMonitoringOverview(options = {}) {
   try {
     const overview = await getMonitoringOverview();
@@ -574,6 +649,7 @@ function renderApp() {
   renderPage();
   renderGlobalMessage();
   bindPageListeners();
+  syncAdminCameraReplayTimer();
   lastRefreshElement.textContent = state.lastRefreshLabel;
 }
 
@@ -689,6 +765,7 @@ function renderPage() {
       state.adminCameraSelectedCalculationRunId,
       state.adminCameraActionResult,
       state.adminCameraVisualResult,
+      state.adminCameraReplay,
       adminCameraSnapshotEntryUrl
     );
     return;
@@ -991,6 +1068,13 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraReplayActionButton = event.target.closest("[data-admin-camera-replay-action]");
+    if (adminCameraReplayActionButton) {
+      handleAdminCameraReplayAction(adminCameraReplayActionButton.dataset.adminCameraReplayAction);
+      renderApp();
+      return;
+    }
+
     const adminCameraDeleteJobButton = event.target.closest("[data-admin-camera-delete-job]");
     if (adminCameraDeleteJobButton) {
       await handleAdminCameraDeleteJob(adminCameraDeleteJobButton.dataset.adminCameraDeleteJob);
@@ -1126,6 +1210,13 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraReplayModeSelect = event.target.closest("[data-admin-camera-replay-mode]");
+    if (adminCameraReplayModeSelect) {
+      setAdminCameraReplay({ mode: adminCameraReplayModeSelect.value, frameIndex: 0, playing: false });
+      renderApp();
+      return;
+    }
+
     const filterInput = event.target.closest("[data-sd-target-filter]");
     if (!filterInput) {
       return;
@@ -1137,6 +1228,16 @@ function bindGlobalListeners() {
       filterInput.value
     );
     renderApp();
+  });
+
+  document.addEventListener("input", (event) => {
+    const adminCameraReplaySpeedInput = event.target.closest("[data-admin-camera-replay-speed]");
+    if (!adminCameraReplaySpeedInput) {
+      return;
+    }
+
+    setAdminCameraReplay({ displayMs: adminCameraReplaySpeedInput.value });
+    syncAdminCameraReplayTimer();
   });
 
   document.addEventListener("toggle", (event) => {
