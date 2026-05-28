@@ -4,9 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -216,6 +213,7 @@ public final class CameraCaptureService {
         if (!settings.enabled()) {
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_CAPTURE_SKIPPED,
                     OperationMessages.CAMERA_DISABLED);
 
@@ -233,6 +231,7 @@ public final class CameraCaptureService {
             if (!device.isAvailable()) {
                 eventStore.record(
                         settings.printerId(),
+                        cameraJob.requireId(),
                         OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                         OperationMessages.CAMERA_UNAVAILABLE);
 
@@ -248,6 +247,7 @@ public final class CameraCaptureService {
                         + " device=" + device.describe());
                 eventStore.record(
                         settings.printerId(),
+                        cameraJob.requireId(),
                         OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                         OperationMessages.CAMERA_RETURNED_NO_FRAME);
 
@@ -265,6 +265,7 @@ public final class CameraCaptureService {
 
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_FRAME_CAPTURED,
                     OperationMessages.CAMERA_FRAME_CAPTURED);
 
@@ -278,6 +279,7 @@ public final class CameraCaptureService {
                     + ": " + OperationMessages.safeDetail(exception.getMessage(), OperationMessages.UNKNOWN_API_ERROR));
             eventStore.record(
                     settings.printerId(),
+                    cameraJob.requireId(),
                     OperationMessages.EVENT_CAMERA_CAPTURE_FAILED,
                     OperationMessages.cameraCaptureFailed(exception.getMessage()));
 
@@ -460,8 +462,6 @@ public final class CameraCaptureService {
             Files.move(pendingSnapshotPath, snapshotPath, StandardCopyOption.REPLACE_EXISTING);
             snapshotEntry = snapshotEntryStore.updateSnapshotPath(snapshotEntryId, snapshotPath.toString());
 
-            enforceSnapshotRetention(snapshotsDirectory, settings.retentionSnapshotCount());
-
             snapshotMetadataStore.save(CameraSnapshotMetadata.newSnapshot(
                     frame.printerId(),
                     frame.capturedAt(),
@@ -563,33 +563,6 @@ public final class CameraCaptureService {
         }
     }
 
-    private static void enforceSnapshotRetention(Path snapshotsDirectory, int retainedSnapshots) throws IOException {
-        if (retainedSnapshots < 1 || !Files.isDirectory(snapshotsDirectory)) {
-            return;
-        }
-
-        List<Path> snapshots = new ArrayList<>();
-        try (var paths = Files.list(snapshotsDirectory)) {
-            paths
-                    .filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(CameraCaptureService::lastModified))
-                    .forEach(snapshots::add);
-        }
-
-        int deleteCount = snapshots.size() - retainedSnapshots;
-        for (int index = 0; index < deleteCount; index++) {
-            Files.deleteIfExists(snapshots.get(index));
-        }
-    }
-
-    private static Instant lastModified(Path path) {
-        try {
-            return Files.getLastModifiedTime(path).toInstant();
-        } catch (IOException exception) {
-            return Instant.EPOCH;
-        }
-    }
-
     private void analyzeCapturedFrame(CameraSettings settings, PersistedCameraFramePaths persistedPaths) {
         if (!settings.analysisEnabled()) {
             return;
@@ -605,6 +578,7 @@ public final class CameraCaptureService {
             if (!analysisResult.completed()) {
                 eventStore.record(
                         settings.printerId(),
+                        persistedPaths.cameraJobId(),
                         OperationMessages.EVENT_CAMERA_ANALYSIS_SKIPPED,
                         analysisMessage(OperationMessages.CAMERA_ANALYSIS_SKIPPED, analysisResult));
 
@@ -613,6 +587,7 @@ public final class CameraCaptureService {
 
             eventStore.record(
                     settings.printerId(),
+                    persistedPaths.cameraJobId(),
                     OperationMessages.EVENT_CAMERA_ANALYSIS_COMPLETED,
                     analysisMessage(OperationMessages.CAMERA_ANALYSIS_COMPLETED, analysisResult));
 
@@ -621,6 +596,7 @@ public final class CameraCaptureService {
             if (detectionResult.suspected()) {
                 eventStore.record(
                         settings.printerId(),
+                        persistedPaths.cameraJobId(),
                         OperationMessages.EVENT_SPAGHETTI_SUSPECTED,
                         detectionMessage(detectionResult),
                         detectionResult.confidence());
@@ -628,6 +604,7 @@ public final class CameraCaptureService {
         } catch (RuntimeException exception) {
             eventStore.record(
                     settings.printerId(),
+                    persistedPaths.cameraJobId(),
                     OperationMessages.EVENT_CAMERA_ANALYSIS_FAILED,
                     OperationMessages.cameraAnalysisFailed(exception.getMessage()));
         }

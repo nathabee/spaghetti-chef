@@ -196,11 +196,13 @@ function cameraSettingsPayload(form) {
   const safetyEnabled = form.querySelector("#cameraSafetyEnabledInput")?.checked === true;
   const pauseOnConfirmedSpaghetti = form.querySelector("#cameraPauseOnConfirmedInput")?.checked === true;
   const diagnosticLoggingEnabled = form.querySelector("#cameraDiagnosticLoggingInput")?.checked === true;
+  const purgeAutomatically = form.querySelector("#cameraPurgeAutomaticallyInput")?.checked === true;
   const sourceTypeInput = form.querySelector("#cameraSourceTypeInput");
   const sourceValueInput = form.querySelector("#cameraSourceValueInput");
   const storageDirectoryInput = form.querySelector("#cameraStorageDirectoryInput");
   const captureIntervalInput = form.querySelector("#cameraCaptureIntervalSecondsInput");
   const retentionInput = form.querySelector("#cameraRetentionSnapshotCountInput");
+  const purgeRetentionFrequencyInput = form.querySelector("#cameraPurgeRetentionFrequencyInput");
   const confidenceThresholdInput = form.querySelector("#cameraConfidenceThresholdInput");
   const confirmationsRequiredInput = form.querySelector("#cameraConfirmationsRequiredInput");
   const ffmpegCommandInput = form.querySelector("#cameraFfmpegCommandInput");
@@ -218,6 +220,8 @@ function cameraSettingsPayload(form) {
     storageDirectory: storageDirectoryInput?.value?.trim() || "camera",
     captureIntervalSeconds: positiveInteger(captureIntervalInput?.value, 10),
     retentionSnapshotCount: positiveInteger(retentionInput?.value, 20),
+    purgeAutomatically,
+    purgeRetentionFrequency: positiveInteger(purgeRetentionFrequencyInput?.value, 5),
     analysisEnabled,
     safetyEnabled,
     pauseOnConfirmedSpaghetti,

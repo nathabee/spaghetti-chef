@@ -9,6 +9,7 @@ public final class CameraEvent {
 
     private final Long id;
     private final String printerId;
+    private final Long cameraJobId;
     private final String eventType;
     private final String message;
     private final Double confidence;
@@ -17,16 +18,38 @@ public final class CameraEvent {
     public CameraEvent(
             Long id,
             String printerId,
+            Long cameraJobId,
             String eventType,
             String message,
             Double confidence,
             Instant createdAt) {
         this.id = id;
         this.printerId = requireText(printerId, "printerId");
+        this.cameraJobId = validateCameraJobId(cameraJobId);
         this.eventType = requireText(eventType, "eventType");
         this.message = requireText(message, "message");
         this.confidence = validateConfidence(confidence);
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+    }
+
+    public CameraEvent(
+            Long id,
+            String printerId,
+            String eventType,
+            String message,
+            Double confidence,
+            Instant createdAt) {
+        this(id, printerId, null, eventType, message, confidence, createdAt);
+    }
+
+    public static CameraEvent newEvent(
+            String printerId,
+            Long cameraJobId,
+            String eventType,
+            String message,
+            Double confidence,
+            Instant createdAt) {
+        return new CameraEvent(null, printerId, cameraJobId, eventType, message, confidence, createdAt);
     }
 
     public static CameraEvent newEvent(
@@ -35,7 +58,7 @@ public final class CameraEvent {
             String message,
             Double confidence,
             Instant createdAt) {
-        return new CameraEvent(null, printerId, eventType, message, confidence, createdAt);
+        return newEvent(printerId, null, eventType, message, confidence, createdAt);
     }
 
     public Optional<Long> id() {
@@ -44,6 +67,10 @@ public final class CameraEvent {
 
     public String printerId() {
         return printerId;
+    }
+
+    public Optional<Long> cameraJobId() {
+        return Optional.ofNullable(cameraJobId);
     }
 
     public String eventType() {
@@ -78,6 +105,13 @@ public final class CameraEvent {
         }
         if (Double.isNaN(value) || Double.isInfinite(value) || value < 0.0 || value > 1.0) {
             throw new IllegalArgumentException("confidence must be between 0.0 and 1.0");
+        }
+        return value;
+    }
+
+    private static Long validateCameraJobId(Long value) {
+        if (value != null && value <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
         }
         return value;
     }

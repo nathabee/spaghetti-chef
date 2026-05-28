@@ -103,6 +103,34 @@ public final class CameraDeltaSetStore {
         }
     }
 
+    public int deleteByCameraJobId(long cameraJobId) {
+        String sql = "DELETE FROM camera_delta_sets WHERE camera_job_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(cameraJobId, "cameraJobId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera delta sets", exception);
+        }
+    }
+
+    public int deleteById(long id) {
+        String sql = "DELETE FROM camera_delta_sets WHERE id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(id, "id"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera delta set", exception);
+        }
+    }
+
     public CameraDeltaSet updateGeneratedDeltaCount(long id, int generatedDeltaCount) {
         if (generatedDeltaCount < 0) {
             throw new IllegalArgumentException("generatedDeltaCount must not be negative");

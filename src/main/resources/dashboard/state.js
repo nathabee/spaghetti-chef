@@ -42,7 +42,14 @@ export const state = {
   adminCameraDeltaFrames: [],
   adminCameraCalculationRuns: [],
   adminCameraTraceRows: [],
+  adminCameraVisualResult: null,
   adminCameraRunComparison: null,
+  adminCameraReplay: {
+    mode: "snapshot",
+    frameIndex: 0,
+    displayMs: 800,
+    playing: false
+  },
   adminCameraSelectedJobId: null,
   adminCameraSelectedDeltaSetId: null,
   adminCameraSelectedCalculationRunId: null,
@@ -157,7 +164,9 @@ export function setAdminCameraPrinter(printerId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
+  state.adminCameraReplay = { ...state.adminCameraReplay, frameIndex: 0, playing: false };
   state.adminCameraSelectedJobId = null;
   state.adminCameraSelectedDeltaSetId = null;
   state.adminCameraSelectedCalculationRunId = null;
@@ -169,6 +178,7 @@ export function setAdminCameraTimeline(jobId, timeline) {
   state.adminCameraSelectedJobId = jobId || null;
   state.adminCameraTimeline = Array.isArray(timeline) ? timeline : [];
   state.adminCameraSelectedEntryId = state.adminCameraTimeline[0]?.id ?? null;
+  state.adminCameraReplay = { ...state.adminCameraReplay, frameIndex: 0, playing: false };
 }
 
 export function setAdminCameraAnalysisData(
@@ -184,6 +194,8 @@ export function setAdminCameraAnalysisData(
   state.adminCameraDeltaFrames = Array.isArray(deltaFrames) ? deltaFrames : [];
   state.adminCameraCalculationRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
   state.adminCameraTraceRows = Array.isArray(traceRows) ? traceRows : [];
+  state.adminCameraVisualResult = null;
+  state.adminCameraReplay = { ...state.adminCameraReplay, frameIndex: 0, playing: false };
   state.adminCameraSelectedDeltaSetId = selectedDeltaSetId == null ? null : Number(selectedDeltaSetId);
   state.adminCameraSelectedCalculationRunId = selectedCalculationRunId == null ? null : Number(selectedCalculationRunId);
   state.adminCameraRunComparison = runComparison || null;
@@ -194,7 +206,9 @@ export function setAdminCameraSelectedDeltaSet(deltaSetId) {
   state.adminCameraDeltaFrames = [];
   state.adminCameraCalculationRuns = [];
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
+  state.adminCameraReplay = { ...state.adminCameraReplay, frameIndex: 0, playing: false };
   state.adminCameraSelectedCalculationRunId = null;
 }
 
@@ -203,7 +217,9 @@ export function setAdminCameraSelectedCalculationRun(calculationRunId) {
     ? null
     : Number(calculationRunId);
   state.adminCameraTraceRows = [];
+  state.adminCameraVisualResult = null;
   state.adminCameraRunComparison = null;
+  state.adminCameraReplay = { ...state.adminCameraReplay, frameIndex: 0, playing: false };
 }
 
 export function setAdminCameraSelectedEntry(entryId) {
@@ -212,6 +228,21 @@ export function setAdminCameraSelectedEntry(entryId) {
 
 export function setAdminCameraActionResult(result) {
   state.adminCameraActionResult = result || null;
+}
+
+export function setAdminCameraVisualResult(result) {
+  state.adminCameraVisualResult = result || null;
+}
+
+export function setAdminCameraReplay(patch = {}) {
+  const nextDisplayMs = Number(patch.displayMs ?? state.adminCameraReplay.displayMs);
+  const nextFrameIndex = Number(patch.frameIndex ?? state.adminCameraReplay.frameIndex);
+  state.adminCameraReplay = {
+    mode: patch.mode || state.adminCameraReplay.mode || "snapshot",
+    frameIndex: Number.isFinite(nextFrameIndex) && nextFrameIndex >= 0 ? Math.floor(nextFrameIndex) : 0,
+    displayMs: Number.isFinite(nextDisplayMs) && nextDisplayMs >= 100 ? Math.floor(nextDisplayMs) : 800,
+    playing: patch.playing ?? state.adminCameraReplay.playing ?? false
+  };
 }
 
 export function setPrimaryView(viewId) {

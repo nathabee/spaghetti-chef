@@ -20,12 +20,13 @@ public final class CameraEventStore {
         String sql = """
                 INSERT INTO camera_events (
                     printer_id,
+                    camera_job_id,
                     event_type,
                     message,
                     confidence,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?);
                 """;
 
         try (
@@ -33,16 +34,21 @@ public final class CameraEventStore {
                 PreparedStatement statement = connection.prepareStatement(sql)
         ) {
             statement.setString(1, event.printerId());
-            statement.setString(2, event.eventType());
-            statement.setString(3, event.message());
+            if (event.cameraJobId().isPresent()) {
+                statement.setLong(2, event.cameraJobId().orElseThrow());
+            } else {
+                statement.setObject(2, null);
+            }
+            statement.setString(3, event.eventType());
+            statement.setString(4, event.message());
 
             if (event.confidence().isPresent()) {
-                statement.setDouble(4, event.confidence().getAsDouble());
+                statement.setDouble(5, event.confidence().getAsDouble());
             } else {
-                statement.setObject(4, null);
+                statement.setObject(5, null);
             }
 
-            statement.setString(5, event.createdAt().toString());
+            statement.setString(6, event.createdAt().toString());
 
             statement.executeUpdate();
             return event;
@@ -56,11 +62,31 @@ public final class CameraEventStore {
             String eventType,
             String message
     ) {
+        return record(printerId, null, eventType, message, null);
+    }
+
+    public CameraEvent record(
+            String printerId,
+            Long cameraJobId,
+            String eventType,
+            String message
+    ) {
+        return record(printerId, cameraJobId, eventType, message, null);
+    }
+
+    public CameraEvent record(
+            String printerId,
+            Long cameraJobId,
+            String eventType,
+            String message,
+            Double confidence
+    ) {
         return save(CameraEvent.newEvent(
                 printerId,
+                cameraJobId,
                 eventType,
                 message,
-                null,
+                confidence,
                 Instant.now()
         ));
     }
@@ -91,6 +117,7 @@ public final class CameraEventStore {
                 SELECT
                     id,
                     printer_id,
+                    camera_job_id,
                     event_type,
                     message,
                     confidence,
@@ -122,15 +149,35 @@ public final class CameraEventStore {
         }
     }
 
+    public int deleteByCameraJobId(long cameraJobId) {
+        String sql = "DELETE FROM camera_events WHERE camera_job_id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(cameraJobId, "cameraJobId"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera events", exception);
+        }
+    }
+
     private CameraEvent mapEvent(ResultSet resultSet) throws SQLException {
         return new CameraEvent(
                 resultSet.getLong("id"),
                 resultSet.getString("printer_id"),
+                nullableLong(resultSet, "camera_job_id"),
                 resultSet.getString("event_type"),
                 resultSet.getString("message"),
                 readNullableDouble(resultSet, "confidence"),
                 parseInstant(resultSet.getString("created_at"))
         );
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static Double readNullableDouble(ResultSet resultSet, String columnName) throws SQLException {
@@ -160,5 +207,12 @@ public final class CameraEventStore {
             throw new IllegalArgumentException("printerId must not be blank");
         }
         return printerId.trim();
+    }
+
+    private static long requirePositive(long value, String fieldName) {
+        if (value <= 0L) {
+            throw new IllegalArgumentException(fieldName + " must be greater than zero");
+        }
+        return value;
     }
 }

@@ -218,6 +218,17 @@ export function renderCameraSettingsCard(settings) {
         </label>
 
         <label>
+          Purge frequency
+          <input
+            id="cameraPurgeRetentionFrequencyInput"
+            name="purgeRetentionFrequency"
+            type="number"
+            step="1"
+            min="1"
+            value="${escapeHtml(settings?.purgeRetentionFrequency ?? 5)}">
+        </label>
+
+        <label>
           Confidence threshold
           <input
             id="cameraConfidenceThresholdInput"
@@ -227,6 +238,15 @@ export function renderCameraSettingsCard(settings) {
             min="0.01"
             max="1"
             value="${escapeHtml(settings?.confidenceThreshold ?? 0.85)}">
+        </label>
+
+        <label class="checkbox-field">
+          <input
+            id="cameraPurgeAutomaticallyInput"
+            name="purgeAutomatically"
+            type="checkbox"
+            ${settings?.purgeAutomatically ? "checked" : ""}>
+          Purge automatically
         </label>
 
         <label>

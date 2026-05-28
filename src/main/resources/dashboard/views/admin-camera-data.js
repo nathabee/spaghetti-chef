@@ -16,6 +16,8 @@ export function renderAdminCameraDataPage(
   selectedDeltaSetId = null,
   selectedCalculationRunId = null,
   actionResult = null,
+  visualResult = null,
+  replayState = null,
   snapshotEntryUrl = () => ""
 ) {
   if (!hasPermission("CAMERA_DATA_MANAGE")) {
@@ -50,7 +52,7 @@ export function renderAdminCameraDataPage(
     </section>
 
     <section class="two-column-grid">
-      <article class="placeholder-card">
+      <article class="placeholder-card admin-camera-scroll-card">
         <div class="section-header compact">
           <div>
             <h3>Camera snapshot jobs</h3>
@@ -61,7 +63,7 @@ export function renderAdminCameraDataPage(
         ${selectedPrinterId ? renderJobTable(jobs) : `<p class="muted">Select a printer to load camera snapshot jobs.</p>`}
       </article>
 
-      <article class="placeholder-card">
+      <article class="placeholder-card admin-camera-scroll-card">
         <div class="section-header compact">
           <div>
             <h3>Job actions</h3>
@@ -75,7 +77,7 @@ export function renderAdminCameraDataPage(
     </section>
 
     <section class="two-column-grid">
-      <article class="placeholder-card">
+      <article class="placeholder-card admin-camera-scroll-card">
         <div class="section-header compact">
           <div>
             <h3>Replay timeline</h3>
@@ -121,6 +123,28 @@ export function renderAdminCameraDataPage(
         ${renderTraceReview(deltaFrames, traceRows)}
       </article>
     </section>
+
+    <section class="placeholder-card">
+      <div class="section-header compact">
+        <div>
+          <h3>Replay</h3>
+          <p class="placeholder-caption">Review persisted snapshot, delta, or calculation frames for the selected camera job.</p>
+        </div>
+        <span class="badge badge-real">0.6.4</span>
+      </div>
+      ${renderReplayPanel(selectedPrinterId, timeline, deltaFrames, traceRows, replayState, snapshotEntryUrl)}
+    </section>
+
+    <section class="placeholder-card">
+      <div class="section-header compact">
+        <div>
+          <h3>Calculation result inspector</h3>
+          <p class="placeholder-caption">Open a trace row to inspect its source snapshots, delta frame, and calculation metadata.</p>
+        </div>
+        <span class="badge badge-real">visual</span>
+      </div>
+      ${renderVisualInspector(visualResult)}
+    </section>
   `;
 }
 
@@ -142,7 +166,7 @@ function renderJobTable(jobs) {
   }
 
   return `
-    <div class="table-wrap">
+    <div class="table-wrap admin-camera-jobs-scroll">
       <table class="data-table">
         <thead>
           <tr>
@@ -171,7 +195,6 @@ function renderJobTable(jobs) {
               <td>
                 <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(cameraJobId)}">Load</button>
                 <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(cameraJobId)}">Recalculate</button>
-                <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(cameraJobId)}">Delete</button>
               </td>
             </tr>
           `;
@@ -200,12 +223,32 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
         Method
         <input id="adminCameraDeltaMethodInput" type="text" value="image-delta">
       </label>
+      <label>
+        Purge keep latest
+        <input id="adminCameraPurgeRetentionInput" type="number" min="0" step="1" value="20">
+      </label>
+      <label>
+        Purge frequency
+        <input id="adminCameraPurgeFrequencyInput" type="number" min="1" step="1" value="5">
+      </label>
     </div>
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-load-job="${escapeHtml(selectedJobId)}">Reload timeline</button>
       <button type="button" class="button-secondary" data-admin-camera-generate-delta="${escapeHtml(selectedJobId)}">Generate delta set</button>
       <button type="button" class="button-secondary" data-admin-camera-recalculate="${escapeHtml(selectedJobId)}">Preview recalculation</button>
-      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete retained snapshots</button>
+      <button type="button" class="button-secondary" data-admin-camera-purge-job="${escapeHtml(selectedJobId)}">Purge old snapshots</button>
+    </div>
+    <div class="form-grid compact-form">
+      <label class="checkbox-field"><input id="adminCameraDeleteSnapshotFilesInput" type="checkbox" checked> Snapshot files</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteSnapshotRowsInput" type="checkbox" checked> Snapshot rows</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteDeltaFilesInput" type="checkbox" checked> Delta files</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteDeltaRowsInput" type="checkbox" checked> Delta rows</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCalculationRunsInput" type="checkbox" checked> Calculation runs</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCameraEventsInput" type="checkbox" checked> Camera events</label>
+      <label class="checkbox-field"><input id="adminCameraDeleteCameraJobInput" type="checkbox" checked> Camera job row</label>
+    </div>
+    <div class="inline-actions">
+      <button type="button" class="button-danger" data-admin-camera-delete-job="${escapeHtml(selectedJobId)}">Delete camera job data</button>
     </div>
   `;
 }
@@ -269,6 +312,9 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, run
     <div class="inline-actions">
       <button type="button" class="button-secondary" data-admin-camera-run-calculation="${escapeHtml(String(selectedDeltaSetId || ""))}" ${selectedDeltaSetId ? "" : "disabled"}>
         Run calculation
+      </button>
+      <button type="button" class="button-danger" data-admin-camera-delete-delta-set="${escapeHtml(String(selectedDeltaSetId || ""))}" ${selectedDeltaSetId ? "" : "disabled"}>
+        Delete delta set
       </button>
     </div>
     ${renderRunComparison(safeRuns)}
@@ -392,7 +438,7 @@ function renderTraceReview(deltaFrames, traceRows) {
   }
 
   return `
-    <div class="table-wrap">
+    <div class="table-wrap admin-camera-trace-scroll">
       <table class="data-table">
         <thead>
           <tr>
@@ -408,6 +454,7 @@ function renderTraceReview(deltaFrames, traceRows) {
             <th>Confidence</th>
             <th>State</th>
             <th>Reason codes</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -425,11 +472,72 @@ function renderTraceReview(deltaFrames, traceRows) {
               <td>${formatPercent(row.confidence)}</td>
               <td>${row.suspected ? '<span class="badge status-error">Suspicious</span>' : '<span class="badge badge-enabled">Good</span>'}</td>
               <td>${escapeHtml(row.reasonCodes ?? "-")}</td>
+              <td>
+                <button type="button" class="button-secondary" data-admin-camera-view-calculation-result="${escapeHtml(String(row.calculationResultId ?? ""))}">
+                  View
+                </button>
+              </td>
             </tr>
           `).join("")}
         </tbody>
       </table>
     </div>
+  `;
+}
+
+function renderVisualInspector(visualResult) {
+  if (!visualResult) {
+    return `<p class="muted">Select View in the trace table to inspect one calculation result.</p>`;
+  }
+
+  const result = visualResult.calculationResult || {};
+  const run = visualResult.calculationRun || {};
+  const frame = visualResult.deltaFrame || {};
+  const fromSnapshot = visualResult.fromSnapshot || {};
+  const toSnapshot = visualResult.toSnapshot || {};
+  const imageUrls = visualResult.imageUrls || {};
+
+  return `
+    <div class="camera-snapshot-preview-stack">
+      ${renderVisualImage("From snapshot", fromSnapshot, imageUrls.fromSnapshot)}
+      ${renderVisualImage("To snapshot", toSnapshot, imageUrls.toSnapshot)}
+      ${renderVisualImage("Delta frame", frame, imageUrls.deltaFrame)}
+    </div>
+    <dl class="metric-list">
+      <div><dt>Result</dt><dd>${escapeHtml(String(result.id ?? "-"))}</dd></div>
+      <div><dt>Run</dt><dd>${escapeHtml(String(run.id ?? "-"))}</dd></div>
+      <div><dt>Engine</dt><dd>${escapeHtml(run.engineName ?? "-")}</dd></div>
+      <div><dt>Variant</dt><dd>${escapeHtml(run.algorithmVariant ?? "-")}</dd></div>
+      <div><dt>Version</dt><dd>${escapeHtml(run.engineVersion ?? "-")}</dd></div>
+      <div><dt>Confidence</dt><dd>${formatPercent(result.confidence)}</dd></div>
+      <div><dt>State</dt><dd>${result.suspected ? "Suspicious" : "Good"}</dd></div>
+      <div><dt>Reason codes</dt><dd>${escapeHtml(result.reasonCodes ?? "-")}</dd></div>
+      <div><dt>Delta frame</dt><dd>${escapeHtml(String(frame.id ?? "-"))}</dd></div>
+      <div><dt>Source snapshots</dt><dd>${escapeHtml(String(frame.fromSnapshotId ?? "-"))} -> ${escapeHtml(String(frame.toSnapshotId ?? "-"))}</dd></div>
+      <div><dt>Created</dt><dd>${escapeHtml(result.createdAt ?? "-")}</dd></div>
+      <div><dt>Message</dt><dd>${escapeHtml(result.message ?? run.message ?? "-")}</dd></div>
+    </dl>
+  `;
+}
+
+function renderVisualImage(label, item, url) {
+  const deleted = item?.fileDeleted === true;
+  const path = item?.snapshotPath || item?.deltaPath || "";
+  if (!url || deleted) {
+    return `
+      <figure class="camera-snapshot-preview">
+        <figcaption>${escapeHtml(label)}</figcaption>
+        <p class="muted">${deleted ? "File deleted by purge." : "File unavailable."}</p>
+        <code>${escapeHtml(path || "-")}</code>
+      </figure>
+    `;
+  }
+
+  return `
+    <figure class="camera-snapshot-preview">
+      <figcaption>${escapeHtml(label)} - ${escapeHtml(fileName(path))}</figcaption>
+      <img src="${escapeHtml(url)}" alt="${escapeHtml(label)}">
+    </figure>
   `;
 }
 
@@ -439,7 +547,7 @@ function renderTimelineTable(timeline, selectedEntryId) {
   }
 
   return `
-    <div class="table-wrap">
+    <div class="table-wrap admin-camera-timeline-scroll">
       <table class="data-table">
         <thead>
           <tr>
@@ -447,23 +555,158 @@ function renderTimelineTable(timeline, selectedEntryId) {
             <th>Retained at</th>
             <th>Bytes</th>
             <th>Source</th>
+            <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          ${timeline.map((entry) => `
+          ${timeline.map((entry) => {
+            const deleted = entry.fileDeleted === true;
+            return `
             <tr class="${Number(entry.id) === Number(selectedEntryId) ? "selected-row" : ""}">
               <td>${escapeHtml(entry.capturedAt ?? "-")}</td>
               <td>${escapeHtml(entry.retainedAt ?? "-")}</td>
               <td>${escapeHtml(String(entry.sizeBytes ?? 0))}</td>
               <td>${escapeHtml(entry.sourceType ?? "-")}</td>
-              <td><button type="button" class="button-secondary" data-admin-camera-select-entry="${escapeHtml(String(entry.id))}">View</button></td>
+              <td>${deleted ? `<span class="badge status-error">deleted</span>` : `<span class="badge badge-enabled">file</span>`}</td>
+              <td>${deleted
+                ? `<span class="muted">${escapeHtml(entry.deletionReason ?? "purged")}</span>`
+                : `<button type="button" class="button-secondary" data-admin-camera-select-entry="${escapeHtml(String(entry.id))}">View</button>`}</td>
             </tr>
-          `).join("")}
+          `;
+          }).join("")}
         </tbody>
       </table>
     </div>
   `;
+}
+
+function renderReplayPanel(selectedPrinterId, timeline, deltaFrames, traceRows, replayState, snapshotEntryUrl) {
+  const state = replayState || {};
+  const mode = ["snapshot", "delta", "calculation"].includes(state.mode) ? state.mode : "snapshot";
+  const frames = replayFramesForMode(mode, selectedPrinterId, timeline, deltaFrames, traceRows, snapshotEntryUrl);
+  const frameIndex = clampFrameIndex(state.frameIndex, frames.length);
+  const frame = frames[frameIndex] || null;
+  const displayMs = Number.isFinite(Number(state.displayMs)) ? Number(state.displayMs) : 800;
+
+  return `
+    <div class="admin-camera-replay-shell" data-admin-camera-replay-frame-count="${escapeHtml(String(frames.length))}">
+      <div class="form-grid compact-form">
+        <label>
+          Replay mode
+          <select data-admin-camera-replay-mode>
+            <option value="snapshot" ${mode === "snapshot" ? "selected" : ""}>Snapshot replay</option>
+            <option value="delta" ${mode === "delta" ? "selected" : ""}>Delta replay</option>
+            <option value="calculation" ${mode === "calculation" ? "selected" : ""}>Calculation replay</option>
+          </select>
+        </label>
+        <label>
+          Replay display ms
+          <input data-admin-camera-replay-speed type="number" min="100" step="50" value="${escapeHtml(String(displayMs))}">
+        </label>
+      </div>
+      <div class="inline-actions">
+        <button type="button" class="button-secondary" data-admin-camera-replay-action="previous" ${frames.length === 0 ? "disabled" : ""}>Previous frame</button>
+        <button type="button" class="button-secondary" data-admin-camera-replay-action="${state.playing ? "pause" : "play"}" ${frames.length === 0 ? "disabled" : ""}>${state.playing ? "Pause" : "Play"}</button>
+        <button type="button" class="button-secondary" data-admin-camera-replay-action="stop" ${frames.length === 0 ? "disabled" : ""}>Stop</button>
+        <button type="button" class="button-secondary" data-admin-camera-replay-action="next" ${frames.length === 0 ? "disabled" : ""}>Next frame</button>
+        <span class="badge badge-real">${escapeHtml(String(frames.length === 0 ? 0 : frameIndex + 1))} / ${escapeHtml(String(frames.length))}</span>
+      </div>
+      ${renderReplayFrame(frame, mode)}
+    </div>
+  `;
+}
+
+function replayFramesForMode(mode, selectedPrinterId, timeline, deltaFrames, traceRows, snapshotEntryUrl) {
+  if (mode === "delta") {
+    return Array.isArray(deltaFrames) ? deltaFrames.map((frame) => ({
+      title: `Delta frame #${frame.id ?? "-"}`,
+      imageUrl: frame.id ? `/admin/camera/delta-frames/${encodeURIComponent(String(frame.id))}/file?printerId=${encodeURIComponent(selectedPrinterId ?? frame.printerId ?? "")}` : null,
+      path: frame.deltaPath,
+      metadata: {
+        "Delta frame": frame.id,
+        "Delta set": frame.deltaSetId,
+        "Camera job": frame.cameraJobId,
+        "From snapshot": frame.fromSnapshotId,
+        "To snapshot": frame.toSnapshotId,
+        "Delta score": formatPercent(frame.deltaScore),
+        "Changed pixels": formatPercent(frame.changedPixelRatio),
+        "Created": frame.createdAt
+      }
+    })) : [];
+  }
+
+  if (mode === "calculation") {
+    return Array.isArray(traceRows) ? traceRows.map((row) => ({
+      title: `Calculation result #${row.calculationResultId ?? "-"}`,
+      imageUrl: row.deltaFrameId ? `/admin/camera/delta-frames/${encodeURIComponent(String(row.deltaFrameId))}/file?printerId=${encodeURIComponent(selectedPrinterId ?? "")}` : null,
+      path: row.deltaPath,
+      metadata: {
+        "Calculation result": row.calculationResultId,
+        "Calculation run": row.calculationRunId,
+        "Delta frame": row.deltaFrameId,
+        "Delta set": row.deltaSetId,
+        "Camera job": row.cameraJobId,
+        "Source pair": `${fileName(row.fromSnapshotPath)} -> ${fileName(row.toSnapshotPath)}`,
+        "Confidence": formatPercent(row.confidence),
+        "State": row.suspected ? "Suspicious" : "Good",
+        "Reason codes": row.reasonCodes,
+        "Message": row.message,
+        "Created": row.createdAt
+      }
+    })) : [];
+  }
+
+  return Array.isArray(timeline) ? timeline.map((entry) => {
+    const deleted = entry.fileDeleted === true;
+    return {
+      title: `Snapshot #${entry.id ?? "-"}`,
+      imageUrl: deleted || !entry.id ? null : snapshotEntryUrl(entry.id),
+      path: entry.snapshotPath,
+      deleted,
+      metadata: {
+        "Snapshot": entry.id,
+        "Camera job": entry.cameraJobKey ?? entry.cameraJobId ?? entry.jobKey,
+        "Printer": entry.printerId,
+        "Captured": entry.capturedAt,
+        "Retained": entry.retainedAt,
+        "Status": deleted ? `Deleted: ${entry.deletionReason ?? "purged"}` : "File available",
+        "Path": entry.snapshotPath
+      }
+    };
+  }) : [];
+}
+
+function renderReplayFrame(frame, mode) {
+  if (!frame) {
+    return `<p class="muted">Load a job, delta set, or calculation run to start replay.</p>`;
+  }
+
+  const unavailableMessage = frame.deleted ? "This snapshot was purged. Metadata is kept, but the file is not viewable." : "Replay file unavailable.";
+  return `
+    <div class="admin-camera-replay-frame">
+      <figure class="camera-snapshot-preview">
+        <figcaption>${escapeHtml(frame.title)} - ${escapeHtml(mode)}</figcaption>
+        ${frame.imageUrl
+          ? `<img src="${escapeHtml(frame.imageUrl)}" alt="${escapeHtml(frame.title)}">`
+          : `<p class="muted">${escapeHtml(unavailableMessage)}</p>`}
+      </figure>
+      <dl class="metric-list">
+        ${Object.entries(frame.metadata || {}).map(([label, value]) => `
+          <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value == null || value === "" ? "-" : String(value))}</dd></div>
+        `).join("")}
+      </dl>
+      <code>${escapeHtml(frame.path || "-")}</code>
+    </div>
+  `;
+}
+
+function clampFrameIndex(frameIndex, frameCount) {
+  const parsed = Number(frameIndex);
+  if (!Number.isFinite(parsed) || parsed <= 0 || frameCount <= 0) {
+    return 0;
+  }
+  return Math.min(Math.floor(parsed), frameCount - 1);
 }
 
 function renderSelectedEntry(timeline, selectedEntryId, snapshotEntryUrl) {
@@ -473,6 +716,20 @@ function renderSelectedEntry(timeline, selectedEntryId, snapshotEntryUrl) {
 
   if (!entry) {
     return `<p class="muted">Select a timeline row to preview the snapshot image.</p>`;
+  }
+
+  if (entry.fileDeleted === true) {
+    return `
+      <p class="muted">This snapshot file was deleted by purge, but the metadata row is kept for replay history.</p>
+      <dl class="metric-list">
+        <div><dt>Printer</dt><dd>${escapeHtml(entry.printerId ?? "-")}</dd></div>
+        <div><dt>Camera job</dt><dd>${escapeHtml(entry.cameraJobKey ?? entry.cameraJobId ?? entry.jobKey ?? "-")}</dd></div>
+        <div><dt>Captured at</dt><dd>${escapeHtml(entry.capturedAt ?? "-")}</dd></div>
+        <div><dt>Deleted at</dt><dd>${escapeHtml(entry.deletedAt ?? "-")}</dd></div>
+        <div><dt>Reason</dt><dd>${escapeHtml(entry.deletionReason ?? "-")}</dd></div>
+        <div><dt>Snapshot path</dt><dd>${escapeHtml(entry.snapshotPath ?? "-")}</dd></div>
+      </dl>
+    `;
   }
 
   const imageUrl = snapshotEntryUrl(entry.id);

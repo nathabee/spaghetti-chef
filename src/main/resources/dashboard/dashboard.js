@@ -13,8 +13,10 @@ import {
   getJobs,
   getAppVersion,
   adminCameraSnapshotEntryUrl,
-  deleteCameraSnapshotJob,
+  deleteCameraDeltaSet,
+  deleteCameraJobData,
   getCameraCalculationRuns,
+  getCameraCalculationVisual,
   getCameraCalculationComparison,
   getCameraCalculationTrace,
   getCameraDeltaFrames,
@@ -42,6 +44,7 @@ import {
   registerPrintFile,
   pauseJob,
   previewCameraSnapshotRecalculation,
+  purgeCameraSnapshotJob,
   restartJob,
   resumeJob,
   runCameraCalculation,
@@ -104,6 +107,8 @@ import {
   setAdminCameraSelectedDeltaSet,
   setAdminCameraSelectedEntry,
   setAdminCameraTimeline,
+  setAdminCameraVisualResult,
+  setAdminCameraReplay,
   setCameraSnapshotJobs,
   setLastRefreshLabel,
   setMessage,
@@ -153,6 +158,7 @@ let dashboardAutoRefreshInFlight = false;
 let dashboardAutoRefreshSuspended = false;
 let dashboardAutoRefreshConsecutiveNetworkFailures = 0;
 let cameraSnapshotScrollSelectionTimer = null;
+let adminCameraReplayTimer = null;
 let activeCameraViewKey = null;
 
 async function boot() {
@@ -374,6 +380,41 @@ async function handleAdminCameraGenerateDeltaSet(jobId) {
   }
 }
 
+async function handleAdminCameraPurgeJob(jobId) {
+  if (!state.adminCameraPrinterId || !jobId) {
+    return;
+  }
+
+  const retentionInput = document.getElementById("adminCameraPurgeRetentionInput");
+  const frequencyInput = document.getElementById("adminCameraPurgeFrequencyInput");
+  const retentionSnapshotCount = Number.parseInt(retentionInput?.value || "20", 10);
+  const purgeRetentionFrequency = Number.parseInt(frequencyInput?.value || "5", 10);
+  const confirmed = window.confirm(
+    `Purge old snapshot files for printer ${state.adminCameraPrinterId}, camera job ${jobId}? Database rows and delta data will be kept.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const result = await purgeCameraSnapshotJob(jobId, {
+      printerId: state.adminCameraPrinterId,
+      retentionSnapshotCount: Number.isFinite(retentionSnapshotCount) && retentionSnapshotCount >= 0
+        ? retentionSnapshotCount
+        : 20,
+      purgeRetentionFrequency: Number.isFinite(purgeRetentionFrequency) && purgeRetentionFrequency > 0
+        ? purgeRetentionFrequency
+        : 5,
+      message: "dashboard snapshot purge"
+    });
+    await loadAdminCameraTimeline(jobId);
+    setAdminCameraActionResult(result);
+    await refreshCameraSnapshotJobs();
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to purge camera snapshot job: ${error.message}` });
+  }
+}
+
 async function handleAdminCameraRunCalculation(deltaSetId) {
   if (!state.adminCameraPrinterId || !state.adminCameraSelectedJobId || !deltaSetId) {
     return;
@@ -400,6 +441,32 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to run camera calculation: ${error.message}` });
+  }
+}
+
+async function handleAdminCameraDeleteDeltaSet(deltaSetId) {
+  if (!state.adminCameraPrinterId || !state.adminCameraSelectedJobId || !deltaSetId) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete delta set ${deltaSetId} for printer ${state.adminCameraPrinterId}? Source snapshots and the camera job will be kept.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const report = await deleteCameraDeltaSet(deltaSetId, state.adminCameraPrinterId, {
+      deleteDeltaFiles: true,
+      deleteDeltaRows: true,
+      deleteCalculationRuns: true,
+      requiredConfirmation: "DELETE_DELTA_SET"
+    });
+    await loadAdminCameraAnalysisData(state.adminCameraSelectedJobId);
+    setAdminCameraActionResult(report);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to delete delta set: ${error.message}` });
   }
 }
 
@@ -446,26 +513,121 @@ async function handleAdminCameraSelectCalculationRun(calculationRunId) {
   }
 }
 
+async function handleAdminCameraViewCalculationResult(calculationResultId) {
+  if (!state.adminCameraPrinterId || !calculationResultId) {
+    return;
+  }
+
+  try {
+    const result = await getCameraCalculationVisual(calculationResultId, state.adminCameraPrinterId);
+    setAdminCameraVisualResult(result);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to load calculation result inspector: ${error.message}` });
+  }
+}
+
 async function handleAdminCameraDeleteJob(jobId) {
   if (!state.adminCameraPrinterId || !jobId) {
     return;
   }
 
   const confirmed = window.confirm(
-    `Delete retained source snapshots for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
+    `Delete camera job data for printer ${state.adminCameraPrinterId}, camera job ${jobId}?`
   );
   if (!confirmed) {
     return;
   }
 
   try {
-    const report = await deleteCameraSnapshotJob(jobId, state.adminCameraPrinterId);
+    const report = await deleteCameraJobData(jobId, state.adminCameraPrinterId, {
+      deleteSnapshotFiles: document.getElementById("adminCameraDeleteSnapshotFilesInput")?.checked !== false,
+      deleteSnapshotRows: document.getElementById("adminCameraDeleteSnapshotRowsInput")?.checked !== false,
+      deleteDeltaFiles: document.getElementById("adminCameraDeleteDeltaFilesInput")?.checked !== false,
+      deleteDeltaRows: document.getElementById("adminCameraDeleteDeltaRowsInput")?.checked !== false,
+      deleteCalculationRuns: document.getElementById("adminCameraDeleteCalculationRunsInput")?.checked !== false,
+      deleteCameraEvents: document.getElementById("adminCameraDeleteCameraEventsInput")?.checked !== false,
+      deleteCameraJob: document.getElementById("adminCameraDeleteCameraJobInput")?.checked !== false,
+      requiredConfirmation: "DELETE_CAMERA_JOB"
+    });
     setAdminCameraActionResult(report);
     setAdminCameraTimeline(null, []);
     await refreshCameraSnapshotJobs();
   } catch (error) {
-    setAdminCameraActionResult({ error: `Failed to delete camera snapshot job: ${error.message}` });
+    setAdminCameraActionResult({ error: `Failed to delete camera job data: ${error.message}` });
   }
+}
+
+function handleAdminCameraReplayAction(action) {
+  const frameCount = adminCameraReplayFrameCount();
+  const currentIndex = Number(state.adminCameraReplay.frameIndex) || 0;
+  if (frameCount <= 0) {
+    setAdminCameraReplay({ frameIndex: 0, playing: false });
+    return;
+  }
+
+  if (action === "play") {
+    setAdminCameraReplay({ playing: true });
+    return;
+  }
+
+  if (action === "pause") {
+    setAdminCameraReplay({ playing: false });
+    return;
+  }
+
+  if (action === "stop") {
+    setAdminCameraReplay({ frameIndex: 0, playing: false });
+    return;
+  }
+
+  if (action === "previous") {
+    setAdminCameraReplay({ frameIndex: currentIndex <= 0 ? frameCount - 1 : currentIndex - 1, playing: false });
+    return;
+  }
+
+  if (action === "next") {
+    setAdminCameraReplay({ frameIndex: (currentIndex + 1) % frameCount, playing: false });
+  }
+}
+
+function syncAdminCameraReplayTimer() {
+  if (adminCameraReplayTimer) {
+    window.clearInterval(adminCameraReplayTimer);
+    adminCameraReplayTimer = null;
+  }
+
+  if (state.activePrimaryView !== PRIMARY_VIEW_IDS.ADMIN_CAMERA || !state.adminCameraReplay.playing) {
+    return;
+  }
+
+  const frameCount = adminCameraReplayFrameCount();
+  if (frameCount <= 1) {
+    setAdminCameraReplay({ playing: false });
+    return;
+  }
+
+  adminCameraReplayTimer = window.setInterval(() => {
+    const nextFrameCount = adminCameraReplayFrameCount();
+    if (state.activePrimaryView !== PRIMARY_VIEW_IDS.ADMIN_CAMERA || !state.adminCameraReplay.playing || nextFrameCount <= 0) {
+      setAdminCameraReplay({ playing: false });
+      syncAdminCameraReplayTimer();
+      renderApp();
+      return;
+    }
+
+    setAdminCameraReplay({ frameIndex: ((Number(state.adminCameraReplay.frameIndex) || 0) + 1) % nextFrameCount });
+    renderApp();
+  }, state.adminCameraReplay.displayMs);
+}
+
+function adminCameraReplayFrameCount() {
+  if (state.adminCameraReplay.mode === "delta") {
+    return state.adminCameraDeltaFrames.length;
+  }
+  if (state.adminCameraReplay.mode === "calculation") {
+    return state.adminCameraTraceRows.length;
+  }
+  return state.adminCameraTimeline.length;
 }
 
 async function refreshMonitoringOverview(options = {}) {
@@ -487,6 +649,7 @@ function renderApp() {
   renderPage();
   renderGlobalMessage();
   bindPageListeners();
+  syncAdminCameraReplayTimer();
   lastRefreshElement.textContent = state.lastRefreshLabel;
 }
 
@@ -601,6 +764,8 @@ function renderPage() {
       state.adminCameraSelectedDeltaSetId,
       state.adminCameraSelectedCalculationRunId,
       state.adminCameraActionResult,
+      state.adminCameraVisualResult,
+      state.adminCameraReplay,
       adminCameraSnapshotEntryUrl
     );
     return;
@@ -873,9 +1038,39 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraPurgeJobButton = event.target.closest("[data-admin-camera-purge-job]");
+    if (adminCameraPurgeJobButton) {
+      await handleAdminCameraPurgeJob(adminCameraPurgeJobButton.dataset.adminCameraPurgeJob);
+      renderApp();
+      return;
+    }
+
     const adminCameraRunCalculationButton = event.target.closest("[data-admin-camera-run-calculation]");
     if (adminCameraRunCalculationButton) {
       await handleAdminCameraRunCalculation(adminCameraRunCalculationButton.dataset.adminCameraRunCalculation);
+      renderApp();
+      return;
+    }
+
+    const adminCameraDeleteDeltaSetButton = event.target.closest("[data-admin-camera-delete-delta-set]");
+    if (adminCameraDeleteDeltaSetButton) {
+      await handleAdminCameraDeleteDeltaSet(adminCameraDeleteDeltaSetButton.dataset.adminCameraDeleteDeltaSet);
+      renderApp();
+      return;
+    }
+
+    const adminCameraViewCalculationResultButton = event.target.closest("[data-admin-camera-view-calculation-result]");
+    if (adminCameraViewCalculationResultButton) {
+      await handleAdminCameraViewCalculationResult(
+        adminCameraViewCalculationResultButton.dataset.adminCameraViewCalculationResult
+      );
+      renderApp();
+      return;
+    }
+
+    const adminCameraReplayActionButton = event.target.closest("[data-admin-camera-replay-action]");
+    if (adminCameraReplayActionButton) {
+      handleAdminCameraReplayAction(adminCameraReplayActionButton.dataset.adminCameraReplayAction);
       renderApp();
       return;
     }
@@ -1015,6 +1210,13 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraReplayModeSelect = event.target.closest("[data-admin-camera-replay-mode]");
+    if (adminCameraReplayModeSelect) {
+      setAdminCameraReplay({ mode: adminCameraReplayModeSelect.value, frameIndex: 0, playing: false });
+      renderApp();
+      return;
+    }
+
     const filterInput = event.target.closest("[data-sd-target-filter]");
     if (!filterInput) {
       return;
@@ -1026,6 +1228,16 @@ function bindGlobalListeners() {
       filterInput.value
     );
     renderApp();
+  });
+
+  document.addEventListener("input", (event) => {
+    const adminCameraReplaySpeedInput = event.target.closest("[data-admin-camera-replay-speed]");
+    if (!adminCameraReplaySpeedInput) {
+      return;
+    }
+
+    setAdminCameraReplay({ displayMs: adminCameraReplaySpeedInput.value });
+    syncAdminCameraReplayTimer();
   });
 
   document.addEventListener("toggle", (event) => {

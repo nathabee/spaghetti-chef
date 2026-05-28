@@ -463,6 +463,37 @@ export async function deleteCameraSnapshotJob(jobId, printerId) {
   });
 }
 
+export async function deleteCameraJobData(jobId, printerId, options = {}) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/jobs/${encodeURIComponent(jobId)}${query}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      deleteSnapshotFiles: options.deleteSnapshotFiles !== false,
+      deleteSnapshotRows: options.deleteSnapshotRows !== false,
+      deleteDeltaFiles: options.deleteDeltaFiles !== false,
+      deleteDeltaRows: options.deleteDeltaRows !== false,
+      deleteCalculationRuns: options.deleteCalculationRuns !== false,
+      deleteCameraEvents: options.deleteCameraEvents !== false,
+      deleteCameraJob: options.deleteCameraJob !== false,
+      requiredConfirmation: options.requiredConfirmation || "DELETE_CAMERA_JOB"
+    })
+  });
+}
+
+export async function purgeCameraSnapshotJob(jobId, parameters = {}) {
+  const query = parameters.printerId ? `?printerId=${encodeURIComponent(parameters.printerId)}` : "";
+  return requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/purge${query}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(parameters)
+  });
+}
+
 export async function getCameraSnapshotJobTimeline(jobId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/snapshot/jobs/${encodeURIComponent(jobId)}/timeline${query}`);
@@ -499,6 +530,22 @@ export async function getCameraDeltaFrames(deltaSetId, printerId) {
   return Array.isArray(data.frames) ? data.frames : [];
 }
 
+export async function deleteCameraDeltaSet(deltaSetId, printerId, options = {}) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}${query}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      deleteDeltaFiles: options.deleteDeltaFiles !== false,
+      deleteDeltaRows: options.deleteDeltaRows !== false,
+      deleteCalculationRuns: options.deleteCalculationRuns !== false,
+      requiredConfirmation: options.requiredConfirmation || "DELETE_DELTA_SET"
+    })
+  });
+}
+
 export async function getCameraCalculationRuns(deltaSetId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/delta-sets/${encodeURIComponent(deltaSetId)}/calculation-runs${query}`);
@@ -519,6 +566,11 @@ export async function getCameraCalculationTrace(calculationRunId, printerId) {
   const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
   const data = await requestJson(`/admin/camera/calculation-runs/${encodeURIComponent(calculationRunId)}/trace${query}`);
   return Array.isArray(data.trace) ? data.trace : [];
+}
+
+export async function getCameraCalculationVisual(calculationResultId, printerId) {
+  const query = printerId ? `?printerId=${encodeURIComponent(printerId)}` : "";
+  return requestJson(`/admin/camera/calculation-results/${encodeURIComponent(calculationResultId)}/visual${query}`);
 }
 
 export async function getCameraCalculationComparison(leftRunId, rightRunId, printerId) {

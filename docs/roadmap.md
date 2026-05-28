@@ -8,7 +8,10 @@ This roadmap separates the SpaghettiChef project into three architectural stages
 - `0.0.x` — prototype foundation
 - `0.1.x` — local farm runtime architecture
 - `0.2.x` — local runtime administration and job management
+- `0.6.x` — camera replay, purge, and data management
 - `1.0.x` — central VPS multi-farm management
+
+---
 
 ---
 
@@ -3661,9 +3664,102 @@ Goals:
 * compare Java and Rust calculation runs
 * expose execution metrics and engine metadata
 * support algorithm and performance evaluation
-```
+ 
 
 This keeps the roadmap concise while your `TODO-0.5-rust.md` keeps the real implementation detail.
 
+
+---
+
+
+## 0.6.x — Camera Replay, Purge, And Data Management
+
+status: active
+
+Purpose:
+
+Make persisted camera jobs easier to review, clean up, and replay after the 0.4 camera storage model and the 0.5 calculation-engine work.
+
+- 0.6.0 — Snapshot Purge: done
+- 0.6.1 — Camera Job Delete: done
+- 0.6.2 — Delta Set Delete: done
+- 0.6.3 — Calculation Result Visual Inspector: done
+- 0.6.4 — Replay In Dashboard: done
+
+Detailed implementation notes live in [TODO-0.6-replay.md](TODOs/TODO-0.6-replay.md).
+
+
+
+### 0.6.0 — Snapshot Purge
+
+status : done
+
+
+Goals :
+
+Free disk space by deleting some persisted source snapshot image files while keeping enough images for review and retaining metadata in the database.
+
+Purge is different from delete:
+
+```text
+purge:
+  removes selected physical snapshot files
+  keeps camera_snapshot_entries rows
+  marks deleted/missing files in database
+  does not delete delta frames
+  does not delete calculation runs
+
+delete:
+  removes selected job data more deeply
+  may delete snapshots, deltas, calculations, and database rows
+```
+
+---
+
+### 0.6.1 — Camera Job Delete
+
+status : done
+
+Goals :
+
+Delete selected camera job data from the admin camera data view with explicit choices for source snapshot files and rows, delta files and rows, calculation runs/results, and the camera job row.
+
+The delete path validates the selected printer and camera job ownership, refuses preview files, keeps operations scoped to the configured printer camera root, and reports deleted files, rows, and failures.
+
+---
+
+### 0.6.2 — Delta Set Delete
+
+status : done
+
+Goals :
+
+Delete one selected delta set from the admin camera data view, including its physical delta files, delta frame rows, delta set row, and dependent calculation runs/results.
+
+The delete path keeps source snapshots, the camera job, preview files, and sibling delta sets untouched.
+
+---
+
+### 0.6.3 — Calculation Result Visual Inspector
+
+status : done
+
+Goals :
+
+Open one persisted calculation result from the trace review and inspect its from snapshot, to snapshot, delta frame, engine metadata, confidence, state, reason codes, and file state.
+
+The inspector uses persisted snapshot and delta-frame records, refuses deleted/missing files through the image endpoints, and does not use preview files as history.
+
+---
+
+### 0.6.4 — Replay In Dashboard
+
+status : done
+
+Goals :
+
+Replay persisted camera data in the admin picture/data management view without reading preview files as history.
+
+The dashboard supports source snapshot replay, delta-frame replay, and calculation-result replay with play, pause, stop, previous/next frame, speed, persisted image preview, metadata, and deleted-file indicators.
 
 ---

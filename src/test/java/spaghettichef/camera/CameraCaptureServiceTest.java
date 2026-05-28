@@ -137,6 +137,27 @@ class CameraCaptureServiceTest {
     }
 
     @Test
+    void captureDoesNotDeleteSnapshotsWhenAutomaticPurgeIsDisabled() throws Exception {
+        useDatabase("camera-capture-no-automatic-purge.db");
+
+        CameraSettingsService settingsService = settingsService();
+        settingsService.save(withTestStorage(settingsService.enableSimulated("printer-1")));
+
+        CameraCaptureService service = captureService(settingsService);
+
+        for (int index = 0; index < 25; index++) {
+            assertTrue(service.capture("printer-1").success());
+        }
+
+        List<CameraSnapshotEntry> entries = new CameraSnapshotEntryStore().findByPrinterIdAndJobId("printer-1", "1");
+        assertEquals(25, entries.size());
+        for (CameraSnapshotEntry entry : entries) {
+            assertFalse(entry.fileDeleted());
+            assertTrue(Files.exists(Path.of(entry.snapshotPath())));
+        }
+    }
+
+    @Test
     void captureCreatesLiveDeltaFrameAndCalculationAfterSecondSnapshot() throws Exception {
         useDatabase("camera-capture-live-delta.db");
 

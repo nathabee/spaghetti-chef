@@ -11,6 +11,8 @@ public final class CameraSettings {
 
     public static final int DEFAULT_CAPTURE_INTERVAL_SECONDS = 10;
     public static final int DEFAULT_RETENTION_SNAPSHOT_COUNT = 20;
+    public static final boolean DEFAULT_PURGE_AUTOMATICALLY = false;
+    public static final int DEFAULT_PURGE_RETENTION_FREQUENCY = 5;
     public static final double DEFAULT_CONFIDENCE_THRESHOLD = 0.85;
     public static final int DEFAULT_CONFIRMATIONS_REQUIRED = 3;
 
@@ -20,6 +22,8 @@ public final class CameraSettings {
     private final String sourceValue;
     private final int captureIntervalSeconds;
     private final int retentionSnapshotCount;
+    private final boolean purgeAutomatically;
+    private final int purgeRetentionFrequency;
     private final boolean analysisEnabled;
     private final boolean safetyEnabled;
     private final boolean pauseOnConfirmedSpaghetti;
@@ -66,6 +70,8 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 false,
+                DEFAULT_PURGE_AUTOMATICALLY,
+                DEFAULT_PURGE_RETENTION_FREQUENCY,
                 updatedAt);
     }
 
@@ -107,6 +113,8 @@ public final class CameraSettings {
                 ffmpegJpegQuality,
                 storageDirectory,
                 false,
+                DEFAULT_PURGE_AUTOMATICALLY,
+                DEFAULT_PURGE_RETENTION_FREQUENCY,
                 updatedAt);
     }
 
@@ -130,12 +138,60 @@ public final class CameraSettings {
             String storageDirectory,
             boolean diagnosticLoggingEnabled,
             Instant updatedAt) {
+        this(
+                printerId,
+                enabled,
+                sourceType,
+                sourceValue,
+                captureIntervalSeconds,
+                retentionSnapshotCount,
+                analysisEnabled,
+                safetyEnabled,
+                pauseOnConfirmedSpaghetti,
+                confidenceThreshold,
+                confirmationsRequired,
+                ffmpegCommand,
+                ffmpegInputFormat,
+                ffmpegVideoSize,
+                ffmpegTimeoutMs,
+                ffmpegJpegQuality,
+                storageDirectory,
+                diagnosticLoggingEnabled,
+                DEFAULT_PURGE_AUTOMATICALLY,
+                DEFAULT_PURGE_RETENTION_FREQUENCY,
+                updatedAt);
+    }
+
+    public CameraSettings(
+            String printerId,
+            boolean enabled,
+            CameraSourceType sourceType,
+            String sourceValue,
+            int captureIntervalSeconds,
+            int retentionSnapshotCount,
+            boolean analysisEnabled,
+            boolean safetyEnabled,
+            boolean pauseOnConfirmedSpaghetti,
+            double confidenceThreshold,
+            int confirmationsRequired,
+            String ffmpegCommand,
+            String ffmpegInputFormat,
+            String ffmpegVideoSize,
+            int ffmpegTimeoutMs,
+            int ffmpegJpegQuality,
+            String storageDirectory,
+            boolean diagnosticLoggingEnabled,
+            boolean purgeAutomatically,
+            int purgeRetentionFrequency,
+            Instant updatedAt) {
         this.printerId = requireText(printerId, "printerId");
         this.enabled = enabled;
         this.sourceType = Objects.requireNonNull(sourceType, "sourceType");
         this.sourceValue = normalizeNullableText(sourceValue);
         this.captureIntervalSeconds = requirePositive(captureIntervalSeconds, "captureIntervalSeconds");
         this.retentionSnapshotCount = requirePositive(retentionSnapshotCount, "retentionSnapshotCount");
+        this.purgeAutomatically = purgeAutomatically;
+        this.purgeRetentionFrequency = requirePositive(purgeRetentionFrequency, "purgeRetentionFrequency");
         this.analysisEnabled = analysisEnabled;
         this.safetyEnabled = safetyEnabled;
         this.pauseOnConfirmedSpaghetti = pauseOnConfirmedSpaghetti;
@@ -184,6 +240,8 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 false,
+                DEFAULT_PURGE_AUTOMATICALLY,
+                DEFAULT_PURGE_RETENTION_FREQUENCY,
                 updatedAt);
     }
 
@@ -207,6 +265,8 @@ public final class CameraSettings {
                 RuntimeDefaults.DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY,
                 RuntimeDefaults.DEFAULT_CAMERA_STORAGE_DIRECTORY,
                 false,
+                DEFAULT_PURGE_AUTOMATICALLY,
+                DEFAULT_PURGE_RETENTION_FREQUENCY,
                 updatedAt);
     }
 
@@ -232,6 +292,14 @@ public final class CameraSettings {
 
     public int retentionSnapshotCount() {
         return retentionSnapshotCount;
+    }
+
+    public boolean purgeAutomatically() {
+        return purgeAutomatically;
+    }
+
+    public int purgeRetentionFrequency() {
+        return purgeRetentionFrequency;
     }
 
     public boolean analysisEnabled() {
