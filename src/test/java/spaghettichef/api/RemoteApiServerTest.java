@@ -100,10 +100,13 @@ class RemoteApiServerTest {
         TestContext context = createContext("dashboard-component-module.db");
 
         try {
-            HttpResponse<String> response = context.get("/dashboard/components/nav.js");
+            HttpResponse<String> response = context.get("/dashboard/components/camera-card.js");
 
             assertEquals(200, response.statusCode());
             assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/javascript"));
+            assertTrue(response.body().contains("data-camera-crop-define"));
+            assertTrue(response.body().contains("data-camera-crop-reset"));
+            assertTrue(response.body().contains("data-camera-crop-frame"));
         } finally {
             context.close();
         }
@@ -1904,6 +1907,8 @@ class RemoteApiServerTest {
 
             assertEquals(200, response.statusCode());
             assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/javascript"));
+            assertTrue(response.body().contains("Saved capture crop region"));
+            assertTrue(response.body().contains("handleCameraCropResetButton"));
         } finally {
             context.close();
         }

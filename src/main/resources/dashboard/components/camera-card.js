@@ -181,12 +181,13 @@ export function renderCameraLatestSnapshotCard(printerId, status, settings, acti
           <button type="button" class="secondary-button" data-camera-sync-start="${escapeHtml(printerId)}" data-camera-capture-interval="${captureIntervalSeconds}">Live view</button>
           <button type="button" class="secondary-button" data-camera-sync-stop="${escapeHtml(printerId)}">Stop live</button>
           <button type="button" class="secondary-button" data-camera-crop-define="${escapeHtml(printerId)}" ${cameraJobActive ? "disabled" : ""}>Define crop region</button>
+          <button type="button" class="secondary-button" data-camera-crop-reset="${escapeHtml(printerId)}" ${cameraJobActive ? "disabled" : ""}>Reset crop</button>
         </div>
       </div>
 
       ${status?.lastCaptureAt
       ? `
-            <div class="camera-snapshot-frame">
+            <div class="camera-snapshot-frame" data-camera-crop-frame="${escapeHtml(printerId)}">
               <img
                 data-camera-latest-image="${escapeHtml(printerId)}" 
                 data-camera-crop-image="${escapeHtml(printerId)}"

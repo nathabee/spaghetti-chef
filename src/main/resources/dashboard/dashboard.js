@@ -597,7 +597,9 @@ function handleCameraCropDefineButton(button) {
   }
 
   if (cameraCropSelectionState?.active) {
-    finishCameraCropSelection(button);
+    finishCameraCropSelection(button).then(() => {
+      renderGlobalMessage();
+    });
     return;
   }
 
@@ -615,14 +617,58 @@ function handleCameraCropDefineButton(button) {
   seedCameraCropSelectionFromInputs(frame);
 }
 
-function finishCameraCropSelection(button) {
+async function finishCameraCropSelection(button) {
   const frame = button.closest(".camera-snapshot-card")?.querySelector(".camera-snapshot-frame");
   if (frame) {
     frame.classList.remove("crop-selecting");
   }
   button.textContent = "Define crop region";
   cameraCropSelectionState = null;
-  setMessage("Capture crop region updated in the camera settings form.");
+
+  const form = document.getElementById("cameraSettingsForm");
+  const selectedPrinter = getSelectedPrinter();
+  if (!form || !selectedPrinter) {
+    setMessage("Capture crop region updated in the camera settings form.");
+    return;
+  }
+
+  await handleSaveCameraSettings(form, `Saved capture crop region for ${selectedPrinter.id}.`);
+}
+
+async function handleCameraCropResetButton(button) {
+  if (button.disabled) {
+    return;
+  }
+
+  const form = document.getElementById("cameraSettingsForm");
+  const selectedPrinter = getSelectedPrinter();
+  if (!form || !selectedPrinter) {
+    setMessage("No printer selected for camera crop reset.");
+    renderGlobalMessage();
+    return;
+  }
+
+  setCameraCropInputs({
+    enabled: false,
+    x1: 0,
+    y1: 0,
+    x2: 100,
+    y2: 100
+  });
+
+  const saved = await handleSaveCameraSettings(form, `Reset capture crop region for ${selectedPrinter.id}.`);
+  if (!saved) {
+    renderGlobalMessage();
+    return;
+  }
+
+  try {
+    await capturePrinterCameraSnapshot(selectedPrinter.id);
+    await loadPrinterCameraIntoPage(selectedPrinter, undefined, { force: true });
+    setMessage(`Reset capture crop region and refreshed the full frame for ${selectedPrinter.id}.`);
+  } catch (error) {
+    setMessage(`Reset capture crop region for ${selectedPrinter.id}, but full-frame refresh failed: ${error.message}`);
+  }
   renderGlobalMessage();
 }
 
@@ -714,6 +760,25 @@ function setCropInputPercent(inputId, ratio) {
   const input = document.getElementById(inputId);
   if (input) {
     input.value = String(Math.round(Math.min(1, Math.max(0, ratio)) * 100));
+  }
+}
+
+function setCameraCropInputs(crop) {
+  const enabledInput = document.getElementById("cameraCaptureCropEnabledInput");
+  if (enabledInput) {
+    enabledInput.checked = crop.enabled === true;
+  }
+
+  setCameraCropInputValue("cameraCaptureCropX1PercentInput", crop.x1);
+  setCameraCropInputValue("cameraCaptureCropY1PercentInput", crop.y1);
+  setCameraCropInputValue("cameraCaptureCropX2PercentInput", crop.x2);
+  setCameraCropInputValue("cameraCaptureCropY2PercentInput", crop.y2);
+}
+
+function setCameraCropInputValue(inputId, value) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.value = String(value);
   }
 }
 
@@ -1140,6 +1205,12 @@ function bindGlobalListeners() {
     const cameraCropDefineButton = event.target.closest("[data-camera-crop-define]");
     if (cameraCropDefineButton) {
       handleCameraCropDefineButton(cameraCropDefineButton);
+      return;
+    }
+
+    const cameraCropResetButton = event.target.closest("[data-camera-crop-reset]");
+    if (cameraCropResetButton) {
+      await handleCameraCropResetButton(cameraCropResetButton);
       return;
     }
 
@@ -1599,19 +1670,21 @@ async function handleStopCameraJob(printerId) {
   }
 }
 
-async function handleSaveCameraSettings(form) {
+async function handleSaveCameraSettings(form, successMessage = null) {
   const selectedPrinter = getSelectedPrinter();
 
   if (!selectedPrinter) {
     setMessage("No printer selected for camera settings.");
-    return;
+    return false;
   }
 
   try {
     await savePrinterCameraSettings(selectedPrinter.id, form);
-    setMessage(`Saved camera settings for ${selectedPrinter.id}.`);
+    setMessage(successMessage || `Saved camera settings for ${selectedPrinter.id}.`);
+    return true;
   } catch (error) {
     setMessage(`Failed to save camera settings for ${selectedPrinter.id}: ${error.message}`);
+    return false;
   }
 }
 
