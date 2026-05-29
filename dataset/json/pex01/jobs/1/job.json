@@ -1,0 +1,23 @@
+{
+  "datasetJobKey": "1",
+  "printerId": "pex01",
+  "originalPrinterId": "p3",
+  "label": "spaghetti",
+  "expectedResult": "spaghetti",
+  "failureStage": "clear",
+  "snapshotIntervalSeconds": 5,
+  "startedAt": "2026-01-01T10:00:00Z",
+  "message": "Imported archived runtime camera job 1",
+  "source": {
+    "layout": "runtime-archive",
+    "snapshotDirectory": "snapshots/1"
+  },
+  "deltaSets": [
+    {
+      "datasetDeltaSetKey": "1",
+      "deltaSnapshotStep": 1,
+      "methodName": "dataset-image-delta",
+      "deltaDirectory": "deltas/1/1"
+    }
+  ]
+}

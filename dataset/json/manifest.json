@@ -1,0 +1,36 @@
+{
+  "datasetId": "spaghettichef-example-pex01-runtime-archive-v1",
+  "version": "1",
+  "layout": "runtime-archive",
+  "description": "Example runtime-archive dataset with one imported camera job.",
+  "contentRoot": ".",
+  "metadataRoot": "json",
+  "printers": [
+    {
+      "printerId": "pex01",
+      "displayName": "Printer Example 01",
+      "originalPrinterId": "p3",
+      "cameraStoragePath": "pex01",
+      "metadataPath": "json/pex01",
+      "snapshotIntervalSeconds": 5,
+      "jobs": [
+        {
+          "datasetJobKey": "1",
+          "label": "spaghetti",
+          "expectedResult": "spaghetti",
+          "failureStage": "clear",
+          "snapshotDirectory": "snapshots/1",
+          "snapshotCount": 20,
+          "deltaSets": [
+            {
+              "datasetDeltaSetKey": "1",
+              "deltaSnapshotStep": 1,
+              "deltaDirectory": "deltas/1/1",
+              "deltaCount": 19
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

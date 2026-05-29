@@ -27,6 +27,11 @@ pipeline {
             defaultValue: false,
             description: 'Publish the prepared release bundle to GitHub Releases. Only use for stable main releases.'
         )
+        booleanParam(
+            name: 'BUILD_DATASET_ASSET',
+            defaultValue: false,
+            description: 'Build optional example dataset zip as a GitHub release asset.'
+        )
     }
 
     options {
@@ -845,6 +850,7 @@ stage('Package Expert Distributions') {
             env.LINUX_PACKAGE = "spaghetti-chef-${versionName}-linux.tar.gz"
             env.WINDOWS_PACKAGE = "spaghetti-chef-${versionName}-windows.zip"
             env.ADMIN_PACKAGE = "spaghetti-chef-${versionName}-admin.zip"
+            env.DATASET_PACKAGE = "spaghetti-chef-${versionName}-dataset-example-pex01.zip"
         }
 
         sh '''
@@ -985,6 +991,34 @@ EOF
             (cd package/windows && jar --create --file "../../dist/${WINDOWS_PACKAGE}" .)
             (cd package/admin && jar --create --file "../../dist/${ADMIN_PACKAGE}" .)
             tar -czf "${RELEASE_ARCHIVE}" release
+
+            if [ "${BUILD_DATASET_ASSET:-false}" = "true" ]; then
+              echo "Building optional dataset asset: ${DATASET_PACKAGE}"
+
+              test -d dataset
+              test -f dataset/README.md
+              test -f dataset/manifest.json
+              test -f dataset/scripts/initdataset.sh
+              test -f dataset/scripts/validate-dataset.sh
+              test -d dataset/pex01
+              test -f dataset/pex01/printer.json
+              test -f dataset/pex01/camera-settings.json
+              test -d dataset/pex01/jobs
+
+              chmod +x dataset/scripts/initdataset.sh
+              chmod +x dataset/scripts/validate-dataset.sh
+
+              if dataset/scripts/validate-dataset.sh --structure-only; then
+                echo "Dataset structure validation passed."
+              else
+                echo "Dataset structure-only validation failed."
+                exit 1
+              fi
+
+              (cd . && jar --create --file "dist/${DATASET_PACKAGE}" dataset)
+            else
+              echo "Skipping optional dataset asset because BUILD_DATASET_ASSET=false."
+            fi
 
             ls -lh dist
             ls -lh "${RELEASE_ARCHIVE}"

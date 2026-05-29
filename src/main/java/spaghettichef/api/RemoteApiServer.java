@@ -71,6 +71,9 @@ import spaghettichef.camera.CameraDeltaSetDeletionReport;
 import spaghettichef.camera.CameraDeltaSetDeletionRequest;
 import spaghettichef.camera.CameraDeltaSetDeletionService;
 import spaghettichef.camera.CameraDeltaSetService;
+import spaghettichef.camera.CameraStorageSyncReport;
+import spaghettichef.camera.CameraStorageSyncRequest;
+import spaghettichef.camera.CameraStorageSyncService;
 import spaghettichef.camera.CameraAnalysisTraceRow;
 import spaghettichef.camera.CameraAnalysisTraceService;
 import spaghettichef.camera.CameraCalculationComparisonFrame;
@@ -164,6 +167,7 @@ public final class RemoteApiServer {
     private final CameraCalculationRunService cameraCalculationRunService;
     private final CameraCalculationRunStore cameraCalculationRunStore;
     private final CameraCalculationResultStore cameraCalculationResultStore;
+    private final CameraStorageSyncService cameraStorageSyncService;
     private final CameraAnalysisTraceService cameraAnalysisTraceService;
     private final CameraCalculationComparisonService cameraCalculationComparisonService;
     private final Path cameraStorageDirectory;
@@ -318,6 +322,13 @@ public final class RemoteApiServer {
         this.cameraCalculationRunService = new CameraCalculationRunService();
         this.cameraCalculationRunStore = new CameraCalculationRunStore();
         this.cameraCalculationResultStore = new CameraCalculationResultStore();
+        this.cameraStorageSyncService = new CameraStorageSyncService(
+                new CameraSettingsStore(),
+                cameraJobStore,
+                cameraSnapshotEntryStore,
+                this.cameraDeltaSetStore,
+                this.cameraDeltaFrameStore,
+                java.time.Clock.systemUTC());
         this.cameraJobDeletionService = new CameraJobDeletionService(
                 cameraSettingsService,
                 cameraJobStore,
@@ -859,6 +870,11 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (path.startsWith("/admin/camera/storage/")) {
+            handleAdminCameraStorage(exchange, path);
+            return;
+        }
+
         if (path.startsWith("/admin/camera/delta-sets/")) {
             handleAdminCameraDeltaSet(exchange, path);
             return;
@@ -1086,6 +1102,39 @@ public final class RemoteApiServer {
         }
 
         sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+    }
+
+    private void handleAdminCameraStorage(HttpExchange exchange, String path) throws IOException {
+        String method = exchange.getRequestMethod();
+        String remaining = path.substring("/admin/camera/storage/".length());
+        String[] parts = remaining.split("/");
+        if (parts.length != 2 || parts[0].isBlank() || !"sync".equals(parts[1])) {
+            sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+            return;
+        }
+        if (!"POST".equalsIgnoreCase(method)) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        String printerId = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+        CameraStorageSyncReport report = cameraStorageSyncService.sync(
+                printerId,
+                cameraStorageSyncRequest(readBody(exchange)));
+        sendJson(exchange, 200, cameraStorageSyncReportJson(report));
+    }
+
+    private CameraStorageSyncRequest cameraStorageSyncRequest(String body) {
+        return new CameraStorageSyncRequest(
+                optionalJsonString(body, "layout", null),
+                optionalJsonBoolean(body, "dryRun", true),
+                optionalJsonBoolean(body, "syncSnapshots", true),
+                optionalJsonBoolean(body, "syncDeltas", true),
+                optionalJsonBoolean(body, "deleteRowsForMissingFiles", false),
+                optionalJsonBoolean(body, "reactivateDeletedSnapshotRows", true),
+                optionalJsonBoolean(body, "createMissingCameraJobs", true),
+                optionalJsonBoolean(body, "createMissingDeltaSets", true),
+                optionalJsonString(body, "requiredConfirmation", null));
     }
 
     private void handleAdminCameraCalculationRun(HttpExchange exchange, String path) throws IOException {
@@ -3188,6 +3237,27 @@ public final class RemoteApiServer {
                 + "\"deletedCalculationResultRows\":" + report.deletedCalculationResultRows() + ","
                 + "\"failedFiles\":" + stringsJson(report.failedFiles()) + ","
                 + "\"message\":\"" + escapeJson(report.message()) + "\""
+                + "}";
+    }
+
+    private String cameraStorageSyncReportJson(CameraStorageSyncReport report) {
+        return "{"
+                + "\"printerId\":\"" + escapeJson(report.printerId()) + "\","
+                + "\"storageRoot\":\"" + escapeJson(report.storageRoot()) + "\","
+                + "\"dryRun\":" + report.dryRun() + ","
+                + "\"scannedJobs\":" + report.scannedJobs() + ","
+                + "\"scannedSnapshotFiles\":" + report.scannedSnapshotFiles() + ","
+                + "\"scannedDeltaSetFolders\":" + report.scannedDeltaSetFolders() + ","
+                + "\"scannedDeltaFiles\":" + report.scannedDeltaFiles() + ","
+                + "\"createdCameraJobs\":" + report.createdCameraJobs() + ","
+                + "\"createdSnapshotRows\":" + report.createdSnapshotRows() + ","
+                + "\"reactivatedSnapshotRows\":" + report.reactivatedSnapshotRows() + ","
+                + "\"deletedSnapshotRows\":" + report.deletedSnapshotRows() + ","
+                + "\"createdDeltaSets\":" + report.createdDeltaSets() + ","
+                + "\"updatedDeltaSets\":" + report.updatedDeltaSets() + ","
+                + "\"createdDeltaFrameRows\":" + report.createdDeltaFrameRows() + ","
+                + "\"deletedDeltaFrameRows\":" + report.deletedDeltaFrameRows() + ","
+                + "\"warnings\":" + stringsJson(report.warnings())
                 + "}";
     }
 
