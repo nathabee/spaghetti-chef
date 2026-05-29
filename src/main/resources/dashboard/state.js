@@ -19,9 +19,19 @@ export const PRINTER_VIEW_IDS = Object.freeze({
   HISTORY: "printer-history"
 });
 
+export const SETTINGS_TAB_IDS = Object.freeze({
+  MONITORING: "monitoring",
+  TRANSFER: "transfer",
+  FILES: "files",
+  ENGINES: "engines",
+  SECURITY: "security",
+  PRINTERS: "printers"
+});
+
 export const state = {
   activePrimaryView: PRIMARY_VIEW_IDS.FARM_HOME,
   activePrinterView: PRINTER_VIEW_IDS.HOME,
+  activeSettingsTab: SETTINGS_TAB_IDS.MONITORING,
   selectedPrinterId: null,
   adminCameraPrinterId: null,
   printers: [],
@@ -257,6 +267,12 @@ export function setPrimaryView(viewId) {
 export function setPrinterView(viewId) {
   state.activePrinterView = viewId;
 }
+
+export function setSettingsTab(tabId) {
+  const validTabs = Object.values(SETTINGS_TAB_IDS);
+  state.activeSettingsTab = validTabs.includes(tabId) ? tabId : SETTINGS_TAB_IDS.MONITORING;
+}
+
 
 export function setSelectedPrinter(printerId) {
   if (!printerId) {

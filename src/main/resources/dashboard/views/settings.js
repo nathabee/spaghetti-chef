@@ -1,11 +1,18 @@
-import {  isSimulatedMode } from "../dashboard.js";
+import { isSimulatedMode } from "../dashboard.js";
 
 import { escapeHtml } from "../utils/format.js";
 import { renderPlaceholderCard } from "../components/placeholder-card.js";
 import { renderSerialPathNotice, serialPortKind, stableSerialPath } from "../components/serial-port-guidance.js";
-import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } from "../state.js";
+import {
+  SETTINGS_TAB_IDS,
+  currentLocalRole,
+  disabledUnlessPermission,
+  securityModeLabel,
+  state
+} from "../state.js";
 
- export function renderSettingsPage() {
+
+export function renderSettingsPage() {
   const monitoringRules = state.monitoringRules || {};
   const printFileSettings = state.printFileSettings || {};
   const serialTransferSettings = state.serialTransferSettings || {};
@@ -18,6 +25,7 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
   const monitoringDisabled = disabledUnlessPermission("MONITORING_CONFIGURE");
   const securityDisabled = disabledUnlessPermission("SECURITY_MANAGE");
   const printerConfigDisabled = disabledUnlessPermission("PRINTER_CONFIGURE");
+  const activeTab = state.activeSettingsTab || SETTINGS_TAB_IDS.MONITORING;
 
   return `
     <section class="section-card security-context-card">
@@ -31,265 +39,365 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
       </div>
     </section>
 
-    <section class="two-column-grid">
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Monitoring rules</h2>
-            <p class="lead">Runtime polling and persistence settings already available in the backend.</p>
-          </div>
-        </div>
-
-        <form id="monitoringRulesForm" class="form-grid">
-          <label>
-            Poll interval seconds
-            <input id="pollIntervalSecondsInput" name="pollIntervalSeconds" type="number" step="1" min="1" value="${escapeHtml(monitoringRules.pollIntervalSeconds ?? 5)}" required>
-          </label>
-
-          <label>
-            Snapshot minimum interval seconds
-            <input id="snapshotMinimumIntervalSecondsInput" name="snapshotMinimumIntervalSeconds" type="number" step="1" min="0" value="${escapeHtml(monitoringRules.snapshotMinimumIntervalSeconds ?? 30)}" required>
-          </label>
-
-          <label>
-            Temperature delta threshold
-            <input id="temperatureDeltaThresholdInput" name="temperatureDeltaThreshold" type="number" step="0.1" min="0" value="${escapeHtml(monitoringRules.temperatureDeltaThreshold ?? 1.0)}" required>
-          </label>
-
-          <label>
-            Event deduplication window seconds
-            <input id="eventDeduplicationWindowSecondsInput" name="eventDeduplicationWindowSeconds" type="number" step="1" min="0" value="${escapeHtml(monitoringRules.eventDeduplicationWindowSeconds ?? 60)}" required>
-          </label>
-
-          <label>
-            Error persistence behavior
-            <select id="errorPersistenceBehaviorInput" name="errorPersistenceBehavior" required>
-              <option value="DEDUPLICATED" ${(monitoringRules.errorPersistenceBehavior ?? "DEDUPLICATED") === "DEDUPLICATED" ? "selected" : ""}>DEDUPLICATED</option>
-              <option value="ALWAYS" ${(monitoringRules.errorPersistenceBehavior ?? "DEDUPLICATED") === "ALWAYS" ? "selected" : ""}>ALWAYS</option>
-            </select>
-          </label>
-
-          <label class="checkbox-label">
-            <input id="debugWireTracingEnabledInput" name="debugWireTracingEnabled" type="checkbox" ${(monitoringRules.debugWireTracingEnabled ?? false) ? "checked" : ""}>
-            Enable printer wire trace logging
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" ${monitoringDisabled}>Save monitoring rules</button>
-          </div>
-        </form>
-      </article>
-
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Serial transfer</h2>
-            <p class="lead">Runtime SD upload and file-streaming limits used by printer transfer operations.</p>
-          </div>
-        </div>
-
-        <form id="serialTransferSettingsForm" class="form-grid">
-          <label>
-            SD upload batch size
-            <input id="transferSdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadBatchSize ?? 5)}" required>
-          </label>
-
-          <label>
-            SD upload recovery window multiplier
-            <input id="transferSdUploadRecoveryWindowMultiplierInput" name="sdUploadRecoveryWindowMultiplier" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadRecoveryWindowMultiplier ?? 2)}" required>
-          </label>
-
-          <label>
-            SD upload max errors
-            <input id="transferSdUploadMaxErrorsInput" name="sdUploadMaxErrors" type="number" step="1" min="1" max="1000000" value="${escapeHtml(serialTransferSettings.sdUploadMaxErrors ?? 100)}" required>
-          </label>
-
-          <label>
-            SD upload max consecutive identical resends
-            <input id="transferSdUploadMaxConsecutiveIdenticalResendsInput" name="sdUploadMaxConsecutiveIdenticalResends" type="number" step="1" min="1" max="1000" value="${escapeHtml(serialTransferSettings.sdUploadMaxConsecutiveIdenticalResends ?? 10)}" required>
-          </label>
-
-          <label>
-            SD upload min performance percent
-            <input id="transferSdUploadMinPerformancePercentInput" name="sdUploadMinPerformancePercent" type="number" step="1" min="0" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMinPerformancePercent ?? 5)}" required>
-          </label>
-
-          <label>
-            SD upload max retries per line
-            <input id="transferSdUploadMaxRetriesPerLineInput" name="sdUploadMaxRetriesPerLine" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMaxRetriesPerLine ?? 3)}" required>
-          </label>
-
-          <label>
-            File streaming read timeout ms
-            <input id="transferFileStreamingReadTimeoutMsInput" name="fileStreamingReadTimeoutMs" type="number" step="1" min="1" max="600000" value="${escapeHtml(serialTransferSettings.fileStreamingReadTimeoutMs ?? 5000)}" required>
-          </label>
-
-          <label>
-            File streaming quiet period ms
-            <input id="transferFileStreamingQuietPeriodMsInput" name="fileStreamingQuietPeriodMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingQuietPeriodMs ?? 10)}" required>
-          </label>
-
-          <label>
-            File streaming activity sleep ms
-            <input id="transferFileStreamingReadActivitySleepMsInput" name="fileStreamingReadActivitySleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadActivitySleepMs ?? 1)}" required>
-          </label>
-
-          <label>
-            File streaming idle sleep ms
-            <input id="transferFileStreamingReadIdleSleepMsInput" name="fileStreamingReadIdleSleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadIdleSleepMs ?? 1)}" required>
-          </label>
-
-          <label>
-            File streaming recovery replay delay ms
-            <input id="transferFileStreamingRecoveryReplayDelayMsInput" name="fileStreamingRecoveryReplayDelayMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingRecoveryReplayDelayMs ?? 15)}" required>
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" ${settingsDisabled}>Save serial transfer settings</button>
-          </div>
-        </form>
-      </article>
-
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Print file storage</h2>
-            <p class="lead">Directory where uploaded .gcode files are saved by SpaghettiChef.</p>
-          </div>
-        </div>
-
-        <form id="printFileSettingsForm" class="form-grid">
-          <label>
-            Storage directory
-            <input id="printFileStorageDirectoryInput" name="storageDirectory" type="text" value="${escapeHtml(printFileSettings.storageDirectory ?? "spaghettichef-print-files")}" required>
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" ${settingsDisabled}>Save print file settings</button>
-          </div>
-        </form>
-      </article>
-
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Calculation engines</h2>
-            <p class="lead">Defaults used by live analysis and on-demand recalculation.</p>
-          </div>
-        </div>
-
-        <div class="list-block">
-          ${engineSettings.length === 0 ? `<p class="muted">No calculation engine settings loaded yet.</p>` : engineSettings.map((settings) => renderEngineSettingsForm(settings, settingsDisabled)).join("")}
-        </div>
-      </article>
-
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Local security</h2>
-            <p class="lead">Local role defaults used by the upcoming backend permission guards.</p>
-          </div>
-        </div>
-
-        <form id="securitySettingsForm" class="form-grid">
-          <label class="checkbox-label">
-            <input id="securityEnabledInput" name="securityEnabled" type="checkbox" ${securitySettings.securityEnabled === true ? "checked" : ""}>
-            Enable local security checks
-          </label>
-
-          <label>
-            Default local role
-            <select id="securityDefaultRoleInput" name="defaultRole" required>
-              ${renderRoleOptions(securitySettings.defaultRole || "ADMIN")}
-            </select>
-          </label>
-
-          <label class="checkbox-label">
-            <input id="securityDangerousConfirmationInput" name="requireDangerousActionConfirmation" type="checkbox" ${securitySettings.requireDangerousActionConfirmation !== false ? "checked" : ""}>
-            Require dangerous action confirmation
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" ${securityDisabled}>Save security settings</button>
-          </div>
-        </form>
-
-        <div class="list-block">
-          ${securityRoles.length === 0 ? `<p class="muted">Role profiles not loaded yet.</p>` : securityRoles.map(renderRoleProfile).join("")}
-        </div>
-      </article>
-
-      <article class="section-card">
-        <div class="section-header">
-          <div>
-            <h2>Printer administration</h2>
-            <p class="lead">Create or update configured printer nodes.</p>
-          </div>
-        </div>
-
-        <form id="printerConfigForm" class="form-grid">
-          <label>
-            Printer ID
-            <input id="printerIdInput" name="id" type="text" placeholder="printer-1" required>
-          </label>
-
-          <label>
-            Name
-            <input id="printerNameInput" name="name" type="text" placeholder="Primary printer" required>
-          </label>
-
-          <label>
-            Port
-            <input id="printerPortInput" name="portName" type="text" placeholder="/dev/serial/by-id/... or COM3 or SIM_PORT" required>
-            <span class="field-hint">For Linux real printers, prefer a stable /dev/serial/by-id/... path instead of /dev/ttyUSB0.</span>
-          </label>
-
-          <label>
-            Mode
-            <select id="printerModeInput" name="mode" required>
-              <option value="real">real</option>
-              <option value="sim">sim</option>
-              <option value="simulated">simulated</option>
-              <option value="sim-disconnected">sim-disconnected</option>
-              <option value="sim-timeout">sim-timeout</option>
-              <option value="sim-error">sim-error</option>
-            </select>
-          </label>
-
-          <div class="form-actions">
-            <button type="submit" ${printerConfigDisabled}>Save printer</button>
-            <button id="clearPrinterFormButton" type="button" class="secondary-button" ${printerConfigDisabled}>Clear form</button>
-          </div>
-        </form>
-
-        <div class="list-block">
-          ${printers.length === 0 ? `<p class="muted">No configured printers found.</p>` : printers.map(renderConfiguredPrinter).join("")}
-        </div>
-      </article>
-    </section>
+    ${renderSettingsTabShell(activeTab, {
+    monitoring: renderMonitoringSettingsCard(monitoringRules, monitoringDisabled),
+    transfer: renderSerialTransferSettingsCard(serialTransferSettings, settingsDisabled),
+    files: renderPrintFileSettingsCard(printFileSettings, settingsDisabled),
+    engines: renderCalculationEngineSettingsCard(engineSettings, settingsDisabled),
+    security: renderSecuritySettingsCard(securitySettings, securityRoles, securityDisabled),
+    printers: renderPrinterAdministrationSettingsCard(printers, printerConfigDisabled)
+  })}
 
     <section class="two-column-grid">
       ${renderPlaceholderCard(
-        "General runtime settings",
-        "Reserved for later settings beyond monitoring rules and printer administration.",
-        [
-          "Retention policy",
-          "Runtime defaults",
-          "Notification settings"
-        ]
-      )}
+    "General runtime settings",
+    "Reserved for later settings beyond monitoring rules and printer administration.",
+    [
+      "Retention policy",
+      "Runtime defaults",
+      "Notification settings"
+    ]
+  )}
       ${renderPlaceholderCard(
-        "Capability and profile settings",
-        "Reserved for richer printer profiles and capability metadata.",
-        [
-          "Printer capability profile",
-          "Maintenance profile",
-          "Production job defaults"
-        ]
-      )}
+    "Capability and profile settings",
+    "Reserved for richer printer profiles and capability metadata.",
+    [
+      "Printer capability profile",
+      "Maintenance profile",
+      "Production job defaults"
+    ]
+  )}
     </section>
   `;
 }
+function renderSettingsTabShell(activeTab, panels) {
+  const selectedTab = panels[activeTab] ? activeTab : SETTINGS_TAB_IDS.MONITORING;
+
+  return `
+    <section class="settings-tab-shell" aria-labelledby="settingsTabsTitle">
+      <div class="settings-tab-shell-header">
+        <div>
+          <h2 id="settingsTabsTitle">Settings sections</h2>
+          <p class="lead">Switch between runtime settings without scrolling through every configuration card.</p>
+        </div>
+      </div>
+
+      ${renderSettingsTabs(selectedTab)}
+
+      ${renderSettingsTabPanel(selectedTab, panels[selectedTab])}
+    </section>
+  `;
+}
+
+function renderSettingsTabs(activeTab) {
+  const tabs = [
+    [SETTINGS_TAB_IDS.MONITORING, "Monitoring"],
+    [SETTINGS_TAB_IDS.TRANSFER, "Transfer"],
+    [SETTINGS_TAB_IDS.FILES, "Files"],
+    [SETTINGS_TAB_IDS.ENGINES, "Engines"],
+    [SETTINGS_TAB_IDS.SECURITY, "Security"],
+    [SETTINGS_TAB_IDS.PRINTERS, "Printers"]
+  ];
+
+  return `
+    <div class="settings-tab-list" role="tablist" aria-label="Settings sections">
+      ${tabs.map(([tabId, label]) => renderSettingsTabButton(tabId, label, activeTab)).join("")}
+    </div>
+  `;
+}
+
+function renderSettingsTabButton(tabId, label, activeTab) {
+  const selected = tabId === activeTab;
+  return `
+    <button
+      type="button"
+      class="settings-tab-button ${selected ? "active" : ""}"
+      role="tab"
+      aria-selected="${selected ? "true" : "false"}"
+      aria-controls="settings-tab-panel-${escapeHtml(tabId)}"
+      id="settings-tab-${escapeHtml(tabId)}"
+      data-settings-tab="${escapeHtml(tabId)}">
+      ${escapeHtml(label)}
+    </button>
+  `;
+}
+
+function renderSettingsTabPanel(tabId, content) {
+  return `
+    <section
+      id="settings-tab-panel-${escapeHtml(tabId)}"
+      class="settings-tab-panel"
+      role="tabpanel"
+      aria-labelledby="settings-tab-${escapeHtml(tabId)}">
+      <div class="two-column-grid">
+        ${content}
+      </div>
+    </section>
+  `;
+}
+
+ 
+ 
+function renderMonitoringSettingsCard(monitoringRules, monitoringDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Monitoring rules</h2>
+          <p class="lead">Runtime polling and persistence settings already available in the backend.</p>
+        </div>
+      </div>
+
+      <form id="monitoringRulesForm" class="form-grid">
+        <label>
+          Poll interval seconds
+          <input id="pollIntervalSecondsInput" name="pollIntervalSeconds" type="number" step="1" min="1" value="${escapeHtml(monitoringRules.pollIntervalSeconds ?? 5)}" required>
+        </label>
+
+        <label>
+          Snapshot minimum interval seconds
+          <input id="snapshotMinimumIntervalSecondsInput" name="snapshotMinimumIntervalSeconds" type="number" step="1" min="0" value="${escapeHtml(monitoringRules.snapshotMinimumIntervalSeconds ?? 30)}" required>
+        </label>
+
+        <label>
+          Temperature delta threshold
+          <input id="temperatureDeltaThresholdInput" name="temperatureDeltaThreshold" type="number" step="0.1" min="0" value="${escapeHtml(monitoringRules.temperatureDeltaThreshold ?? 1.0)}" required>
+        </label>
+
+        <label>
+          Event deduplication window seconds
+          <input id="eventDeduplicationWindowSecondsInput" name="eventDeduplicationWindowSeconds" type="number" step="1" min="0" value="${escapeHtml(monitoringRules.eventDeduplicationWindowSeconds ?? 60)}" required>
+        </label>
+
+        <label>
+          Error persistence behavior
+          <select id="errorPersistenceBehaviorInput" name="errorPersistenceBehavior" required>
+            <option value="DEDUPLICATED" ${(monitoringRules.errorPersistenceBehavior ?? "DEDUPLICATED") === "DEDUPLICATED" ? "selected" : ""}>DEDUPLICATED</option>
+            <option value="ALWAYS" ${(monitoringRules.errorPersistenceBehavior ?? "DEDUPLICATED") === "ALWAYS" ? "selected" : ""}>ALWAYS</option>
+          </select>
+        </label>
+
+        <label class="checkbox-label">
+          <input id="debugWireTracingEnabledInput" name="debugWireTracingEnabled" type="checkbox" ${(monitoringRules.debugWireTracingEnabled ?? false) ? "checked" : ""}>
+          Enable printer wire trace logging
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" ${monitoringDisabled}>Save monitoring rules</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderSerialTransferSettingsCard(serialTransferSettings, settingsDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Serial transfer</h2>
+          <p class="lead">Runtime SD upload and file-streaming limits used by printer transfer operations.</p>
+        </div>
+      </div>
+
+      <form id="serialTransferSettingsForm" class="form-grid">
+        <label>
+          SD upload batch size
+          <input id="transferSdUploadBatchSizeInput" name="sdUploadBatchSize" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadBatchSize ?? 5)}" required>
+        </label>
+
+        <label>
+          SD upload recovery window multiplier
+          <input id="transferSdUploadRecoveryWindowMultiplierInput" name="sdUploadRecoveryWindowMultiplier" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadRecoveryWindowMultiplier ?? 2)}" required>
+        </label>
+
+        <label>
+          SD upload max errors
+          <input id="transferSdUploadMaxErrorsInput" name="sdUploadMaxErrors" type="number" step="1" min="1" max="1000000" value="${escapeHtml(serialTransferSettings.sdUploadMaxErrors ?? 100)}" required>
+        </label>
+
+        <label>
+          SD upload max consecutive identical resends
+          <input id="transferSdUploadMaxConsecutiveIdenticalResendsInput" name="sdUploadMaxConsecutiveIdenticalResends" type="number" step="1" min="1" max="1000" value="${escapeHtml(serialTransferSettings.sdUploadMaxConsecutiveIdenticalResends ?? 10)}" required>
+        </label>
+
+        <label>
+          SD upload min performance percent
+          <input id="transferSdUploadMinPerformancePercentInput" name="sdUploadMinPerformancePercent" type="number" step="1" min="0" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMinPerformancePercent ?? 5)}" required>
+        </label>
+
+        <label>
+          SD upload max retries per line
+          <input id="transferSdUploadMaxRetriesPerLineInput" name="sdUploadMaxRetriesPerLine" type="number" step="1" min="1" max="100" value="${escapeHtml(serialTransferSettings.sdUploadMaxRetriesPerLine ?? 3)}" required>
+        </label>
+
+        <label>
+          File streaming read timeout ms
+          <input id="transferFileStreamingReadTimeoutMsInput" name="fileStreamingReadTimeoutMs" type="number" step="1" min="1" max="600000" value="${escapeHtml(serialTransferSettings.fileStreamingReadTimeoutMs ?? 5000)}" required>
+        </label>
+
+        <label>
+          File streaming quiet period ms
+          <input id="transferFileStreamingQuietPeriodMsInput" name="fileStreamingQuietPeriodMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingQuietPeriodMs ?? 10)}" required>
+        </label>
+
+        <label>
+          File streaming activity sleep ms
+          <input id="transferFileStreamingReadActivitySleepMsInput" name="fileStreamingReadActivitySleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadActivitySleepMs ?? 1)}" required>
+        </label>
+
+        <label>
+          File streaming idle sleep ms
+          <input id="transferFileStreamingReadIdleSleepMsInput" name="fileStreamingReadIdleSleepMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingReadIdleSleepMs ?? 1)}" required>
+        </label>
+
+        <label>
+          File streaming recovery replay delay ms
+          <input id="transferFileStreamingRecoveryReplayDelayMsInput" name="fileStreamingRecoveryReplayDelayMs" type="number" step="1" min="0" max="60000" value="${escapeHtml(serialTransferSettings.fileStreamingRecoveryReplayDelayMs ?? 15)}" required>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" ${settingsDisabled}>Save serial transfer settings</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderPrintFileSettingsCard(printFileSettings, settingsDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Print file storage</h2>
+          <p class="lead">Directory where uploaded .gcode files are saved by SpaghettiChef.</p>
+        </div>
+      </div>
+
+      <form id="printFileSettingsForm" class="form-grid">
+        <label>
+          Storage directory
+          <input id="printFileStorageDirectoryInput" name="storageDirectory" type="text" value="${escapeHtml(printFileSettings.storageDirectory ?? "spaghettichef-print-files")}" required>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" ${settingsDisabled}>Save print file settings</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderCalculationEngineSettingsCard(engineSettings, settingsDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Calculation engines</h2>
+          <p class="lead">Defaults used by live analysis and on-demand recalculation.</p>
+        </div>
+      </div>
+
+      <div class="list-block">
+        ${engineSettings.length === 0 ? `<p class="muted">No calculation engine settings loaded yet.</p>` : engineSettings.map((settings) => renderEngineSettingsForm(settings, settingsDisabled)).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSecuritySettingsCard(securitySettings, securityRoles, securityDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Local security</h2>
+          <p class="lead">Local role defaults used by the upcoming backend permission guards.</p>
+        </div>
+      </div>
+
+      <form id="securitySettingsForm" class="form-grid">
+        <label class="checkbox-label">
+          <input id="securityEnabledInput" name="securityEnabled" type="checkbox" ${securitySettings.securityEnabled === true ? "checked" : ""}>
+          Enable local security checks
+        </label>
+
+        <label>
+          Default local role
+          <select id="securityDefaultRoleInput" name="defaultRole" required>
+            ${renderRoleOptions(securitySettings.defaultRole || "ADMIN")}
+          </select>
+        </label>
+
+        <label class="checkbox-label">
+          <input id="securityDangerousConfirmationInput" name="requireDangerousActionConfirmation" type="checkbox" ${securitySettings.requireDangerousActionConfirmation !== false ? "checked" : ""}>
+          Require dangerous action confirmation
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" ${securityDisabled}>Save security settings</button>
+        </div>
+      </form>
+
+      <div class="list-block">
+        ${securityRoles.length === 0 ? `<p class="muted">Role profiles not loaded yet.</p>` : securityRoles.map(renderRoleProfile).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderPrinterAdministrationSettingsCard(printers, printerConfigDisabled) {
+  return `
+    <article class="section-card">
+      <div class="section-header">
+        <div>
+          <h2>Printer administration</h2>
+          <p class="lead">Create or update configured printer nodes.</p>
+        </div>
+      </div>
+
+      <form id="printerConfigForm" class="form-grid">
+        <label>
+          Printer ID
+          <input id="printerIdInput" name="id" type="text" placeholder="printer-1" required>
+        </label>
+
+        <label>
+          Name
+          <input id="printerNameInput" name="name" type="text" placeholder="Primary printer" required>
+        </label>
+
+        <label>
+          Port
+          <input id="printerPortInput" name="portName" type="text" placeholder="/dev/serial/by-id/... or COM3 or SIM_PORT" required>
+          <span class="field-hint">For Linux real printers, prefer a stable /dev/serial/by-id/... path instead of /dev/ttyUSB0.</span>
+        </label>
+
+        <label>
+          Mode
+          <select id="printerModeInput" name="mode" required>
+            <option value="real">real</option>
+            <option value="sim">sim</option>
+            <option value="simulated">simulated</option>
+            <option value="sim-disconnected">sim-disconnected</option>
+            <option value="sim-timeout">sim-timeout</option>
+            <option value="sim-error">sim-error</option>
+          </select>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" ${printerConfigDisabled}>Save printer</button>
+          <button id="clearPrinterFormButton" type="button" class="secondary-button" ${printerConfigDisabled}>Clear form</button>
+        </div>
+      </form>
+
+      <div class="list-block">
+        ${printers.length === 0 ? `<p class="muted">No configured printers found.</p>` : printers.map(renderConfiguredPrinter).join("")}
+      </div>
+    </article>
+  `;
+}
+
+
 
 function renderRoleOptions(selectedRole) {
   return ["VIEWER", "OPERATOR", "ADMIN"].map((role) => `

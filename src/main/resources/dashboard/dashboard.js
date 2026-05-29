@@ -95,6 +95,7 @@ import {
   permissionDeniedLabel,
   PRIMARY_VIEW_IDS,
   PRINTER_VIEW_IDS,
+  SETTINGS_TAB_IDS,
   setJobEvents,
   setJobCardSectionOpen,
   setJobExecutionSteps,
@@ -131,6 +132,7 @@ import {
   setPrinters,
   setPrimaryView,
   setPrinterView,
+  setSettingsTab,
   setSelectedPrinter,
   setPrinterSdUploadStatus,
   setUploadStatusSynchronization,
@@ -1145,6 +1147,14 @@ function bindGlobalListeners() {
       renderApp();
       return;
     }
+
+    const settingsTabButton = event.target.closest("[data-settings-tab]");
+    if (settingsTabButton) {
+      setSettingsTab(settingsTabButton.dataset.settingsTab);
+      renderApp();
+      return;
+    }
+
 
     const selectPrinterButton = event.target.closest("[data-select-printer]");
     if (selectPrinterButton) {
@@ -2699,8 +2709,8 @@ async function handleConfigAction(action, printerId) {
   try {
     if (action === "edit") {
       setPrimaryView(PRIMARY_VIEW_IDS.SETTINGS);
+      setSettingsTab(SETTINGS_TAB_IDS.PRINTERS);
       pendingPrinterFormFill = printer;
-      fillPrinterForm(printer);
       setMessage(`Loaded printer ${printerId} into the configuration form.`);
       return;
     }
