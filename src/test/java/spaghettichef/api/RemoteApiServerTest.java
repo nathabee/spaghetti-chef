@@ -322,7 +322,8 @@ class RemoteApiServerTest {
             assertTrue(response.body().contains("\"engineName\":\"JAVA_BASIC_DELTA\""));
             assertTrue(response.body().contains("\"engineLabel\":\"Java basic delta\""));
             assertTrue(response.body().contains("\"defaultConfidenceThreshold\":0.85"));
-            assertTrue(response.body().contains("\"engineName\":\"RUST_CLI_DELTA\""));
+            assertTrue(response.body().contains("\"engineName\":\"RUST_IMG_ANALYZER\""));
+            assertTrue(response.body().contains("\"adapterType\":\"EXTERNAL_CLI\""));
             assertTrue(response.body().contains("\"defaultCliMethod\":\"delta-basic\""));
             assertTrue(response.body().contains("\"executablePath\":null"));
         } finally {
@@ -337,13 +338,13 @@ class RemoteApiServerTest {
         try {
             HttpResponse<String> response = context.request(
                     "PUT",
-                    "/admin/camera/calculation-engine-settings/RUST_CLI_DELTA",
+                    "/admin/camera/calculation-engine-settings/RUST_IMG_ANALYZER",
                     """
                             {"engineLabel":"Rust tuned","enabled":false,"defaultMethodName":"spaghetti-rust","defaultConfidenceThreshold":0.7,"defaultParameterJson":"{\\"source\\":\\"admin\\"}","defaultCliMethod":"delta-tuned","executablePath":"/opt/spaghetti/img-analyzer","timeoutMs":12345,"sortOrder":5}
                             """);
 
             assertEquals(200, response.statusCode());
-            assertTrue(response.body().contains("\"engineName\":\"RUST_CLI_DELTA\""));
+            assertTrue(response.body().contains("\"engineName\":\"RUST_IMG_ANALYZER\""));
             assertTrue(response.body().contains("\"engineLabel\":\"Rust tuned\""));
             assertTrue(response.body().contains("\"enabled\":false"));
             assertTrue(response.body().contains("\"defaultMethodName\":\"spaghetti-rust\""));

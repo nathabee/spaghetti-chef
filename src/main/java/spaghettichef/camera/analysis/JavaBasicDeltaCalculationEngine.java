@@ -10,8 +10,8 @@ public final class JavaBasicDeltaCalculationEngine implements SpaghettiCalculati
     public static final String ALGORITHM_VARIANT = "DELTA_SCORE_THRESHOLD";
 
     @Override
-    public CalculationEngineName engineName() {
-        return CalculationEngineName.JAVA_BASIC_DELTA;
+    public String engineName() {
+        return "JAVA_BASIC_DELTA";
     }
 
     @Override

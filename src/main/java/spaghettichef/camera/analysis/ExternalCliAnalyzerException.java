@@ -1,30 +1,30 @@
 package spaghettichef.camera.analysis;
 
-public final class RustCliAnalyzerException extends RuntimeException {
+public final class ExternalCliAnalyzerException extends RuntimeException {
 
-    private final RustCliAnalyzerExitCode exitCode;
+    private final ExternalCliAnalyzerExitCode exitCode;
     private final String stdout;
     private final String stderr;
 
-    public RustCliAnalyzerException(
+    public ExternalCliAnalyzerException(
             String message,
-            RustCliAnalyzerExitCode exitCode,
+            ExternalCliAnalyzerExitCode exitCode,
             String stdout,
             String stderr) {
         super(message);
-        this.exitCode = exitCode == null ? RustCliAnalyzerExitCode.UNKNOWN : exitCode;
+        this.exitCode = exitCode == null ? ExternalCliAnalyzerExitCode.UNKNOWN : exitCode;
         this.stdout = stdout == null ? "" : stdout;
         this.stderr = stderr == null ? "" : stderr;
     }
 
-    public RustCliAnalyzerException(String message, Throwable cause) {
+    public ExternalCliAnalyzerException(String message, Throwable cause) {
         super(message, cause);
-        this.exitCode = RustCliAnalyzerExitCode.UNKNOWN;
+        this.exitCode = ExternalCliAnalyzerExitCode.UNKNOWN;
         this.stdout = "";
         this.stderr = "";
     }
 
-    public RustCliAnalyzerExitCode exitCode() {
+    public ExternalCliAnalyzerExitCode exitCode() {
         return exitCode;
     }
 

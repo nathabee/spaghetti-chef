@@ -315,7 +315,8 @@ function renderRoleProfile(profile) {
 
 function renderEngineSettingsForm(settings, disabled) {
   const engineName = settings.engineName || "";
-  const isRust = engineName.includes("RUST");
+  const adapterType = settings.adapterType || "JAVA_BASIC_DELTA";
+  const isExternal = adapterType === "EXTERNAL_CLI";
   return `
     <form class="config-card form-grid" data-engine-settings-form="${escapeHtml(engineName)}">
       <div class="section-header compact">
@@ -329,6 +330,14 @@ function renderEngineSettingsForm(settings, disabled) {
       <label class="checkbox-label">
         <input name="enabled" type="checkbox" ${settings.enabled ? "checked" : ""}>
         Enabled
+      </label>
+
+      <label>
+        Adapter type
+        <select name="adapterType" required>
+          <option value="JAVA_BASIC_DELTA" ${adapterType === "JAVA_BASIC_DELTA" ? "selected" : ""}>Java basic delta</option>
+          <option value="EXTERNAL_CLI" ${adapterType === "EXTERNAL_CLI" ? "selected" : ""}>External CLI</option>
+        </select>
       </label>
 
       <label>
@@ -351,14 +360,14 @@ function renderEngineSettingsForm(settings, disabled) {
         <input name="defaultParameterJson" type="text" value="${escapeHtml(settings.defaultParameterJson || "{}")}" required>
       </label>
 
-      ${isRust ? `
+      ${isExternal ? `
         <label>
-          Rust executable path
+          Executable path
           <input name="executablePath" type="text" value="${escapeHtml(settings.executablePath || "")}">
         </label>
 
         <label>
-          Rust CLI method
+          CLI method
           <input name="defaultCliMethod" type="text" value="${escapeHtml(settings.defaultCliMethod || "delta-basic")}">
         </label>
       ` : `

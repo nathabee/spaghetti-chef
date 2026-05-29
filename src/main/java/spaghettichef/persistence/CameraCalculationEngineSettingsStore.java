@@ -15,6 +15,7 @@ public final class CameraCalculationEngineSettingsStore {
         String sql = """
                 SELECT
                     engine_name,
+                    adapter_type,
                     engine_label,
                     enabled,
                     default_method_name,
@@ -50,6 +51,7 @@ public final class CameraCalculationEngineSettingsStore {
         String sql = """
                 SELECT
                     engine_name,
+                    adapter_type,
                     engine_label,
                     enabled,
                     default_method_name,
@@ -90,6 +92,7 @@ public final class CameraCalculationEngineSettingsStore {
         String sql = """
                 INSERT INTO camera_calculation_engine_settings (
                     engine_name,
+                    adapter_type,
                     engine_label,
                     enabled,
                     default_method_name,
@@ -102,8 +105,9 @@ public final class CameraCalculationEngineSettingsStore {
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(engine_name) DO UPDATE SET
+                    adapter_type = excluded.adapter_type,
                     engine_label = excluded.engine_label,
                     enabled = excluded.enabled,
                     default_method_name = excluded.default_method_name,
@@ -139,6 +143,7 @@ public final class CameraCalculationEngineSettingsStore {
         String sql = """
                 INSERT OR IGNORE INTO camera_calculation_engine_settings (
                     engine_name,
+                    adapter_type,
                     engine_label,
                     enabled,
                     default_method_name,
@@ -151,7 +156,7 @@ public final class CameraCalculationEngineSettingsStore {
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """;
 
         try (
@@ -169,6 +174,7 @@ public final class CameraCalculationEngineSettingsStore {
         String sql = """
                 INSERT OR IGNORE INTO camera_calculation_engine_settings (
                     engine_name,
+                    adapter_type,
                     engine_label,
                     enabled,
                     default_method_name,
@@ -181,7 +187,7 @@ public final class CameraCalculationEngineSettingsStore {
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -194,22 +200,24 @@ public final class CameraCalculationEngineSettingsStore {
             PreparedStatement statement,
             CameraCalculationEngineSettings settings) throws SQLException {
         statement.setString(1, settings.engineName());
-        statement.setString(2, settings.engineLabel());
-        statement.setInt(3, settings.enabled() ? 1 : 0);
-        statement.setString(4, settings.defaultMethodName());
-        statement.setDouble(5, settings.defaultConfidenceThreshold());
-        statement.setString(6, settings.defaultParameterJson());
-        statement.setString(7, settings.defaultCliMethod());
-        statement.setString(8, settings.executablePath());
-        statement.setInt(9, settings.timeoutMs());
-        statement.setInt(10, settings.sortOrder());
-        statement.setString(11, settings.createdAt().toString());
-        statement.setString(12, settings.updatedAt().toString());
+        statement.setString(2, settings.adapterType());
+        statement.setString(3, settings.engineLabel());
+        statement.setInt(4, settings.enabled() ? 1 : 0);
+        statement.setString(5, settings.defaultMethodName());
+        statement.setDouble(6, settings.defaultConfidenceThreshold());
+        statement.setString(7, settings.defaultParameterJson());
+        statement.setString(8, settings.defaultCliMethod());
+        statement.setString(9, settings.executablePath());
+        statement.setInt(10, settings.timeoutMs());
+        statement.setInt(11, settings.sortOrder());
+        statement.setString(12, settings.createdAt().toString());
+        statement.setString(13, settings.updatedAt().toString());
     }
 
     private CameraCalculationEngineSettings mapSettings(ResultSet resultSet) throws SQLException {
         return new CameraCalculationEngineSettings(
                 resultSet.getString("engine_name"),
+                resultSet.getString("adapter_type"),
                 resultSet.getString("engine_label"),
                 resultSet.getInt("enabled") == 1,
                 resultSet.getString("default_method_name"),

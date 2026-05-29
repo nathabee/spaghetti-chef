@@ -232,15 +232,16 @@ Engine settings are persisted admin settings. They are initialized from Java fac
 
 Engine settings should include:
 
-* engine name, for example `JAVA_BASIC_DELTA` or `RUST_CLI_DELTA`
+* engine name, for example `JAVA_BASIC_DELTA` or `RUST_IMG_ANALYZER`
+* adapter type, for example `JAVA_BASIC_DELTA` or `EXTERNAL_CLI`
 * configurable engine label for dashboard display
 * enabled/disabled flag
 * default calculation method
 * default confidence threshold
 * default engine parameter JSON
-* default Rust CLI method, for Rust engines
-* Rust executable path, for Rust engines
-* Rust process timeout
+* default CLI method, for external CLI engines
+* executable path, for external CLI engines
+* process timeout, for external CLI engines
 * dashboard sort order
 
 Per-run overrides are temporary calculation inputs. They affect only the requested run, must not update the settings cache, and must be persisted on the calculation run for reproducibility.
@@ -251,12 +252,12 @@ Per-run overrides should include:
 * calculation method
 * confidence threshold
 * parameter JSON
-* Rust CLI method, if algorithm variants are being tested
+* CLI method, if algorithm variants are being tested
 
 Environment and process settings should not be per-run overrides:
 
-* Rust executable path belongs only to engine settings.
-* Rust timeout should normally belong only to engine settings.
+* Executable path belongs only to engine settings.
+* Timeout should normally belong only to engine settings.
 * Engine enabled/disabled and engine label belong only to engine settings.
 
 ### Current Hardcoded Values To Replace
@@ -269,9 +270,9 @@ Environment and process settings should not be per-run overrides:
 | `0.85` confidence threshold | backend/dashboard | engine setting default, overridable per run |
 | calculation method defaults | backend/dashboard | engine setting default, overridable per run |
 | parameter JSON default | backend/dashboard | engine setting default, overridable per run |
-| Rust CLI method `delta-basic` | Rust Java adapter | engine setting default, optionally overridable per run |
-| Rust executable path | system property/dev auto-discovery | engine setting only |
-| Rust timeout `10s` | Rust Java adapter | engine setting only |
+| CLI method `delta-basic` | external CLI adapter | engine setting default, optionally overridable per run |
+| executable path | system property/dev auto-discovery | engine setting only |
+| timeout `10s` | external CLI adapter | engine setting only |
 | local dev Rust auto-discovery | Rust Java adapter | remove after engine settings are wired |
 
 ### Implementation Steps

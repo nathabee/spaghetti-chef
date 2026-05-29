@@ -535,6 +535,32 @@ Future scripts may look like:
 
 ---
 
+## Add A New Calculation Engine
+
+The dataset is usually used after an engine integration exists. It gives a repeatable set of snapshots and deltas so the new engine can be tested, tuned, and compared with older runs.
+
+When a new Rust engine is exposed through the existing external CLI contract:
+
+1. Build or install the Rust executable on the machine that will run the test.
+2. Open the admin dashboard settings.
+3. Add or update a calculation engine entry with:
+   * a stable engine name, for example `RUST_CONNECTED_COMPONENTS`
+   * adapter type `EXTERNAL_CLI`
+   * a dashboard label
+   * the executable path
+   * default method, threshold, parameter JSON, CLI method, timeout, and sort order
+4. Enable the engine.
+5. Open the camera admin recalculation view.
+6. Select the imported dataset delta set.
+7. Select the new engine and run calculations.
+8. Compare the run results with dataset labels and previous engine runs.
+
+The executable path and timeout belong to engine settings only. The dashboard recalculation form may override method, confidence threshold, parameter JSON, and CLI method for one run, but those run-level overrides must not change the persisted engine settings.
+
+If the new engine uses another adapter type or a different protocol, add the backend adapter first. After that adapter exists, expose it as a selectable `adapterType` in the engine settings API and dashboard, then configure the engine the same way through settings. Do not put engine registration or executable paths in dataset JSON.
+
+---
+
 ## Important Notes
 
 Empty `.jpg` files are acceptable only for structure tests.

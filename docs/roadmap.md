@@ -3776,3 +3776,39 @@ Store and analyze only a configured crop region from the raw camera frame while 
 The crop region is configured as percentages, persisted in camera settings, applied only during snapshot capture, and editable from the camera settings card or by selecting a rectangle on the latest snapshot.
 
 ---
+
+
+## 0.7.x — Spaghetti Engine Basic
+
+status: active
+
+Purpose:
+
+Build a repeatable dataset and deterministic analysis baseline for spaghetti detection. The 0.7.x series separates imported camera data, camera storage/database synchronization, engine configuration, and repeatable algorithm evaluation.
+
+Detailed implementation notes live in [TODO-0.7-spaghetti-engine.md](TODOs/TODO-0.7-spaghetti-engine.md).
+
+
+### 0.7.0 — Image Dataset And Algorithm Discovery
+
+status: done
+
+Goals:
+
+Create a structured dataset of source snapshots and delta images that can be copied from another environment, rehydrated into a local database, and used for deterministic spaghetti-detection experiments.
+
+The dataset keeps runtime-compatible camera files under `dataset/{printerId}/`, stores labels and bootstrap metadata separately under `dataset/json/`, and uses camera storage synchronization to reconcile files with database rows without reading dataset labels or manifests.
+
+---
+
+### 0.7.1 — Multi-Engine Settings
+
+status: done
+
+Goals:
+
+Move calculation engine configuration out of hardcoded dashboard/service defaults and into persisted admin settings.
+
+Engine settings now define stable engine names, adapter type, dashboard label, default method, threshold, parameter JSON, external CLI method, executable path, timeout, enabled state, and sort order. The recalculation workflow loads enabled engines from settings, allows per-run overrides for experiment parameters, and keeps executable path and timeout as settings-only values.
+
+---

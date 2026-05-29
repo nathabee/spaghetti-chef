@@ -7,15 +7,24 @@ planned :
 see ROADMAP.md 
 
  
+next :
+0.7.2 — Performance and Accuracy Test Harness
+
+
+
+## 0.7.x  — Spaghetti Engine Basic
+
+- 0.7.1 — Multi-Engine Settings
+- 0.7.0 — Image Dataset and Algorithm Discovery
 
 ## 0.6.x Replay, Purge, And Data Management
 
-- 0.6.0 — Snapshot Purge
-- 0.6.1 — Camera Job Delete
-- 0.6.2 — Delta Set Delete
-- 0.6.3 — Calculation Result Visual Inspector
-- 0.6.4 — Replay In Dashboard
 - 0.6.5 — Capture Crop Region
+- 0.6.4 — Replay In Dashboard
+- 0.6.3 — Calculation Result Visual Inspector
+- 0.6.2 — Delta Set Delete
+- 0.6.1 — Camera Job Delete
+- 0.6.0 — Snapshot Purge
 
 
 ## 0.5.x Rust Image Analysis Track

@@ -4,7 +4,7 @@ import spaghettichef.persistence.CameraDeltaFrame;
 
 public interface SpaghettiCalculationEngine {
 
-    CalculationEngineName engineName();
+    String engineName();
 
     String algorithmVariant();
 

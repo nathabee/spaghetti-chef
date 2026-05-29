@@ -9,36 +9,36 @@ import spaghettichef.persistence.CameraSnapshotEntry;
 import spaghettichef.persistence.CameraSnapshotEntryStore;
 import spaghettichef.persistence.CameraDeltaFrame;
 
-public final class RustCliCalculationEngine implements SpaghettiCalculationEngine {
+public final class ExternalCliCalculationEngine implements SpaghettiCalculationEngine {
 
     private final Path executablePath;
     private final String cliMethod;
     private final Duration timeout;
     private final CameraSnapshotEntryStore snapshotEntryStore;
-    private final RustCliAnalyzerProcess analyzerProcess;
+    private final ExternalCliAnalyzerProcess analyzerProcess;
 
-    public RustCliCalculationEngine(Path executablePath) {
+    public ExternalCliCalculationEngine(Path executablePath) {
         this(executablePath, null, Duration.ofSeconds(10));
     }
 
-    public RustCliCalculationEngine(Path executablePath, String cliMethod, Duration timeout) {
+    public ExternalCliCalculationEngine(Path executablePath, String cliMethod, Duration timeout) {
         this(
                 executablePath,
                 cliMethod,
                 timeout,
                 new CameraSnapshotEntryStore(),
-                new RustCliAnalyzerProcess());
+                new ExternalCliAnalyzerProcess());
     }
 
-    public RustCliCalculationEngine(
+    public ExternalCliCalculationEngine(
             Path executablePath,
             String cliMethod,
             Duration timeout,
             CameraSnapshotEntryStore snapshotEntryStore,
-            RustCliAnalyzerProcess analyzerProcess) {
+            ExternalCliAnalyzerProcess analyzerProcess) {
         this.executablePath = executablePath;
         this.cliMethod = cliMethod == null || cliMethod.isBlank()
-                ? RustCliAnalyzerRequest.DEFAULT_METHOD
+                ? ExternalCliAnalyzerRequest.DEFAULT_METHOD
                 : cliMethod.trim();
         this.timeout = timeout == null || timeout.isZero() || timeout.isNegative()
                 ? Duration.ofSeconds(10)
@@ -48,8 +48,8 @@ public final class RustCliCalculationEngine implements SpaghettiCalculationEngin
     }
 
     @Override
-    public CalculationEngineName engineName() {
-        return CalculationEngineName.RUST_CLI_DELTA;
+    public String engineName() {
+        return "EXTERNAL_CLI";
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class RustCliCalculationEngine implements SpaghettiCalculationEngin
     @Override
     public CalculationEngineResult analyze(CameraDeltaFrame frame, double confidenceThreshold) {
         if (status() != CalculationEngineStatus.SUCCESS) {
-            throw new IllegalStateException("Rust CLI calculation engine is not configured yet");
+            throw new IllegalStateException("External CLI calculation engine is not configured yet");
         }
 
         CameraSnapshotEntry fromSnapshot = snapshotEntryStore.findById(frame.fromSnapshotId())
@@ -81,7 +81,7 @@ public final class RustCliCalculationEngine implements SpaghettiCalculationEngin
         CameraSnapshotEntry toSnapshot = snapshotEntryStore.findById(frame.toSnapshotId())
                 .orElseThrow(() -> new IllegalStateException("target snapshot not found: " + frame.toSnapshotId()));
 
-        RustCliAnalyzerResponse response = analyzerProcess.analyze(new RustCliAnalyzerRequest(
+        ExternalCliAnalyzerResponse response = analyzerProcess.analyze(new ExternalCliAnalyzerRequest(
                 executablePath,
                 Path.of(fromSnapshot.snapshotPath()),
                 Path.of(toSnapshot.snapshotPath()),
