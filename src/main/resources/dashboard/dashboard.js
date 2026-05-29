@@ -16,6 +16,7 @@ import {
   deleteCameraDeltaSet,
   deleteCameraJobData,
   getCameraCalculationRuns,
+  getCameraCalculationEngineSettings,
   getCameraCalculationVisual,
   getCameraCalculationComparison,
   getCameraCalculationTrace,
@@ -52,6 +53,7 @@ import {
   savePrintFileSettings,
   saveSerialTransferSettings,
   saveSecuritySettings,
+  saveCameraCalculationEngineSettings,
   setPrinterSdFileEnabled,
   setPrinterEnabled,
   startJob,
@@ -119,6 +121,7 @@ import {
   setPrintFiles,
   setPrinterSdFiles,
   setSerialTransferSettings,
+  setCameraCalculationEngineSettings,
   setSecurityRoles,
   setSecuritySettings,
   setPrinterCommandResult,
@@ -180,6 +183,7 @@ async function refreshAllData(options = {}) {
       monitoringRules,
       printFileSettings,
       serialTransferSettings,
+      cameraCalculationEngineSettings,
       securitySettings,
       securityRoles,
       monitoringOverview,
@@ -193,6 +197,7 @@ async function refreshAllData(options = {}) {
       getMonitoringRules(),
       getPrintFileSettings(),
       getSerialTransferSettings(),
+      getCameraCalculationEngineSettings(),
       getSecuritySettings(),
       getSecurityRoles(),
       getMonitoringOverview(),
@@ -207,6 +212,7 @@ async function refreshAllData(options = {}) {
     setMonitoringRules(monitoringRules);
     setPrintFileSettings(printFileSettings);
     setSerialTransferSettings(serialTransferSettings);
+    setCameraCalculationEngineSettings(cameraCalculationEngineSettings);
     setSecuritySettings(securitySettings);
     setSecurityRoles(securityRoles);
     setMonitoringOverview(monitoringOverview);
@@ -332,7 +338,12 @@ async function loadAdminCameraRunComparison(calculationRuns, selectedCalculation
     return null;
   }
 
-  return getCameraCalculationComparison(leftRun.id, rightRun.id, state.adminCameraPrinterId);
+  try {
+    return await getCameraCalculationComparison(leftRun.id, rightRun.id, state.adminCameraPrinterId);
+  } catch (error) {
+    setAdminCameraActionResult({ error: `Failed to compare calculation runs: ${error.message}` });
+    return null;
+  }
 }
 
 function selectById(items, id) {
@@ -424,7 +435,7 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
   const methodInput = document.getElementById("adminCameraCalculationMethodInput");
   const engineInput = document.getElementById("adminCameraCalculationEngineInput");
   const confidenceInput = document.getElementById("adminCameraCalculationConfidenceInput");
-  const rustExecutableInput = document.getElementById("adminCameraRustExecutableInput");
+  const cliMethodInput = document.getElementById("adminCameraCalculationCliMethodInput");
   const paramsInput = document.getElementById("adminCameraCalculationParamsInput");
   const parsedConfidence = Number.parseFloat(confidenceInput?.value || "");
 
@@ -432,7 +443,7 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
     const result = await runCameraCalculation(deltaSetId, {
       methodName: methodInput?.value?.trim() || "spaghetti-heuristic",
       engineName: engineInput?.value?.trim() || "JAVA_BASIC_DELTA",
-      rustExecutablePath: rustExecutableInput?.value?.trim() || undefined,
+      cliMethod: cliMethodInput?.value?.trim() || undefined,
       confidenceThreshold: Number.isFinite(parsedConfidence) ? parsedConfidence : undefined,
       parameterJson: paramsInput?.value?.trim() || "{}",
       message: "dashboard calculation run"
@@ -442,6 +453,31 @@ async function handleAdminCameraRunCalculation(deltaSetId) {
     setAdminCameraActionResult(result);
   } catch (error) {
     setAdminCameraActionResult({ error: `Failed to run camera calculation: ${error.message}` });
+  }
+}
+
+function applyAdminCameraEngineDefaults(selectElement) {
+  const option = selectElement?.selectedOptions?.[0];
+  if (!option) {
+    return;
+  }
+
+  const methodInput = document.getElementById("adminCameraCalculationMethodInput");
+  const confidenceInput = document.getElementById("adminCameraCalculationConfidenceInput");
+  const paramsInput = document.getElementById("adminCameraCalculationParamsInput");
+  const cliMethodInput = document.getElementById("adminCameraCalculationCliMethodInput");
+
+  if (methodInput) {
+    methodInput.value = option.dataset.defaultMethodName || methodInput.value;
+  }
+  if (confidenceInput) {
+    confidenceInput.value = option.dataset.defaultConfidenceThreshold || confidenceInput.value;
+  }
+  if (paramsInput) {
+    paramsInput.value = option.dataset.defaultParameterJson || paramsInput.value;
+  }
+  if (cliMethodInput) {
+    cliMethodInput.value = option.dataset.defaultCliMethod || "";
   }
 }
 
@@ -958,6 +994,7 @@ function renderPage() {
       state.adminCameraActionResult,
       state.adminCameraVisualResult,
       state.adminCameraReplay,
+      state.cameraCalculationEngineSettings,
       adminCameraSnapshotEntryUrl
     );
     return;
@@ -1256,6 +1293,15 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraSelectCalculationRunButton = event.target.closest("[data-admin-camera-select-calculation-run]");
+    if (adminCameraSelectCalculationRunButton) {
+      await handleAdminCameraSelectCalculationRun(
+        adminCameraSelectCalculationRunButton.dataset.adminCameraSelectCalculationRun
+      );
+      renderApp();
+      return;
+    }
+
     const adminCameraDeleteDeltaSetButton = event.target.closest("[data-admin-camera-delete-delta-set]");
     if (adminCameraDeleteDeltaSetButton) {
       await handleAdminCameraDeleteDeltaSet(adminCameraDeleteDeltaSetButton.dataset.adminCameraDeleteDeltaSet);
@@ -1423,6 +1469,12 @@ function bindGlobalListeners() {
       return;
     }
 
+    const adminCameraEngineSelect = event.target.closest("#adminCameraCalculationEngineInput");
+    if (adminCameraEngineSelect) {
+      applyAdminCameraEngineDefaults(adminCameraEngineSelect);
+      return;
+    }
+
     const adminCameraReplayModeSelect = event.target.closest("[data-admin-camera-replay-mode]");
     if (adminCameraReplayModeSelect) {
       setAdminCameraReplay({ mode: adminCameraReplayModeSelect.value, frameIndex: 0, playing: false });
@@ -1517,6 +1569,14 @@ function bindPageListeners() {
       renderApp();
     });
   }
+
+  document.querySelectorAll("[data-engine-settings-form]").forEach((engineSettingsForm) => {
+    engineSettingsForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await handleSaveCameraCalculationEngineSettings(engineSettingsForm);
+      renderApp();
+    });
+  });
 
   const securitySettingsForm = document.getElementById("securitySettingsForm");
   if (securitySettingsForm) {
@@ -1823,6 +1883,33 @@ async function handleSavePrintFileSettings(form) {
     await refreshAllData({ silent: true });
   } catch (error) {
     setMessage(`Failed to save print file settings: ${error.message}`);
+  }
+}
+
+async function handleSaveCameraCalculationEngineSettings(form) {
+  if (!ensurePermission("SETTINGS_UPDATE")) {
+    return;
+  }
+
+  const engineName = form.dataset.engineSettingsForm;
+  const payload = {
+    enabled: form.querySelector("[name='enabled']").checked,
+    engineLabel: form.querySelector("[name='engineLabel']").value.trim(),
+    defaultMethodName: form.querySelector("[name='defaultMethodName']").value.trim(),
+    defaultConfidenceThreshold: Number.parseFloat(form.querySelector("[name='defaultConfidenceThreshold']").value),
+    defaultParameterJson: form.querySelector("[name='defaultParameterJson']").value.trim() || "{}",
+    defaultCliMethod: form.querySelector("[name='defaultCliMethod']").value.trim(),
+    executablePath: form.querySelector("[name='executablePath']").value.trim(),
+    timeoutMs: Number.parseInt(form.querySelector("[name='timeoutMs']").value, 10),
+    sortOrder: Number.parseInt(form.querySelector("[name='sortOrder']").value, 10)
+  };
+
+  try {
+    await saveCameraCalculationEngineSettings(engineName, payload);
+    setMessage(`Saved calculation engine settings for ${engineName}.`);
+    await refreshAllData({ silent: true });
+  } catch (error) {
+    setMessage(`Failed to save calculation engine settings for ${engineName}: ${error.message}`);
   }
 }
 

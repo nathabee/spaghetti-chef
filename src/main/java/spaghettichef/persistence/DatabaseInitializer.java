@@ -40,6 +40,7 @@ public final class DatabaseInitializer {
             createCameraDeltaFramesTable(statement);
             createCameraCalculationRunsTable(statement);
             createCameraCalculationResultsTable(statement);
+            createCameraCalculationEngineSettingsTable(statement);
             createCameraAnalysisSessionsTable(statement);
 
             ensureColumn(connection, "print_jobs", "print_file_id", "TEXT");
@@ -141,6 +142,7 @@ public final class DatabaseInitializer {
                     "TEXT NOT NULL DEFAULT 'SUCCESS'");
 
             ensureBuiltInRoleProfiles(connection);
+            ensureBuiltInCameraCalculationEngineSettings(connection);
 
             SpaghettiChefLog.info(OperationMessages.databaseInitialized(DatabaseConfig.databaseFile()));
         } catch (SQLException exception) {
@@ -422,6 +424,27 @@ public final class DatabaseInitializer {
         statement.execute(sql);
     }
 
+    private void createCameraCalculationEngineSettingsTable(Statement statement) throws SQLException {
+        String sql = """
+                CREATE TABLE IF NOT EXISTS camera_calculation_engine_settings (
+                    engine_name TEXT PRIMARY KEY,
+                    engine_label TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    default_method_name TEXT NOT NULL,
+                    default_confidence_threshold REAL NOT NULL,
+                    default_parameter_json TEXT NOT NULL,
+                    default_cli_method TEXT,
+                    executable_path TEXT,
+                    timeout_ms INTEGER NOT NULL,
+                    sort_order INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """;
+
+        statement.execute(sql);
+    }
+
     private void createOperatorAuditEventsTable(Statement statement) throws SQLException {
         String sql = """
                 CREATE TABLE IF NOT EXISTS operator_audit_events (
@@ -663,6 +686,13 @@ public final class DatabaseInitializer {
             }
 
             statement.executeBatch();
+        }
+    }
+
+    private void ensureBuiltInCameraCalculationEngineSettings(Connection connection) throws SQLException {
+        for (CameraCalculationEngineSettings settings
+                : CameraCalculationEngineSettingsDefaults.builtInDefaults(java.time.Instant.now())) {
+            CameraCalculationEngineSettingsStore.insertIfMissing(connection, settings);
         }
     }
 }

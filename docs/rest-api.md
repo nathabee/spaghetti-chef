@@ -2232,6 +2232,9 @@ Possible errors:
 GET  /admin/camera/delta-sets/{deltaSetId}/calculation-runs
 POST /admin/camera/delta-sets/{deltaSetId}/calculation-runs
 
+GET  /admin/camera/calculation-engine-settings
+PUT  /admin/camera/calculation-engine-settings/{engineName}
+
 GET  /admin/camera/calculation-runs/{calculationRunId}
 GET  /admin/camera/calculation-runs/{calculationRunId}/results
 GET  /admin/camera/calculation-runs/{calculationRunId}/trace
@@ -2284,10 +2287,12 @@ Request body:
   "confidenceThreshold": 0.85,
   "parameterJson": "{\"changedPixelRatioThreshold\":0.08}",
   "message": "baseline run",
-  "engineName": "java",
-  "rustExecutablePath": "/home/user/spaghettichef-engine"
+  "engineName": "JAVA_BASIC_DELTA",
+  "cliMethod": "delta-basic"
 }
 ```
+
+`methodName`, `confidenceThreshold`, `parameterJson`, and `cliMethod` are per-run overrides. If omitted, the selected engine's persisted settings are used. Environment/process values such as the Rust executable path and timeout are configured through calculation engine settings, not on individual runs.
 
 Response shape:
 
@@ -2313,6 +2318,76 @@ Response shape:
 ```
 
 ---
+
+## GET /admin/camera/calculation-engine-settings
+
+Lists persisted calculation engine settings.
+
+Response shape:
+
+```json
+{
+  "settings": [
+    {
+      "engineName": "JAVA_BASIC_DELTA",
+      "engineLabel": "Java basic delta",
+      "enabled": true,
+      "defaultMethodName": "spaghetti-heuristic",
+      "defaultConfidenceThreshold": 0.85,
+      "defaultParameterJson": "{\"source\":\"settings\"}",
+      "defaultCliMethod": null,
+      "executablePath": null,
+      "timeoutMs": 10000,
+      "sortOrder": 10,
+      "createdAt": "2026-05-29T10:00:00Z",
+      "updatedAt": "2026-05-29T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## PUT /admin/camera/calculation-engine-settings/{engineName}
+
+Updates persisted defaults for one calculation engine.
+
+Request body:
+
+```json
+{
+  "engineLabel": "Rust CLI delta",
+  "enabled": true,
+  "defaultMethodName": "spaghetti-heuristic",
+  "defaultConfidenceThreshold": 0.85,
+  "defaultParameterJson": "{\"source\":\"settings\"}",
+  "defaultCliMethod": "delta-basic",
+  "executablePath": "/opt/spaghettichef/img-analyzer",
+  "timeoutMs": 10000,
+  "sortOrder": 20
+}
+```
+
+Response shape:
+
+```json
+{
+  "settings": {
+    "engineName": "RUST_CLI_DELTA",
+    "engineLabel": "Rust CLI delta",
+    "enabled": true,
+    "defaultMethodName": "spaghetti-heuristic",
+    "defaultConfidenceThreshold": 0.85,
+    "defaultParameterJson": "{\"source\":\"settings\"}",
+    "defaultCliMethod": "delta-basic",
+    "executablePath": "/opt/spaghettichef/img-analyzer",
+    "timeoutMs": 10000,
+    "sortOrder": 20,
+    "createdAt": "2026-05-29T10:00:00Z",
+    "updatedAt": "2026-05-29T10:10:00Z"
+  }
+}
+```
 
 ## GET /admin/camera/calculation-runs/{calculationRunId}
 

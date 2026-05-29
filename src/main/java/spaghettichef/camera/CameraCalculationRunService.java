@@ -2,11 +2,14 @@ package spaghettichef.camera;
 
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
 import spaghettichef.OperationMessages;
+import spaghettichef.config.RuntimeDefaults;
+import spaghettichef.camera.analysis.CalculationEngineConfiguration;
 import spaghettichef.camera.analysis.CalculationEngineName;
 import spaghettichef.camera.analysis.CalculationEngineRegistry;
 import spaghettichef.camera.analysis.CalculationEngineResult;
@@ -21,16 +24,15 @@ import spaghettichef.persistence.CameraDeltaFrame;
 import spaghettichef.persistence.CameraDeltaFrameStore;
 import spaghettichef.persistence.CameraDeltaSet;
 import spaghettichef.persistence.CameraDeltaSetStore;
+import spaghettichef.persistence.CameraCalculationEngineSettings;
 
 public final class CameraCalculationRunService {
-
-    private static final String DEFAULT_METHOD_NAME = "spaghetti-delta-threshold";
-    private static final double DEFAULT_CONFIDENCE_THRESHOLD = 0.85;
 
     private final CameraDeltaSetStore deltaSetStore;
     private final CameraDeltaFrameStore deltaFrameStore;
     private final CameraCalculationRunStore calculationRunStore;
     private final CameraCalculationResultStore calculationResultStore;
+    private final CameraCalculationEngineSettingsService engineSettingsService;
     private final CalculationEngineRegistry engineRegistry;
     private final Clock clock;
 
@@ -40,6 +42,7 @@ public final class CameraCalculationRunService {
                 new CameraDeltaFrameStore(),
                 new CameraCalculationRunStore(),
                 new CameraCalculationResultStore(),
+                new CameraCalculationEngineSettingsService(),
                 new CalculationEngineRegistry(),
                 Clock.systemUTC());
     }
@@ -55,6 +58,7 @@ public final class CameraCalculationRunService {
                 deltaFrameStore,
                 calculationRunStore,
                 calculationResultStore,
+                new CameraCalculationEngineSettingsService(),
                 new CalculationEngineRegistry(),
                 clock);
     }
@@ -64,12 +68,14 @@ public final class CameraCalculationRunService {
             CameraDeltaFrameStore deltaFrameStore,
             CameraCalculationRunStore calculationRunStore,
             CameraCalculationResultStore calculationResultStore,
+            CameraCalculationEngineSettingsService engineSettingsService,
             CalculationEngineRegistry engineRegistry,
             Clock clock) {
         this.deltaSetStore = Objects.requireNonNull(deltaSetStore, "deltaSetStore");
         this.deltaFrameStore = Objects.requireNonNull(deltaFrameStore, "deltaFrameStore");
         this.calculationRunStore = Objects.requireNonNull(calculationRunStore, "calculationRunStore");
         this.calculationResultStore = Objects.requireNonNull(calculationResultStore, "calculationResultStore");
+        this.engineSettingsService = Objects.requireNonNull(engineSettingsService, "engineSettingsService");
         this.engineRegistry = Objects.requireNonNull(engineRegistry, "engineRegistry");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -100,7 +106,7 @@ public final class CameraCalculationRunService {
             String parameterJson,
             String message,
             String engineName,
-            String rustExecutablePath) {
+            String cliMethod) {
         if (deltaSetId <= 0L) {
             throw new IllegalArgumentException("deltaSetId must be greater than zero");
         }
@@ -109,10 +115,21 @@ public final class CameraCalculationRunService {
                 .orElseThrow(() -> new IllegalArgumentException("camera delta set not found: " + deltaSetId));
         List<CameraDeltaFrame> frames = deltaFrameStore.findByDeltaSetId(deltaSetId);
         Instant createdAt = clock.instant();
-        double threshold = normalizeThreshold(confidenceThreshold);
-        SpaghettiCalculationEngine engine = engineRegistry.resolve(
-                CalculationEngineName.fromWireValue(engineName),
-                normalizeExecutablePath(rustExecutablePath));
+        CameraCalculationEngineSettings settings = resolveEngineSettings(engineName);
+        double threshold = normalizeThreshold(confidenceThreshold, settings.defaultConfidenceThreshold());
+        String resolvedMethodName = normalizeMethodName(methodName, settings.defaultMethodName());
+        String resolvedCliMethod = normalizeCliMethod(cliMethod, settings.defaultCliMethod());
+        String resolvedParameterJson = resolvedParameterJson(
+                parameterJson,
+                settings.defaultParameterJson(),
+                threshold,
+                settings.engineName(),
+                resolvedCliMethod);
+        SpaghettiCalculationEngine engine = engineRegistry.resolve(new CalculationEngineConfiguration(
+                CalculationEngineName.fromWireValue(settings.engineName()),
+                normalizeExecutablePath(settings.executablePath()),
+                resolvedCliMethod,
+                Duration.ofMillis(settings.timeoutMs())));
         long startedAtNanos = System.nanoTime();
 
         if (engine.status() != CalculationEngineStatus.SUCCESS) {
@@ -121,8 +138,8 @@ public final class CameraCalculationRunService {
                     deltaSet.printerId(),
                     deltaSet.cameraJobId(),
                     deltaSet.requireId(),
-                    normalizeMethodName(methodName),
-                    normalizeParameterJson(parameterJson, threshold, engine.engineName().name()),
+                    resolvedMethodName,
+                    resolvedParameterJson,
                     createdAt,
                     0,
                     engineUnavailableMessage(message, engine),
@@ -138,8 +155,8 @@ public final class CameraCalculationRunService {
                 deltaSet.printerId(),
                 deltaSet.cameraJobId(),
                 deltaSet.requireId(),
-                normalizeMethodName(methodName),
-                normalizeParameterJson(parameterJson, threshold),
+                resolvedMethodName,
+                resolvedParameterJson,
                 createdAt,
                 frames.size(),
                 message,
@@ -187,16 +204,29 @@ public final class CameraCalculationRunService {
                 message);
     }
 
-    private static String normalizeMethodName(String methodName) {
+    private CameraCalculationEngineSettings resolveEngineSettings(String engineName) {
+        String resolvedEngineName = engineName == null || engineName.isBlank()
+                ? RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_ENGINE_NAME
+                : CalculationEngineName.fromWireValue(engineName).name();
+        CameraCalculationEngineSettings settings = engineSettingsService.findByEngineName(resolvedEngineName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "camera calculation engine settings not found: " + resolvedEngineName));
+        if (!settings.enabled()) {
+            throw new IllegalArgumentException("camera calculation engine is disabled: " + resolvedEngineName);
+        }
+        return settings;
+    }
+
+    private static String normalizeMethodName(String methodName, String defaultMethodName) {
         if (methodName == null || methodName.isBlank()) {
-            return DEFAULT_METHOD_NAME;
+            return defaultMethodName;
         }
 
         return methodName.trim();
     }
 
-    private static double normalizeThreshold(Double confidenceThreshold) {
-        double threshold = confidenceThreshold == null ? DEFAULT_CONFIDENCE_THRESHOLD : confidenceThreshold;
+    private static double normalizeThreshold(Double confidenceThreshold, double defaultConfidenceThreshold) {
+        double threshold = confidenceThreshold == null ? defaultConfidenceThreshold : confidenceThreshold;
         if (Double.isNaN(threshold) || Double.isInfinite(threshold) || threshold < 0.0 || threshold > 1.0) {
             throw new IllegalArgumentException("confidenceThreshold must be between 0.0 and 1.0");
         }
@@ -204,20 +234,31 @@ public final class CameraCalculationRunService {
         return threshold;
     }
 
-    private static String normalizeParameterJson(String parameterJson, double threshold) {
-        if (parameterJson != null && !parameterJson.isBlank()) {
-            return parameterJson.trim();
+    private static String normalizeCliMethod(String cliMethod, String defaultCliMethod) {
+        if (cliMethod != null && !cliMethod.isBlank()) {
+            return cliMethod.trim();
         }
-
-        return "{\"confidenceThreshold\":" + threshold + "}";
+        if (defaultCliMethod != null && !defaultCliMethod.isBlank()) {
+            return defaultCliMethod.trim();
+        }
+        return null;
     }
 
-    private static String normalizeParameterJson(String parameterJson, double threshold, String engineName) {
-        if (parameterJson != null && !parameterJson.isBlank()) {
-            return parameterJson.trim();
-        }
-
-        return "{\"confidenceThreshold\":" + threshold + ",\"engineName\":\"" + engineName + "\"}";
+    private static String resolvedParameterJson(
+            String parameterJson,
+            String defaultParameterJson,
+            double threshold,
+            String engineName,
+            String cliMethod) {
+        String parameters = parameterJson != null && !parameterJson.isBlank()
+                ? parameterJson.trim()
+                : defaultParameterJson;
+        return "{"
+                + "\"confidenceThreshold\":" + threshold + ","
+                + "\"engineName\":\"" + engineName + "\","
+                + "\"cliMethod\":" + nullableJsonString(cliMethod) + ","
+                + "\"parameters\":" + normalizeJsonObject(parameters)
+                + "}";
     }
 
     private static long elapsedMillis(long startedAtNanos) {
@@ -237,6 +278,20 @@ public final class CameraCalculationRunService {
             return null;
         }
         return Path.of(value.trim());
+    }
+
+    private static String normalizeJsonObject(String value) {
+        if (value == null || value.isBlank()) {
+            return "{}";
+        }
+        return value.trim();
+    }
+
+    private static String nullableJsonString(String value) {
+        if (value == null) {
+            return "null";
+        }
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private static CalculationEngineStatus statusFor(RuntimeException exception) {

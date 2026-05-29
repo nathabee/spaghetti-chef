@@ -31,6 +31,7 @@ export const state = {
   monitoringRules: null,
   printFileSettings: null,
   serialTransferSettings: null,
+  cameraCalculationEngineSettings: [],
   appVersion: null,
   securitySettings: null,
   securityRoles: [],
@@ -125,6 +126,10 @@ export function setPrintFileSettings(settings) {
 
 export function setSerialTransferSettings(settings) {
   state.serialTransferSettings = settings;
+}
+
+export function setCameraCalculationEngineSettings(settings) {
+  state.cameraCalculationEngineSettings = Array.isArray(settings) ? settings : [];
 }
 
 export function setAppVersion(versionInfo) {

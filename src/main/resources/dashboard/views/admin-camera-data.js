@@ -18,6 +18,7 @@ export function renderAdminCameraDataPage(
   actionResult = null,
   visualResult = null,
   replayState = null,
+  engineSettings = [],
   snapshotEntryUrl = () => ""
 ) {
   if (!hasPermission("CAMERA_DATA_MANAGE")) {
@@ -109,7 +110,7 @@ export function renderAdminCameraDataPage(
           </div>
           <span class="badge badge-real">0.4.12</span>
         </div>
-        ${renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId)}
+        ${renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId, engineSettings)}
       </article>
 
       <article class="placeholder-card">
@@ -253,13 +254,25 @@ function renderSelectedJobActions(selectedPrinterId, selectedJobId) {
   `;
 }
 
-function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId) {
+function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, runComparison, selectedDeltaSetId, selectedCalculationRunId, engineSettings) {
   if (!selectedJobId) {
     return `<p class="muted">Load a camera job before generating deltas or running calculations.</p>`;
   }
 
   const safeDeltaSets = Array.isArray(deltaSets) ? deltaSets : [];
   const safeRuns = Array.isArray(calculationRuns) ? calculationRuns : [];
+  const enabledEngines = (Array.isArray(engineSettings) ? engineSettings : [])
+    .filter((settings) => settings.enabled !== false);
+  const fallbackEngine = {
+    engineName: "JAVA_BASIC_DELTA",
+    engineLabel: "Java basic delta",
+    defaultMethodName: "spaghetti-heuristic",
+    defaultConfidenceThreshold: 0.85,
+    defaultParameterJson: "{\"source\":\"dashboard\"}",
+    defaultCliMethod: ""
+  };
+  const engines = enabledEngines.length > 0 ? enabledEngines : [fallbackEngine];
+  const selectedEngine = engines[0] || fallbackEngine;
 
   return `
     <div class="form-grid compact-form">
@@ -287,26 +300,34 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, run
       </label>
       <label>
         Calculation method
-        <input id="adminCameraCalculationMethodInput" type="text" value="spaghetti-heuristic">
+        <input id="adminCameraCalculationMethodInput" type="text" value="${escapeHtml(selectedEngine.defaultMethodName || fallbackEngine.defaultMethodName)}">
       </label>
       <label>
         Calculation engine
         <select id="adminCameraCalculationEngineInput">
-          <option value="JAVA_BASIC_DELTA">Java basic delta</option>
-          <option value="RUST_CLI_DELTA">Rust CLI delta</option>
+          ${engines.map((engine) => `
+            <option
+              value="${escapeHtml(engine.engineName || "")}"
+              data-default-method-name="${escapeHtml(engine.defaultMethodName || fallbackEngine.defaultMethodName)}"
+              data-default-confidence-threshold="${escapeHtml(String(engine.defaultConfidenceThreshold ?? fallbackEngine.defaultConfidenceThreshold))}"
+              data-default-parameter-json="${escapeHtml(engine.defaultParameterJson || fallbackEngine.defaultParameterJson)}"
+              data-default-cli-method="${escapeHtml(engine.defaultCliMethod || "")}">
+              ${escapeHtml(engine.engineLabel || engine.engineName || "Engine")}
+            </option>
+          `).join("")}
         </select>
       </label>
       <label>
         Confidence threshold
-        <input id="adminCameraCalculationConfidenceInput" type="number" min="0" max="1" step="0.01" value="0.85">
+        <input id="adminCameraCalculationConfidenceInput" type="number" min="0" max="1" step="0.01" value="${escapeHtml(selectedEngine.defaultConfidenceThreshold ?? fallbackEngine.defaultConfidenceThreshold)}">
       </label>
       <label>
-        Rust executable
-        <input id="adminCameraRustExecutableInput" type="text" placeholder="optional path for Rust CLI">
+        CLI method
+        <input id="adminCameraCalculationCliMethodInput" type="text" value="${escapeHtml(selectedEngine.defaultCliMethod || "")}">
       </label>
       <label>
         Parameters JSON
-        <input id="adminCameraCalculationParamsInput" type="text" value="{&quot;source&quot;:&quot;dashboard&quot;}">
+        <input id="adminCameraCalculationParamsInput" type="text" value="${escapeHtml(selectedEngine.defaultParameterJson || fallbackEngine.defaultParameterJson)}">
       </label>
     </div>
     <div class="inline-actions">
@@ -317,12 +338,12 @@ function renderRecalculationPanel(selectedJobId, deltaSets, calculationRuns, run
         Delete delta set
       </button>
     </div>
-    ${renderRunComparison(safeRuns)}
+    ${renderRunComparison(safeRuns, selectedCalculationRunId)}
     ${renderRunComparisonDetails(runComparison)}
   `;
 }
 
-function renderRunComparison(calculationRuns) {
+function renderRunComparison(calculationRuns, selectedCalculationRunId) {
   if (calculationRuns.length === 0) {
     return `<p class="muted">No calculation runs exist for the selected delta set yet.</p>`;
   }
@@ -341,12 +362,14 @@ function renderRunComparison(calculationRuns) {
             <th>Duration</th>
             <th>ms/frame</th>
             <th>Created</th>
+            <th>Message</th>
             <th>Parameters</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           ${calculationRuns.map((run) => `
-            <tr>
+            <tr class="${Number(run.id) === Number(selectedCalculationRunId) ? "selected-row" : ""}">
               <td>${escapeHtml(String(run.id ?? "-"))}</td>
               <td>${escapeHtml(run.engineName ?? "-")}</td>
               <td>${escapeHtml(run.engineStatus ?? "-")}</td>
@@ -356,7 +379,13 @@ function renderRunComparison(calculationRuns) {
               <td>${formatDuration(run.executionDurationMs)}</td>
               <td>${formatMillisecondsPerFrame(run)}</td>
               <td>${escapeHtml(run.createdAt ?? "-")}</td>
+              <td>${escapeHtml(run.message ?? "-")}</td>
               <td><code>${escapeHtml(run.parameterJson ?? "{}")}</code></td>
+              <td>
+                <button type="button" class="button-secondary" data-admin-camera-select-calculation-run="${escapeHtml(String(run.id ?? ""))}">
+                  ${Number(run.id) === Number(selectedCalculationRunId) ? "Selected" : "Select"}
+                </button>
+              </td>
             </tr>
           `).join("")}
         </tbody>

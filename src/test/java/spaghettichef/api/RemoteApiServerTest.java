@@ -311,6 +311,59 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void getCameraCalculationEngineSettingsReturnsDefaults() throws Exception {
+        TestContext context = createContext("camera-engine-settings-get.db");
+
+        try {
+            HttpResponse<String> response = context.get("/admin/camera/calculation-engine-settings");
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"settings\":["));
+            assertTrue(response.body().contains("\"engineName\":\"JAVA_BASIC_DELTA\""));
+            assertTrue(response.body().contains("\"engineLabel\":\"Java basic delta\""));
+            assertTrue(response.body().contains("\"defaultConfidenceThreshold\":0.85"));
+            assertTrue(response.body().contains("\"engineName\":\"RUST_CLI_DELTA\""));
+            assertTrue(response.body().contains("\"defaultCliMethod\":\"delta-basic\""));
+            assertTrue(response.body().contains("\"executablePath\":null"));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
+    void putCameraCalculationEngineSettingsPersistsAdminChanges() throws Exception {
+        TestContext context = createContext("camera-engine-settings-put.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "PUT",
+                    "/admin/camera/calculation-engine-settings/RUST_CLI_DELTA",
+                    """
+                            {"engineLabel":"Rust tuned","enabled":false,"defaultMethodName":"spaghetti-rust","defaultConfidenceThreshold":0.7,"defaultParameterJson":"{\\"source\\":\\"admin\\"}","defaultCliMethod":"delta-tuned","executablePath":"/opt/spaghetti/img-analyzer","timeoutMs":12345,"sortOrder":5}
+                            """);
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"engineName\":\"RUST_CLI_DELTA\""));
+            assertTrue(response.body().contains("\"engineLabel\":\"Rust tuned\""));
+            assertTrue(response.body().contains("\"enabled\":false"));
+            assertTrue(response.body().contains("\"defaultMethodName\":\"spaghetti-rust\""));
+            assertTrue(response.body().contains("\"defaultConfidenceThreshold\":0.70"));
+            assertTrue(response.body().contains("\"defaultParameterJson\":\"{\\\"source\\\":\\\"admin\\\"}\""));
+            assertTrue(response.body().contains("\"defaultCliMethod\":\"delta-tuned\""));
+            assertTrue(response.body().contains("\"executablePath\":\"/opt/spaghetti/img-analyzer\""));
+            assertTrue(response.body().contains("\"timeoutMs\":12345"));
+            assertTrue(response.body().contains("\"sortOrder\":5"));
+
+            HttpResponse<String> getResponse = context.get("/admin/camera/calculation-engine-settings");
+            assertEquals(200, getResponse.statusCode());
+            assertTrue(getResponse.body().contains("\"engineLabel\":\"Rust tuned\""));
+            assertTrue(getResponse.body().contains("\"executablePath\":\"/opt/spaghetti/img-analyzer\""));
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void getSecuritySettingsReturnsDefaults() throws Exception {
         TestContext context = createContext("security-settings-get.db");
 

@@ -5,31 +5,44 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Objects;
 
-import spaghettichef.config.RuntimeDefaults;
 import spaghettichef.persistence.CameraSnapshotEntry;
 import spaghettichef.persistence.CameraSnapshotEntryStore;
 import spaghettichef.persistence.CameraDeltaFrame;
 
 public final class RustCliCalculationEngine implements SpaghettiCalculationEngine {
 
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
-
     private final Path executablePath;
+    private final String cliMethod;
+    private final Duration timeout;
     private final CameraSnapshotEntryStore snapshotEntryStore;
     private final RustCliAnalyzerProcess analyzerProcess;
 
     public RustCliCalculationEngine(Path executablePath) {
+        this(executablePath, null, Duration.ofSeconds(10));
+    }
+
+    public RustCliCalculationEngine(Path executablePath, String cliMethod, Duration timeout) {
         this(
-                executablePath == null ? configuredExecutablePath() : executablePath,
+                executablePath,
+                cliMethod,
+                timeout,
                 new CameraSnapshotEntryStore(),
                 new RustCliAnalyzerProcess());
     }
 
     public RustCliCalculationEngine(
             Path executablePath,
+            String cliMethod,
+            Duration timeout,
             CameraSnapshotEntryStore snapshotEntryStore,
             RustCliAnalyzerProcess analyzerProcess) {
         this.executablePath = executablePath;
+        this.cliMethod = cliMethod == null || cliMethod.isBlank()
+                ? RustCliAnalyzerRequest.DEFAULT_METHOD
+                : cliMethod.trim();
+        this.timeout = timeout == null || timeout.isZero() || timeout.isNegative()
+                ? Duration.ofSeconds(10)
+                : timeout;
         this.snapshotEntryStore = Objects.requireNonNull(snapshotEntryStore, "snapshotEntryStore");
         this.analyzerProcess = Objects.requireNonNull(analyzerProcess, "analyzerProcess");
     }
@@ -73,9 +86,9 @@ public final class RustCliCalculationEngine implements SpaghettiCalculationEngin
                 Path.of(fromSnapshot.snapshotPath()),
                 Path.of(toSnapshot.snapshotPath()),
                 Path.of(frame.deltaPath()),
-                "delta-basic",
+                cliMethod,
                 confidenceThreshold,
-                DEFAULT_TIMEOUT));
+                timeout));
 
         return new CalculationEngineResult(
                 response.confidence(),
@@ -87,13 +100,5 @@ public final class RustCliCalculationEngine implements SpaghettiCalculationEngin
 
     public Path executablePath() {
         return executablePath;
-    }
-
-    private static Path configuredExecutablePath() {
-        String configured = System.getProperty(RuntimeDefaults.RUST_ANALYZER_EXECUTABLE_PROPERTY);
-        if (configured == null || configured.isBlank()) {
-            return null;
-        }
-        return Path.of(configured.trim());
     }
 }
