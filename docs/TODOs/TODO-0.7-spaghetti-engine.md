@@ -311,16 +311,43 @@ The store should follow the same pattern as the other settings stores: load, sav
 
 #### 2. Settings Initialization And Cache
 
-Add Java factory defaults for the built-in engines.
+Add Java factory defaults for the built-in calculation engines.
+
+The settings model must support multiple calculation engines from the beginning. Do not hardcode `rust/img-analyzer` as the only Rust engine. A Rust executable path is configuration, not engine identity.
 
 Initial defaults should include:
 
 * Java basic delta enabled by default
-* Rust CLI delta available as a configured engine, but unavailable until an executable path is saved
-* default threshold `0.85`
-* default method name matching the dashboard/admin workflow
-* default Rust CLI method `delta-basic`
-* default Rust timeout matching the current behavior
+* at least one external CLI engine entry for Rust-based deterministic analysis
+* stable engine names, for example `JAVA_BASIC_DELTA` and `RUST_IMG_ANALYZER`
+* configurable dashboard labels for each engine
+* default method name per engine
+* default confidence threshold per engine
+* default parameter JSON per engine
+* default CLI method for external CLI engines
+* executable path for external CLI engines
+* timeout for external CLI engines
+* dashboard sort order
+
+The model should distinguish:
+
+```text
+engineName = which implementation or executable configuration is used
+methodName = which algorithm or mode is executed inside that engine
+```
+
+Examples:
+
+```text
+engineName: JAVA_BASIC_DELTA
+methodName: spaghetti-heuristic
+
+engineName: RUST_IMG_ANALYZER
+methodName: delta-basic
+
+engineName: RUST_IMG_ANALYZER
+methodName: delta-connected-components
+```
 
 On startup/database initialization:
 
@@ -328,10 +355,14 @@ On startup/database initialization:
 * insert missing built-in engine rows without overwriting existing admin changes
 * load settings through the settings service/cache
 * preserve admin-modified values across restarts and migrations
+* keep executable paths and timeouts in settings, not in per-run requests
+* keep local development auto-discovery out of production behavior
+
+A configured external engine may exist while unavailable. For example, a Rust engine can be enabled but still report unavailable if its executable path is empty or invalid.
 
 #### 3. REST API
 
-Add admin endpoints for engine settings.
+Add admin endpoints for calculation engine settings.
 
 Suggested endpoints:
 
@@ -356,36 +387,98 @@ The PUT request should allow updating:
 
 State-changing writes should follow existing admin/security/confirmation conventions.
 
+The API should use `engineName` as a stable identity. Do not use the executable path as identity. Paths may change; engine names should remain stable.
+
 #### 4. Dashboard Settings Card
 
-Add a new admin settings card for calculation engines.
+Add an admin settings card for calculation engines.
 
 The card should allow the operator to:
 
 * enable or disable each engine
 * edit the engine label
 * edit default method, threshold, and parameter JSON
-* edit Rust executable path and timeout for Rust engines
+* edit CLI method for external CLI engines
+* edit executable path and timeout for external CLI engines
+* edit dashboard sort order
 * save changes and see the persisted values after reload
 
-The recalculation panel should load enabled engines from these settings instead of hardcoding the dropdown.
+The recalculation panel should load enabled engines from persisted settings instead of hardcoding dropdown options.
 
 When an engine is selected, the panel should fill the calculation fields from that engine's settings:
 
 * default method name
 * default confidence threshold
 * default parameter JSON
-* default CLI method, if exposed
+* default CLI method, if relevant
 
 Changing these fields in the recalculation panel should affect only the requested run.
 
-#### 5. Calculation Service Integration
+Disabled engines should not appear as normal selectable engines in the recalculation panel.
 
-Update `CameraCalculationRunService` to resolve engine settings before running calculations.
+#### 5. Calculation Request Model
+
+Calculation requests should support engine selection and per-run overrides.
+
+Suggested request shape:
+
+```json
+{
+  "engineName": "RUST_IMG_ANALYZER",
+  "methodName": "delta-basic",
+  "confidenceThreshold": 0.85,
+  "parameterJson": "{}",
+  "cliMethod": "delta-basic",
+  "message": "dataset baseline run"
+}
+```
+
+If `engineName` is missing:
+
+```text
+use the configured default enabled engine
+```
+
+If `methodName` is missing:
+
+```text
+use the selected engine's default method name
+```
+
+If `confidenceThreshold` is missing:
+
+```text
+use the selected engine's default confidence threshold
+```
+
+If `parameterJson` is missing:
+
+```text
+use the selected engine's default parameter JSON
+```
+
+If `cliMethod` is missing for an external CLI engine:
+
+```text
+use the selected engine's default CLI method
+```
+
+Environment and process settings must not be per-run overrides:
+
+* executable path is settings-only
+* timeout is settings-only
+* engine label is settings-only
+* enabled/disabled state is settings-only
+
+Per-run overrides must be persisted on the calculation run so experiments remain reproducible.
+
+#### 6. Calculation Service Integration
+
+Update the calculation service to resolve engine settings before running calculations.
 
 For scheduled/live calculation during a camera job:
 
-* use the selected/default engine from settings
+* use the configured default engine
 * use method, threshold, parameter JSON, CLI method, executable path, and timeout from settings
 * do not require dashboard-provided values
 
@@ -393,28 +486,101 @@ For on-demand recalculation:
 
 * use the selected engine settings as defaults
 * apply request overrides only for allowed per-run fields
-* do not allow request overrides for executable path, timeout, engine label, or enabled state
-* persist the final resolved method, threshold, parameter JSON, engine name, engine version, and status on the run
+* reject attempts to override executable path, timeout, engine label, or enabled state
+* persist the final resolved values on the calculation run
 
-The calculation engine registry should receive a resolved engine configuration object instead of scattered primitive values.
+The persisted run should include:
 
-#### 6. Engine Compatibility Check
+* engine name
+* method name
+* confidence threshold
+* parameter JSON
+* CLI method, if relevant
+* engine version, if reported by the engine
+* status
+* processing time
+* result score
+* suspicion/detection decision
+* trace or metrics data, when available
 
-Ensure every engine follows the same settings flow.
+The calculation flow should receive a resolved engine configuration object instead of scattered primitive values.
+
+#### 7. External CLI Engine Contract
+
+External calculation engines should be integrated through a generic CLI adapter.
+
+Do not create a dedicated Java integration for every Rust executable unless a future engine requires a genuinely different protocol.
+
+The backend should treat external engines as configured executables that follow a common CLI contract.
+
+A typical command shape may be:
+
+```bash
+<executable> analyze-delta \
+  --input <delta-image-path> \
+  --method <method-name> \
+  --confidence-threshold <threshold> \
+  --params-json '<json>' \
+  --output-json <result-json-path>
+```
+
+Stdout JSON may also be supported if that is easier, but the contract must be explicit and consistent.
+
+Expected result shape:
+
+```json
+{
+  "engineName": "RUST_IMG_ANALYZER",
+  "methodName": "delta-basic",
+  "engineVersion": "0.1.0",
+  "inputPath": "dataset/pex01/deltas/1/1/001298_001299_delta.jpg",
+  "suspected": false,
+  "confidence": 0.12,
+  "score": 0.18,
+  "processingTimeMs": 14,
+  "metrics": {
+    "changedPixelRatio": 0.031,
+    "localChangeDensity": 0.22,
+    "largeSurfaceMotionScore": 0.68,
+    "chaoticLocalChangeScore": 0.11
+  },
+  "debugImagePath": null,
+  "message": "ok"
+}
+```
+
+The backend should validate and normalize this result before persistence.
+
+External CLI behavior:
+
+* use executable path from settings only
+* use timeout from settings only
+* use default CLI method from settings unless a per-run override is provided
+* return a clear unavailable/error state when executable path is missing
+* return a clear unavailable/error state when executable path is invalid
+* capture stderr or failure detail for diagnostics
+* enforce timeout
+* never rely on local development auto-discovery as production behavior
+
+#### 8. Engine Compatibility Check
+
+Ensure every engine follows the same settings resolution flow.
 
 Java basic delta must:
 
 * run from persisted settings defaults
 * accept allowed per-run threshold/method/parameter overrides
 * persist resolved run values
+* expose a compatible result shape
 
-Rust CLI delta must:
+External CLI engines must:
 
 * use executable path from settings only
 * use timeout from settings only
 * use CLI method from settings or allowed per-run override
-* report `UNAVAILABLE` when enabled but missing an executable path
-* never rely on local development path auto-discovery in production behavior
+* persist resolved run values
+* expose a compatible result shape
+* report unavailable when enabled but missing an executable path
 
 Disabled engines must:
 
@@ -422,7 +588,21 @@ Disabled engines must:
 * not run unless an explicit admin/test path allows it
 * return a clear validation error if requested through the API
 
-#### 7. Verification Workflow
+#### 9. Default Engine Selection
+
+When no `engineName` is provided, the backend should select a default engine deterministically.
+
+Initial rule:
+
+```text
+1. Pick the enabled engine with the lowest sort order.
+2. If no enabled engine is available, fall back to JAVA_BASIC_DELTA if available.
+3. If no usable engine exists, fail with a clear validation error.
+```
+
+A future explicit default-engine setting may be added later, but it is not required for this step.
+
+#### 10. Verification Workflow
 
 Test the settings lifecycle:
 
@@ -430,12 +610,17 @@ Test the settings lifecycle:
 * loading settings returns Java factory defaults before any admin edit
 * admin edit persists to the database
 * edited settings survive service reload/restart
+* all configured engines are returned by the settings API
+* disabled engines are visible in settings but hidden from normal recalculation selection
 * recalculation UI displays enabled engines and labels from settings
 * recalculation UI uses settings defaults when no per-run overrides are changed
 * per-run overrides affect only the created calculation run
 * per-run overrides do not update stored settings
-* Rust engine reports unavailable when enabled without an executable path
-* Rust engine runs successfully when a valid executable path is saved in settings
+* calculation runs persist final resolved values
+* Java engine uses the same settings resolution flow as external engines
+* external CLI engine reports unavailable when enabled without an executable path
+* external CLI engine reports unavailable when executable path is invalid
+* external CLI engine runs successfully when a valid executable path is saved
 * live/job-triggered calculation uses settings defaults
 * on-demand recalculation uses settings defaults plus operator overrides
 
@@ -444,16 +629,22 @@ Test the settings lifecycle:
 * Engine settings are persisted in the database and loaded through a settings service/cache.
 * Built-in engine settings are initialized from Java defaults only when missing.
 * Admin changes overwrite factory defaults and survive restart.
+* Engine names are stable identities and are not derived from executable paths.
+* Multiple engines can be configured from the same settings model.
 * Engine labels are configurable and used by the dashboard.
 * The dashboard exposes a calculation engine settings card.
 * The recalculation panel loads enabled engines from settings.
+* The recalculation request can select an engine with `engineName`.
+* If no engine is selected, the backend chooses a deterministic default.
 * Method, threshold, parameter JSON, and CLI method can be overridden for one run without changing settings.
-* Rust executable path and timeout are settings-only values.
+* Executable path and timeout are settings-only values.
 * Calculation runs persist the final resolved values used for reproducibility.
-* Java and Rust engines both use the same settings resolution flow.
+* Java and external CLI engines both use the same settings resolution flow.
+* External CLI engines use a common command/result contract.
+* Missing or invalid external executables produce clear unavailable/error results.
 * Local Rust development auto-discovery is removed or restricted so production behavior depends on persisted settings.
 
-
+---
 
 ## 0.7.2 — Performance and Accuracy Test Harness
 
@@ -495,8 +686,9 @@ Each result row should include:
 * expected result
 * actual result
 * pass/fail result
-* algorithm name
-* algorithm version
+* engine name
+* method name
+* engine version
 * parameters
 * processing time
 * detection score
@@ -520,7 +712,8 @@ Prefer open-source, portfolio-friendly tools:
 * The script runs against the 0.7.0 dataset.
 * Results are persisted in a structured format.
 * Reports include both accuracy and technical metrics.
-* Multiple algorithm variants can be compared.
+* Multiple engine/method variants can be compared.
+* The harness can compare Java and external CLI engines through the same result model.
 
 ---
 
@@ -532,7 +725,7 @@ Run the existing deterministic engine against the dataset and establish the firs
 
 ### Scope
 
-Use the 0.7.1 harness to evaluate the current engine.
+Use the 0.7.2 harness to evaluate the current engine.
 
 The baseline should show:
 
@@ -551,4 +744,3 @@ The baseline should show:
 * False positives and false negatives can be inspected.
 * Reports include automatic motion/noise metrics.
 * The baseline can later be compared with 0.8.x ML results.
- 
