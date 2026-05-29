@@ -12,12 +12,12 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-final class RustCliAnalyzerProcessTest {
+final class ExternalCliAnalyzerProcessTest {
 
     @Test
     void commandForBuildsSafeArgumentList() {
-        RustCliAnalyzerProcess process = new RustCliAnalyzerProcess();
-        RustCliAnalyzerRequest request = new RustCliAnalyzerRequest(
+        ExternalCliAnalyzerProcess process = new ExternalCliAnalyzerProcess();
+        ExternalCliAnalyzerRequest request = new ExternalCliAnalyzerRequest(
                 Path.of("/opt/spaghetti chef/img-analyzer"),
                 Path.of("/tmp/from snapshot.jpg"),
                 Path.of("/tmp/to snapshot.jpg"),
@@ -44,11 +44,11 @@ final class RustCliAnalyzerProcessTest {
 
     @Test
     void analyzeParsesSuccessfulJsonAndCapturesStderr() {
-        RustCliAnalyzerProcess process = new RustCliAnalyzerProcess();
+        ExternalCliAnalyzerProcess process = new ExternalCliAnalyzerProcess();
 
-        RustCliAnalyzerResponse response = process.analyze(requestFor("fake-rust-analyzer-success.sh"));
+        ExternalCliAnalyzerResponse response = process.analyze(requestFor("fake-rust-analyzer-success.sh"));
 
-        assertEquals(RustCliAnalyzerExitCode.SUCCESS, response.exitCode());
+        assertEquals(ExternalCliAnalyzerExitCode.SUCCESS, response.exitCode());
         assertEquals("RUST_CLI_DELTA", response.engineName());
         assertEquals("0.5.6", response.engineVersion());
         assertEquals("FRAME_DELTA", response.algorithmVariant());
@@ -63,33 +63,33 @@ final class RustCliAnalyzerProcessTest {
 
     @Test
     void analyzeThrowsForNonZeroExitAndKeepsStderr() {
-        RustCliAnalyzerProcess process = new RustCliAnalyzerProcess();
+        ExternalCliAnalyzerProcess process = new ExternalCliAnalyzerProcess();
 
-        RustCliAnalyzerException exception = assertThrows(
-                RustCliAnalyzerException.class,
+        ExternalCliAnalyzerException exception = assertThrows(
+                ExternalCliAnalyzerException.class,
                 () -> process.analyze(requestFor("fake-rust-analyzer-failure.sh")));
 
-        assertEquals(RustCliAnalyzerExitCode.IMAGE_SIZE_MISMATCH, exception.exitCode());
+        assertEquals(ExternalCliAnalyzerExitCode.IMAGE_SIZE_MISMATCH, exception.exitCode());
         assertTrue(exception.stderr().contains("fake analyzer failed"));
     }
 
     @Test
     void analyzeThrowsForInvalidJson() {
-        RustCliAnalyzerProcess process = new RustCliAnalyzerProcess();
+        ExternalCliAnalyzerProcess process = new ExternalCliAnalyzerProcess();
 
-        RustCliAnalyzerException exception = assertThrows(
-                RustCliAnalyzerException.class,
+        ExternalCliAnalyzerException exception = assertThrows(
+                ExternalCliAnalyzerException.class,
                 () -> process.analyze(requestFor("fake-rust-analyzer-invalid-json.sh")));
 
-        assertEquals(RustCliAnalyzerExitCode.SUCCESS, exception.exitCode());
+        assertEquals(ExternalCliAnalyzerExitCode.SUCCESS, exception.exitCode());
         assertTrue(exception.stdout().contains("not json"));
         assertTrue(exception.getMessage().contains("invalid JSON"));
     }
 
     @Test
     void analyzeThrowsForTimeout() {
-        RustCliAnalyzerProcess process = new RustCliAnalyzerProcess();
-        RustCliAnalyzerRequest request = new RustCliAnalyzerRequest(
+        ExternalCliAnalyzerProcess process = new ExternalCliAnalyzerProcess();
+        ExternalCliAnalyzerRequest request = new ExternalCliAnalyzerRequest(
                 scriptPath("fake-rust-analyzer-sleep.sh"),
                 Path.of("from.jpg"),
                 Path.of("to.jpg"),
@@ -98,28 +98,28 @@ final class RustCliAnalyzerProcessTest {
                 0.65,
                 Duration.ofMillis(100));
 
-        RustCliAnalyzerException exception = assertThrows(
-                RustCliAnalyzerException.class,
+        ExternalCliAnalyzerException exception = assertThrows(
+                ExternalCliAnalyzerException.class,
                 () -> process.analyze(request));
 
-        assertEquals(RustCliAnalyzerExitCode.UNKNOWN, exception.exitCode());
+        assertEquals(ExternalCliAnalyzerExitCode.UNKNOWN, exception.exitCode());
         assertTrue(exception.getMessage().contains("timed out"));
     }
 
     @Test
     void requestDoesNotRequireDeltaFrame() {
-        RustCliAnalyzerRequest request = RustCliAnalyzerRequest.of(
+        ExternalCliAnalyzerRequest request = ExternalCliAnalyzerRequest.of(
                 Path.of("img-analyzer"),
                 Path.of("from.jpg"),
                 Path.of("to.jpg"));
 
         assertFalse(request.deltaFramePath().isPresent());
-        assertEquals(RustCliAnalyzerRequest.DEFAULT_METHOD, request.method());
-        assertEquals(RustCliAnalyzerRequest.DEFAULT_THRESHOLD, request.threshold(), 0.0001);
+        assertEquals(ExternalCliAnalyzerRequest.DEFAULT_METHOD, request.method());
+        assertEquals(ExternalCliAnalyzerRequest.DEFAULT_THRESHOLD, request.threshold(), 0.0001);
     }
 
-    private static RustCliAnalyzerRequest requestFor(String resourceName) {
-        return new RustCliAnalyzerRequest(
+    private static ExternalCliAnalyzerRequest requestFor(String resourceName) {
+        return new ExternalCliAnalyzerRequest(
                 scriptPath(resourceName),
                 Path.of("from.jpg"),
                 Path.of("to.jpg"),
@@ -132,7 +132,7 @@ final class RustCliAnalyzerProcessTest {
     private static Path scriptPath(String resourceName) {
         try {
             Path path = Path.of(
-                    RustCliAnalyzerProcessTest.class
+                    ExternalCliAnalyzerProcessTest.class
                             .getClassLoader()
                             .getResource(resourceName)
                             .toURI());

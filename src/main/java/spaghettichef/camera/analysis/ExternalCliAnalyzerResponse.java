@@ -3,7 +3,7 @@ package spaghettichef.camera.analysis;
 import java.util.List;
 import java.util.Objects;
 
-public final class RustCliAnalyzerResponse {
+public final class ExternalCliAnalyzerResponse {
 
     private final String engineName;
     private final String engineVersion;
@@ -14,11 +14,11 @@ public final class RustCliAnalyzerResponse {
     private final String message;
     private final double changedPixelRatio;
     private final double averagePixelDelta;
-    private final RustCliAnalyzerExitCode exitCode;
+    private final ExternalCliAnalyzerExitCode exitCode;
     private final String stdout;
     private final String stderr;
 
-    public RustCliAnalyzerResponse(
+    public ExternalCliAnalyzerResponse(
             String engineName,
             String engineVersion,
             String algorithmVariant,
@@ -28,7 +28,7 @@ public final class RustCliAnalyzerResponse {
             String message,
             double changedPixelRatio,
             double averagePixelDelta,
-            RustCliAnalyzerExitCode exitCode,
+            ExternalCliAnalyzerExitCode exitCode,
             String stdout,
             String stderr) {
         this.engineName = requireText(engineName, "engineName");
@@ -81,7 +81,7 @@ public final class RustCliAnalyzerResponse {
         return averagePixelDelta;
     }
 
-    public RustCliAnalyzerExitCode exitCode() {
+    public ExternalCliAnalyzerExitCode exitCode() {
         return exitCode;
     }
 

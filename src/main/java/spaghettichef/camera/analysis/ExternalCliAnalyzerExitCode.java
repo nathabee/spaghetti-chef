@@ -1,6 +1,6 @@
 package spaghettichef.camera.analysis;
 
-public enum RustCliAnalyzerExitCode {
+public enum ExternalCliAnalyzerExitCode {
     SUCCESS(0, "success"),
     INVALID_ARGUMENTS(1, "invalid_arguments"),
     INPUT_FILE_NOT_FOUND(2, "input_file_not_found"),
@@ -13,7 +13,7 @@ public enum RustCliAnalyzerExitCode {
     private final int code;
     private final String label;
 
-    RustCliAnalyzerExitCode(int code, String label) {
+    ExternalCliAnalyzerExitCode(int code, String label) {
         this.code = code;
         this.label = label;
     }
@@ -26,8 +26,8 @@ public enum RustCliAnalyzerExitCode {
         return label;
     }
 
-    public static RustCliAnalyzerExitCode fromCode(int code) {
-        for (RustCliAnalyzerExitCode value : values()) {
+    public static ExternalCliAnalyzerExitCode fromCode(int code) {
+        for (ExternalCliAnalyzerExitCode value : values()) {
             if (value.code == code) {
                 return value;
             }

@@ -5,7 +5,7 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 
-public final class RustCliAnalyzerRequest {
+public final class ExternalCliAnalyzerRequest {
 
     public static final String DEFAULT_METHOD = "delta-basic";
     public static final double DEFAULT_THRESHOLD = 0.65;
@@ -19,7 +19,7 @@ public final class RustCliAnalyzerRequest {
     private final double threshold;
     private final Duration timeout;
 
-    public RustCliAnalyzerRequest(
+    public ExternalCliAnalyzerRequest(
             Path executablePath,
             Path fromSnapshotPath,
             Path toSnapshotPath,
@@ -36,11 +36,11 @@ public final class RustCliAnalyzerRequest {
         this.timeout = requireTimeout(timeout);
     }
 
-    public static RustCliAnalyzerRequest of(
+    public static ExternalCliAnalyzerRequest of(
             Path executablePath,
             Path fromSnapshotPath,
             Path toSnapshotPath) {
-        return new RustCliAnalyzerRequest(
+        return new ExternalCliAnalyzerRequest(
                 executablePath,
                 fromSnapshotPath,
                 toSnapshotPath,

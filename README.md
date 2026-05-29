@@ -24,6 +24,8 @@ The project currently combines:
 * host-to-printer SD-card upload diagnostics
 * local role/security and operator audit records
 * camera capture and persisted image analysis
+* camera storage reconciliation for imported/archive datasets
+* configurable Java and external CLI calculation engines
 * experimental Rust-based image analysis tooling
 
 For the detailed version plan, see [`docs/roadmap.md`](docs/roadmap.md).
@@ -50,7 +52,10 @@ At the current stage, it can:
 * generate persisted delta frames
 * run persisted calculation workflows
 * review camera analysis sessions
-* run a standalone Rust CLI image analyzer experiment
+* replay and inspect persisted camera data
+* import camera archive datasets for repeatable engine tests
+* configure calculation engines from the dashboard
+* run Java or external CLI image analyzers over the same delta data
 
 SpaghettiChef does not currently try to replace a slicer or a full production MES. It focuses on the local runtime layer: printer communication, control, observation, persistence, and operator-facing diagnostics.
 
@@ -58,7 +63,7 @@ SpaghettiChef does not currently try to replace a slicer or a full production ME
 
 ## Current development focus
 
-The current technical focus is the camera and visual-analysis subsystem.
+The current technical focus is the camera and visual-analysis subsystem: turning captured or imported image history into repeatable calculation runs that can be compared across engines.
 
 The 0.4.x work established a persisted camera model:
 
@@ -74,7 +79,17 @@ Calculation Runs
 Analysis Session Review
 ```
 
-The 0.5.x work introduces an independent Rust image-analysis track. The Rust tool is developed first as a standalone CLI analyzer and is intentionally not coupled to the Java backend at the beginning.
+The 0.5.x work introduced an independent Rust image-analysis track. The Rust tool started as a standalone CLI analyzer, then became callable from the Java runtime as an optional calculation engine.
+
+The 0.6.x work made persisted camera data easier to inspect, replay, delete, and keep aligned with the filesystem.
+
+The 0.7.x work adds the dataset and engine-settings layer:
+
+* runtime-compatible camera archive datasets under `dataset/`
+* storage/database synchronization for restored or imported camera files
+* manually labeled examples for later benchmark reports
+* persisted multi-engine settings for Java and external CLI analyzers
+* dashboard-based engine selection and per-run parameter overrides
 
 ---
 
@@ -90,7 +105,8 @@ flowchart TB
     jobs["Job and action services"]
     serial["Serial / simulated printer layer"]
     camera["Camera capture and analysis"]
-    rust["Rust img-analyzer CLI<br/>(0.5.x experimental)"]
+    engines["Calculation engines<br/>Java / external CLI"]
+    dataset["Runtime archive dataset"]
     printers["3D printers"]
 
     dashboard <--> api
@@ -99,10 +115,12 @@ flowchart TB
     runtime <--> monitoring
     runtime <--> jobs
     runtime <--> camera
+    runtime <--> engines
     jobs --> serial
     monitoring --> serial
     serial --> printers
-    camera -. future optional integration .-> rust
+    dataset -. sync .-> camera
+    camera --> engines
 ```
 
 SpaghettiChef keeps the Java runtime as the owner of API, persistence, dashboard, scheduling, printer workflows, and camera-job state. External image analyzers are treated as optional calculation engines, not as replacement backends.
@@ -151,7 +169,8 @@ Admin / Camera Data
 ├── retained source snapshots
 ├── delta sets
 ├── calculation runs
-└── recalculation workflows
+├── recalculation workflows
+└── engine comparison workflows
 ```
 
 The dashboard uses the API layer. It does not talk directly to serial devices or filesystem internals.
@@ -310,27 +329,49 @@ That makes recalculation and future engine comparison possible without overwriti
 
 ---
 
-## Rust image-analysis track
+## Dataset and engine experiments
 
-The 0.5.x track adds an experimental Rust image-analysis component.
+SpaghettiChef includes a runtime-compatible dataset folder for repeatable image-analysis work.
 
-The first Rust step is intentionally standalone:
+The dataset can hold camera files copied from another machine:
 
 ```text
-SpaghettiChef camera files
-        ↓
-rust/img-analyzer
-        ↓
-JSON result on stdout
+dataset/<printerId>/
+├── snapshots/<cameraJobId>/
+└── deltas/<cameraJobId>/<deltaSetId>/
 ```
 
-The Rust analyzer currently lives under:
+Dataset metadata and labels live separately under:
+
+```text
+dataset/json/<printerId>/
+```
+
+This lets archived camera files keep their original runtime layout while the local test database is recreated from scripts and storage synchronization.
+
+The current sync endpoint reconciles configured camera storage with database rows:
+
+```text
+POST /admin/camera/storage/{printerId}/sync
+```
+
+The sync is deliberately a generic camera storage/database reconciliation service. It does not read dataset labels, manifests, or model metadata.
+
+Calculation engines are configured from the dashboard settings. A built-in Java engine and external CLI engines can run against the same delta sets, and recalculation can override experiment parameters for one run without changing persisted defaults.
+
+---
+
+## Rust image-analysis track
+
+The Rust track adds an experimental image-analysis component that can be used as an external CLI calculation engine.
+
+The Rust analyzer lives under:
 
 ```text
 rust/img-analyzer/
 ```
 
-It can be built and run independently from the Java backend.
+It can still be built and run independently from the Java backend:
 
 Example:
 
@@ -349,7 +390,7 @@ Example output:
 ```json
 {
   "engineName": "RUST_CLI_DELTA",
-  "engineVersion": "0.5.0",
+  "engineVersion": "0.7.0",
   "algorithmVariant": "FRAME_DELTA",
   "confidence": 0.0148,
   "suspected": false,
@@ -362,18 +403,18 @@ Example output:
 }
 ```
 
-The Rust tool is not a second REST backend. The planned direction is a selectable calculation-engine model where Java remains the runtime owner and Rust can later be called as an optional external analyzer.
+The Rust tool is not a second REST backend. Java remains the runtime owner, and Rust is configured through the calculation-engine settings as an external analyzer.
 
 ```mermaid
 flowchart LR
     data["Persisted camera data<br/>snapshots / deltas"]
     javaEngine["Java calculation engine"]
-    rustEngine["Rust CLI analyzer<br/>(optional)"]
+    rustEngine["Rust CLI analyzer<br/>(external engine)"]
     result["CameraCalculationResult"]
     dashboard["Dashboard review"]
 
     data --> javaEngine
-    data -. future selectable engine .-> rustEngine
+    data --> rustEngine
     javaEngine --> result
     rustEngine --> result
     result --> dashboard
@@ -552,7 +593,7 @@ The dashboard uses relative API requests, so it follows the port used by the emb
 
 ## Running the Rust analyzer
 
-The Rust analyzer is currently independent from the Java runtime.
+The Rust analyzer can be run directly for local experiments, or configured as an external CLI engine from the dashboard settings.
 
 Build and test:
 
@@ -611,6 +652,9 @@ GET  /printers/{printerId}/camera/jobs/active
 GET  /admin/camera/snapshot/jobs?printerId=<printerId>
 GET  /admin/camera/snapshot/jobs/{cameraJobId}/timeline?printerId=<printerId>
 GET  /admin/camera/snapshot/files/{snapshotEntryId}
+POST /admin/camera/storage/{printerId}/sync
+GET  /admin/camera/calculation-engine-settings
+PUT  /admin/camera/calculation-engine-settings/{engineName}
 ```
 
 For the full API surface, see [`docs/rest-api.md`](docs/rest-api.md).
@@ -673,8 +717,10 @@ Current direction:
 
 ```text
 0.4.x  Camera jobs, persisted snapshots, delta sets, calculation runs, analysis review
-0.5.x  Rust image analyzer and future configurable calculation engines
-0.6.x  Replay, compression, and simulation review
+0.5.x  Rust image analyzer and calculation-engine integration
+0.6.x  Replay, purge, crop region, and camera data management
+0.7.x  Runtime archive datasets and multi-engine settings
+0.7.2  Performance and accuracy test harness
 1.0.x  Central multi-farm architecture
 ```
 

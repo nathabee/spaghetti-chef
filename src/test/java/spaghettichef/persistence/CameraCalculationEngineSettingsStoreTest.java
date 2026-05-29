@@ -45,7 +45,7 @@ class CameraCalculationEngineSettingsStoreTest {
         assertEquals("EXTERNAL_CLI", rustSettings.adapterType());
         assertEquals("Rust img-analyzer", rustSettings.engineLabel());
         assertTrue(rustSettings.enabled());
-        assertEquals(RuntimeDefaults.DEFAULT_CAMERA_RUST_CLI_METHOD, rustSettings.defaultCliMethod());
+        assertEquals(RuntimeDefaults.DEFAULT_CAMERA_EXTERNAL_CLI_METHOD, rustSettings.defaultCliMethod());
         assertNull(rustSettings.executablePath());
     }
 

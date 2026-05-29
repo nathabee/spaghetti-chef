@@ -13,7 +13,7 @@ import spaghettichef.camera.analysis.CalculationEngineConfiguration;
 import spaghettichef.camera.analysis.CalculationEngineRegistry;
 import spaghettichef.camera.analysis.CalculationEngineResult;
 import spaghettichef.camera.analysis.CalculationEngineStatus;
-import spaghettichef.camera.analysis.RustCliAnalyzerException;
+import spaghettichef.camera.analysis.ExternalCliAnalyzerException;
 import spaghettichef.camera.analysis.SpaghettiCalculationEngine;
 import spaghettichef.persistence.CameraCalculationResult;
 import spaghettichef.persistence.CameraCalculationResultStore;
@@ -191,7 +191,7 @@ public final class CameraCalculationRunService {
                     statusFor(exception).name(),
                     engine.engineVersion(),
                     elapsedMillis(startedAtNanos),
-                    OperationMessages.safeDetail(exception.getMessage(), "Rust calculation failed"));
+                    OperationMessages.safeDetail(exception.getMessage(), "External calculation failed"));
         }
 
         calculationRunStore.updateResultCount(run.requireId(), resultCount);
@@ -301,7 +301,7 @@ public final class CameraCalculationRunService {
     }
 
     private static CalculationEngineStatus statusFor(RuntimeException exception) {
-        if (exception instanceof RustCliAnalyzerException analyzerException) {
+        if (exception instanceof ExternalCliAnalyzerException analyzerException) {
             String message = analyzerException.getMessage() == null ? "" : analyzerException.getMessage();
             if (message.contains("timed out")) {
                 return CalculationEngineStatus.TIMEOUT;

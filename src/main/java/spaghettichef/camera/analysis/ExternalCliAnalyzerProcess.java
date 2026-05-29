@@ -13,7 +13,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class RustCliAnalyzerProcess {
+public final class ExternalCliAnalyzerProcess {
 
     private static final Pattern STRING_FIELD = Pattern.compile(
             "\"%s\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
@@ -25,7 +25,7 @@ public final class RustCliAnalyzerProcess {
             "\"reasonCodes\"\\s*:\\s*\\[(.*?)]",
             Pattern.DOTALL);
 
-    public RustCliAnalyzerResponse analyze(RustCliAnalyzerRequest request) {
+    public ExternalCliAnalyzerResponse analyze(ExternalCliAnalyzerRequest request) {
         List<String> command = commandFor(request);
         Process process = start(command);
         CompletableFuture<String> stdout = readAsync(process.getInputStream());
@@ -37,25 +37,25 @@ public final class RustCliAnalyzerProcess {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             process.destroyForcibly();
-            throw new RustCliAnalyzerException("Rust analyzer process was interrupted", exception);
+            throw new ExternalCliAnalyzerException("External analyzer process was interrupted", exception);
         }
 
         if (!completed) {
             process.destroyForcibly();
-            throw new RustCliAnalyzerException(
-                    "Rust analyzer process timed out after " + request.timeout(),
-                    RustCliAnalyzerExitCode.UNKNOWN,
+            throw new ExternalCliAnalyzerException(
+                    "External analyzer process timed out after " + request.timeout(),
+                    ExternalCliAnalyzerExitCode.UNKNOWN,
                     joinOutput(stdout, Duration.ofSeconds(1)),
                     joinOutput(stderr, Duration.ofSeconds(1)));
         }
 
         String stdoutText = joinOutput(stdout, request.timeout());
         String stderrText = joinOutput(stderr, request.timeout());
-        RustCliAnalyzerExitCode exitCode = RustCliAnalyzerExitCode.fromCode(process.exitValue());
+        ExternalCliAnalyzerExitCode exitCode = ExternalCliAnalyzerExitCode.fromCode(process.exitValue());
 
         if (process.exitValue() != 0) {
-            throw new RustCliAnalyzerException(
-                    "Rust analyzer exited with code " + process.exitValue() + " (" + exitCode.label() + ")",
+            throw new ExternalCliAnalyzerException(
+                    "External analyzer exited with code " + process.exitValue() + " (" + exitCode.label() + ")",
                     exitCode,
                     stdoutText,
                     stderrText);
@@ -64,15 +64,15 @@ public final class RustCliAnalyzerProcess {
         try {
             return parseResponse(stdoutText, stderrText, exitCode);
         } catch (RuntimeException exception) {
-            throw new RustCliAnalyzerException(
-                    "Rust analyzer returned invalid JSON: " + exception.getMessage(),
+            throw new ExternalCliAnalyzerException(
+                    "External analyzer returned invalid JSON: " + exception.getMessage(),
                     exitCode,
                     stdoutText,
                     stderrText);
         }
     }
 
-    public List<String> commandFor(RustCliAnalyzerRequest request) {
+    public List<String> commandFor(ExternalCliAnalyzerRequest request) {
         List<String> command = new ArrayList<>();
         command.add(request.executablePath().toString());
         command.add("--from-snapshot");
@@ -94,7 +94,7 @@ public final class RustCliAnalyzerProcess {
         try {
             return new ProcessBuilder(command).start();
         } catch (IOException exception) {
-            throw new RustCliAnalyzerException("Failed to start Rust analyzer process", exception);
+            throw new ExternalCliAnalyzerException("Failed to start External analyzer process", exception);
         }
     }
 
@@ -113,24 +113,24 @@ public final class RustCliAnalyzerProcess {
             return output.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new RustCliAnalyzerException("Interrupted while reading analyzer process output", exception);
+            throw new ExternalCliAnalyzerException("Interrupted while reading analyzer process output", exception);
         } catch (ExecutionException exception) {
-            throw new RustCliAnalyzerException("Failed to read analyzer process output", exception);
+            throw new ExternalCliAnalyzerException("Failed to read analyzer process output", exception);
         } catch (TimeoutException exception) {
             return "";
         }
     }
 
-    private static RustCliAnalyzerResponse parseResponse(
+    private static ExternalCliAnalyzerResponse parseResponse(
             String stdout,
             String stderr,
-            RustCliAnalyzerExitCode exitCode) {
+            ExternalCliAnalyzerExitCode exitCode) {
         String json = stdout == null ? "" : stdout.trim();
         if (!json.startsWith("{") || !json.endsWith("}")) {
             throw new IllegalArgumentException("expected one JSON object on stdout");
         }
 
-        return new RustCliAnalyzerResponse(
+        return new ExternalCliAnalyzerResponse(
                 stringField(json, "engineName"),
                 stringField(json, "engineVersion"),
                 stringField(json, "algorithmVariant"),
