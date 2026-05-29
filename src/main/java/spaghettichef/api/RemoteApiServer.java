@@ -80,6 +80,7 @@ import spaghettichef.camera.CameraCalculationComparisonFrame;
 import spaghettichef.camera.CameraCalculationComparisonService;
 import spaghettichef.camera.CameraCalculationRunComparison;
 import spaghettichef.camera.CameraCalculationRunSummary;
+import spaghettichef.camera.CameraCalculationEngineSettingsService;
 import spaghettichef.camera.CameraJobDeletionReport;
 import spaghettichef.camera.CameraJobDeletionRequest;
 import spaghettichef.camera.CameraJobDeletionService;
@@ -100,6 +101,7 @@ import spaghettichef.persistence.CameraCalculationResult;
 import spaghettichef.persistence.CameraCalculationResultStore;
 import spaghettichef.persistence.CameraCalculationRun;
 import spaghettichef.persistence.CameraCalculationRunStore;
+import spaghettichef.persistence.CameraCalculationEngineSettings;
 import spaghettichef.persistence.CameraAnalysisSampleStore;
 import spaghettichef.persistence.CameraAnalysisSessionStore;
 import spaghettichef.persistence.CameraEventStore;
@@ -170,6 +172,7 @@ public final class RemoteApiServer {
     private final CameraStorageSyncService cameraStorageSyncService;
     private final CameraAnalysisTraceService cameraAnalysisTraceService;
     private final CameraCalculationComparisonService cameraCalculationComparisonService;
+    private final CameraCalculationEngineSettingsService cameraCalculationEngineSettingsService;
     private final Path cameraStorageDirectory;
 
     private HttpServer server;
@@ -322,6 +325,7 @@ public final class RemoteApiServer {
         this.cameraCalculationRunService = new CameraCalculationRunService();
         this.cameraCalculationRunStore = new CameraCalculationRunStore();
         this.cameraCalculationResultStore = new CameraCalculationResultStore();
+        this.cameraCalculationEngineSettingsService = new CameraCalculationEngineSettingsService();
         this.cameraStorageSyncService = new CameraStorageSyncService(
                 new CameraSettingsStore(),
                 cameraJobStore,
@@ -890,6 +894,11 @@ public final class RemoteApiServer {
             return;
         }
 
+        if (path.startsWith("/admin/camera/calculation-engine-settings")) {
+            handleAdminCameraCalculationEngineSettings(exchange, path);
+            return;
+        }
+
         if (path.startsWith("/admin/camera/calculation-runs/")) {
             handleAdminCameraCalculationRun(exchange, path);
             return;
@@ -1092,7 +1101,7 @@ public final class RemoteApiServer {
                         optionalJsonString(body, "parameterJson", null),
                         optionalJsonString(body, "message", null),
                         optionalJsonString(body, "engineName", null),
-                        optionalJsonString(body, "rustExecutablePath", null));
+                        optionalJsonString(body, "cliMethod", null));
                 sendJson(exchange, 201, "{\"calculationRun\":" + cameraCalculationRunJson(run) + "}");
                 return;
             }
@@ -1135,6 +1144,61 @@ public final class RemoteApiServer {
                 optionalJsonBoolean(body, "createMissingCameraJobs", true),
                 optionalJsonBoolean(body, "createMissingDeltaSets", true),
                 optionalJsonString(body, "requiredConfirmation", null));
+    }
+
+    private void handleAdminCameraCalculationEngineSettings(HttpExchange exchange, String path) throws IOException {
+        String method = exchange.getRequestMethod();
+        String prefix = "/admin/camera/calculation-engine-settings";
+
+        if (path.equals(prefix)) {
+            if (!"GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+                return;
+            }
+
+            sendJson(exchange, 200, cameraCalculationEngineSettingsListJson(
+                    cameraCalculationEngineSettingsService.list()));
+            return;
+        }
+
+        if (!path.startsWith(prefix + "/")) {
+            sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+            return;
+        }
+
+        String engineName = URLDecoder.decode(path.substring((prefix + "/").length()), StandardCharsets.UTF_8);
+        if (engineName.isBlank()) {
+            sendJson(exchange, 404, errorJson(OperationMessages.resourceNotFound(path)));
+            return;
+        }
+
+        if (!"PUT".equalsIgnoreCase(method)) {
+            sendJson(exchange, 405, errorJson(OperationMessages.METHOD_NOT_ALLOWED));
+            return;
+        }
+
+        CameraCalculationEngineSettings current = cameraCalculationEngineSettingsService
+                .findByEngineName(engineName)
+                .orElseThrow(() -> new IllegalArgumentException("camera_calculation_engine_settings_not_found"));
+        String body = readBody(exchange);
+        CameraCalculationEngineSettings updated = new CameraCalculationEngineSettings(
+                current.engineName(),
+                optionalJsonString(body, "engineLabel", current.engineLabel()),
+                optionalJsonBoolean(body, "enabled", current.enabled()),
+                optionalJsonString(body, "defaultMethodName", current.defaultMethodName()),
+                optionalJsonDouble(body, "defaultConfidenceThreshold", current.defaultConfidenceThreshold()),
+                optionalJsonString(body, "defaultParameterJson", current.defaultParameterJson()),
+                optionalJsonString(body, "defaultCliMethod", current.defaultCliMethod()),
+                optionalJsonString(body, "executablePath", current.executablePath()),
+                optionalJsonInteger(body, "timeoutMs", current.timeoutMs()),
+                optionalJsonInteger(body, "sortOrder", current.sortOrder()),
+                current.createdAt(),
+                Instant.now());
+
+        sendJson(exchange, 200, "{"
+                + "\"settings\":" + cameraCalculationEngineSettingsJson(
+                        cameraCalculationEngineSettingsService.save(updated))
+                + "}");
     }
 
     private void handleAdminCameraCalculationRun(HttpExchange exchange, String path) throws IOException {
@@ -2516,6 +2580,36 @@ public final class RemoteApiServer {
                 + "}";
     }
 
+    private String cameraCalculationEngineSettingsListJson(List<CameraCalculationEngineSettings> settings) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"settings\":[");
+        for (int index = 0; index < settings.size(); index++) {
+            if (index > 0) {
+                json.append(",");
+            }
+            json.append(cameraCalculationEngineSettingsJson(settings.get(index)));
+        }
+        json.append("]}");
+        return json.toString();
+    }
+
+    private String cameraCalculationEngineSettingsJson(CameraCalculationEngineSettings settings) {
+        return "{"
+                + "\"engineName\":\"" + escapeJson(settings.engineName()) + "\","
+                + "\"engineLabel\":\"" + escapeJson(settings.engineLabel()) + "\","
+                + "\"enabled\":" + settings.enabled() + ","
+                + "\"defaultMethodName\":\"" + escapeJson(settings.defaultMethodName()) + "\","
+                + "\"defaultConfidenceThreshold\":" + formatDouble(settings.defaultConfidenceThreshold()) + ","
+                + "\"defaultParameterJson\":\"" + escapeJson(settings.defaultParameterJson()) + "\","
+                + "\"defaultCliMethod\":" + nullableString(settings.defaultCliMethod()) + ","
+                + "\"executablePath\":" + nullableString(settings.executablePath()) + ","
+                + "\"timeoutMs\":" + settings.timeoutMs() + ","
+                + "\"sortOrder\":" + settings.sortOrder() + ","
+                + "\"createdAt\":\"" + escapeJson(settings.createdAt().toString()) + "\","
+                + "\"updatedAt\":\"" + escapeJson(settings.updatedAt().toString()) + "\""
+                + "}";
+    }
+
     private String roleProfilesJson(Map<LocalRole, RoleProfile> profiles) {
         StringBuilder json = new StringBuilder();
         json.append("{\"roleProfiles\":[");
@@ -3581,7 +3675,7 @@ public final class RemoteApiServer {
 
     private String optionalJsonString(String body, String fieldName, String fallback) {
         Pattern pattern = Pattern.compile(
-                "\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*\"([^\"]*)\"");
+                "\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
 
         Matcher matcher = pattern.matcher(body);
 
@@ -3589,7 +3683,19 @@ public final class RemoteApiServer {
             return fallback;
         }
 
-        return matcher.group(1);
+        return unescapeJsonString(matcher.group(1));
+    }
+
+    private String unescapeJsonString(String value) {
+        return value
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+                .replace("\\/", "/")
+                .replace("\\b", "\b")
+                .replace("\\f", "\f")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t");
     }
 
     private String queryParameter(String rawQuery, String name) {

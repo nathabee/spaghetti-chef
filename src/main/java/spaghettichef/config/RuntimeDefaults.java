@@ -49,7 +49,12 @@ public final class RuntimeDefaults {
     public static final int DEFAULT_CAMERA_FFMPEG_TIMEOUT_MS = 5000;
     public static final int DEFAULT_CAMERA_FFMPEG_JPEG_QUALITY = 3;
     public static final String DEFAULT_CAMERA_STORAGE_DIRECTORY = "camera";
-    public static final String RUST_ANALYZER_EXECUTABLE_PROPERTY = "spaghettichef.rustAnalyzerExecutable";
+    public static final String DEFAULT_CAMERA_CALCULATION_ENGINE_NAME = "JAVA_BASIC_DELTA";
+    public static final String DEFAULT_CAMERA_CALCULATION_METHOD_NAME = "spaghetti-heuristic";
+    public static final double DEFAULT_CAMERA_CALCULATION_CONFIDENCE_THRESHOLD = 0.85;
+    public static final String DEFAULT_CAMERA_CALCULATION_PARAMETER_JSON = "{\"source\":\"settings\"}";
+    public static final String DEFAULT_CAMERA_RUST_CLI_METHOD = "delta-basic";
+    public static final int DEFAULT_CAMERA_RUST_CLI_TIMEOUT_MS = 10_000;
 
 
 

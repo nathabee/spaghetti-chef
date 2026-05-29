@@ -27,6 +27,8 @@ import spaghettichef.persistence.CameraCalculationResult;
 import spaghettichef.persistence.CameraCalculationResultStore;
 import spaghettichef.persistence.CameraCalculationRun;
 import spaghettichef.persistence.CameraCalculationRunStore;
+import spaghettichef.persistence.CameraCalculationEngineSettings;
+import spaghettichef.persistence.CameraCalculationEngineSettingsStore;
 import spaghettichef.persistence.CameraJob;
 import spaghettichef.persistence.CameraJobStore;
 import spaghettichef.persistence.CameraSettings;
@@ -219,6 +221,7 @@ class CameraDeltaSetServiceTest {
                 1,
                 null,
                 null);
+        configureRustExecutable(scriptPath("fake-rust-analyzer-success.sh"));
 
         CameraCalculationRun javaRun = calculationService().run(
                 deltaResult.deltaSet().requireId(),
@@ -233,8 +236,7 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust run",
-                "RUST_CLI_DELTA",
-                scriptPath("fake-rust-analyzer-success.sh").toString());
+                "RUST_CLI_DELTA");
 
         assertTrue(javaRun.requireId() != rustRun.requireId());
         assertEquals("JAVA_BASIC_DELTA", javaRun.engineName());
@@ -262,6 +264,7 @@ class CameraDeltaSetServiceTest {
                 1,
                 null,
                 null);
+        configureRustExecutable(scriptPath("fake-rust-analyzer-invalid-json.sh"));
 
         CameraCalculationRun rustRun = calculationService().run(
                 deltaResult.deltaSet().requireId(),
@@ -269,13 +272,70 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust invalid",
-                "RUST_CLI_DELTA",
-                scriptPath("fake-rust-analyzer-invalid-json.sh").toString());
+                "RUST_CLI_DELTA");
 
         assertEquals("RUST_CLI_DELTA", rustRun.engineName());
         assertEquals("INVALID_RESPONSE", rustRun.engineStatus());
         assertEquals(0, rustRun.resultCount());
         assertTrue(rustRun.message().contains("invalid JSON"));
+    }
+
+    @Test
+    void calculationUsesSettingsDefaultsAndRunOverridesDoNotMutateSettings() throws Exception {
+        useDatabase("camera-calculation-engine-settings-flow.db");
+        CameraJob job = saveCameraJob("printer-1");
+        saveCameraSettings("printer-1");
+        saveSnapshots("printer-1", job.requireId(), 3);
+        CameraDeltaSetGenerationResult deltaResult = service().generate(
+                "printer-1",
+                job.requireId(),
+                1,
+                null,
+                null);
+        CameraCalculationEngineSettingsStore settingsStore = new CameraCalculationEngineSettingsStore();
+        CameraCalculationEngineSettings javaSettings = settingsStore.findByEngineName("JAVA_BASIC_DELTA").orElseThrow();
+        settingsStore.save(new CameraCalculationEngineSettings(
+                javaSettings.engineName(),
+                javaSettings.engineLabel(),
+                javaSettings.enabled(),
+                "settings-method",
+                0.42,
+                "{\"source\":\"settings\"}",
+                javaSettings.defaultCliMethod(),
+                javaSettings.executablePath(),
+                javaSettings.timeoutMs(),
+                javaSettings.sortOrder(),
+                javaSettings.createdAt(),
+                javaSettings.updatedAt()));
+
+        CameraCalculationRun settingsRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                null,
+                null,
+                null,
+                "settings run",
+                "JAVA_BASIC_DELTA");
+        CameraCalculationRun overrideRun = calculationService().run(
+                deltaResult.deltaSet().requireId(),
+                "override-method",
+                0.77,
+                "{\"source\":\"override\"}",
+                "override run",
+                "JAVA_BASIC_DELTA");
+
+        assertEquals("settings-method", settingsRun.methodName());
+        assertTrue(settingsRun.parameterJson().contains("\"confidenceThreshold\":0.42"));
+        assertTrue(settingsRun.parameterJson().contains("\"source\":\"settings\""));
+        assertEquals("override-method", overrideRun.methodName());
+        assertTrue(overrideRun.parameterJson().contains("\"confidenceThreshold\":0.77"));
+        assertTrue(overrideRun.parameterJson().contains("\"source\":\"override\""));
+
+        CameraCalculationEngineSettings loadedSettings = settingsStore
+                .findByEngineName("JAVA_BASIC_DELTA")
+                .orElseThrow();
+        assertEquals("settings-method", loadedSettings.defaultMethodName());
+        assertEquals(0.42, loadedSettings.defaultConfidenceThreshold());
+        assertEquals("{\"source\":\"settings\"}", loadedSettings.defaultParameterJson());
     }
 
     @Test
@@ -290,6 +350,7 @@ class CameraDeltaSetServiceTest {
                 1,
                 null,
                 null);
+        configureRustExecutable(scriptPath("fake-rust-analyzer-success.sh"));
 
         CameraCalculationRun javaRun = calculationService().run(
                 deltaResult.deltaSet().requireId(),
@@ -304,8 +365,7 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust run",
-                "RUST_CLI_DELTA",
-                scriptPath("fake-rust-analyzer-success.sh").toString());
+                "RUST_CLI_DELTA");
 
         CameraCalculationRunComparison comparison = new CameraCalculationComparisonService()
                 .compare(javaRun.requireId(), rustRun.requireId(), "printer-1");
@@ -338,6 +398,24 @@ class CameraDeltaSetServiceTest {
                 new CameraCalculationRunStore(),
                 new CameraCalculationResultStore(),
                 FIXED_CLOCK);
+    }
+
+    private void configureRustExecutable(Path executablePath) {
+        CameraCalculationEngineSettingsStore store = new CameraCalculationEngineSettingsStore();
+        CameraCalculationEngineSettings current = store.findByEngineName("RUST_CLI_DELTA").orElseThrow();
+        store.save(new CameraCalculationEngineSettings(
+                current.engineName(),
+                current.engineLabel(),
+                current.enabled(),
+                current.defaultMethodName(),
+                current.defaultConfidenceThreshold(),
+                current.defaultParameterJson(),
+                current.defaultCliMethod(),
+                executablePath.toString(),
+                current.timeoutMs(),
+                current.sortOrder(),
+                current.createdAt(),
+                current.updatedAt()));
     }
 
     private CameraJob saveCameraJob(String printerId) {

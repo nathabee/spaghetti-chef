@@ -1,17 +1,21 @@
 package spaghettichef.camera.analysis;
 
-import java.nio.file.Path;
-
 public final class CalculationEngineRegistry {
 
     public SpaghettiCalculationEngine resolve(CalculationEngineName engineName) {
-        return resolve(engineName, null);
+        return resolve(new CalculationEngineConfiguration(engineName, null, null, null));
     }
 
-    public SpaghettiCalculationEngine resolve(CalculationEngineName engineName, Path rustExecutablePath) {
-        return switch (engineName == null ? CalculationEngineName.JAVA_BASIC_DELTA : engineName) {
+    public SpaghettiCalculationEngine resolve(CalculationEngineConfiguration configuration) {
+        CalculationEngineConfiguration resolved = configuration == null
+                ? new CalculationEngineConfiguration(CalculationEngineName.JAVA_BASIC_DELTA, null, null, null)
+                : configuration;
+        return switch (resolved.engineName()) {
             case JAVA_BASIC_DELTA -> new JavaBasicDeltaCalculationEngine();
-            case RUST_CLI_DELTA -> new RustCliCalculationEngine(rustExecutablePath);
+            case RUST_CLI_DELTA -> new RustCliCalculationEngine(
+                    resolved.executablePath(),
+                    resolved.cliMethod(),
+                    resolved.timeout());
             case DISABLED -> throw new IllegalArgumentException("calculation engine is disabled");
         };
     }

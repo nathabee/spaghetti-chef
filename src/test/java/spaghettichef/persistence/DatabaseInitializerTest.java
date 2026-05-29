@@ -41,6 +41,7 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("camera_delta_frames"));
         assertTrue(tableExists("camera_calculation_runs"));
         assertTrue(tableExists("camera_calculation_results"));
+        assertTrue(tableExists("camera_calculation_engine_settings"));
     }
 
     @Test
@@ -64,6 +65,7 @@ class DatabaseInitializerTest {
         assertTrue(tableExists("camera_delta_frames"));
         assertTrue(tableExists("camera_calculation_runs"));
         assertTrue(tableExists("camera_calculation_results"));
+        assertTrue(tableExists("camera_calculation_engine_settings"));
     }
 
     @Test

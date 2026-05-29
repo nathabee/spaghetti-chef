@@ -9,6 +9,7 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
   const monitoringRules = state.monitoringRules || {};
   const printFileSettings = state.printFileSettings || {};
   const serialTransferSettings = state.serialTransferSettings || {};
+  const engineSettings = state.cameraCalculationEngineSettings || [];
   const securitySettings = state.securitySettings || {};
   const appVersion = state.appVersion || {};
   const securityRoles = state.securityRoles || [];
@@ -172,6 +173,19 @@ import { currentLocalRole, disabledUnlessPermission, securityModeLabel, state } 
       <article class="section-card">
         <div class="section-header">
           <div>
+            <h2>Calculation engines</h2>
+            <p class="lead">Defaults used by live analysis and on-demand recalculation.</p>
+          </div>
+        </div>
+
+        <div class="list-block">
+          ${engineSettings.length === 0 ? `<p class="muted">No calculation engine settings loaded yet.</p>` : engineSettings.map((settings) => renderEngineSettingsForm(settings, settingsDisabled)).join("")}
+        </div>
+      </article>
+
+      <article class="section-card">
+        <div class="section-header">
+          <div>
             <h2>Local security</h2>
             <p class="lead">Local role defaults used by the upcoming backend permission guards.</p>
           </div>
@@ -296,6 +310,76 @@ function renderRoleProfile(profile) {
       </div>
       <p class="muted">${permissions.map(escapeHtml).join(", ")}</p>
     </article>
+  `;
+}
+
+function renderEngineSettingsForm(settings, disabled) {
+  const engineName = settings.engineName || "";
+  const isRust = engineName.includes("RUST");
+  return `
+    <form class="config-card form-grid" data-engine-settings-form="${escapeHtml(engineName)}">
+      <div class="section-header compact">
+        <div>
+          <h3>${escapeHtml(settings.engineLabel || engineName)}</h3>
+          <p class="meta">${escapeHtml(engineName)}</p>
+        </div>
+        <span class="badge ${settings.enabled ? "badge-enabled" : "badge-disabled"}">${settings.enabled ? "enabled" : "disabled"}</span>
+      </div>
+
+      <label class="checkbox-label">
+        <input name="enabled" type="checkbox" ${settings.enabled ? "checked" : ""}>
+        Enabled
+      </label>
+
+      <label>
+        Engine label
+        <input name="engineLabel" type="text" value="${escapeHtml(settings.engineLabel || engineName)}" required>
+      </label>
+
+      <label>
+        Default method
+        <input name="defaultMethodName" type="text" value="${escapeHtml(settings.defaultMethodName || "spaghetti-heuristic")}" required>
+      </label>
+
+      <label>
+        Default confidence threshold
+        <input name="defaultConfidenceThreshold" type="number" min="0" max="1" step="0.01" value="${escapeHtml(settings.defaultConfidenceThreshold ?? 0.85)}" required>
+      </label>
+
+      <label>
+        Default parameters JSON
+        <input name="defaultParameterJson" type="text" value="${escapeHtml(settings.defaultParameterJson || "{}")}" required>
+      </label>
+
+      ${isRust ? `
+        <label>
+          Rust executable path
+          <input name="executablePath" type="text" value="${escapeHtml(settings.executablePath || "")}">
+        </label>
+
+        <label>
+          Rust CLI method
+          <input name="defaultCliMethod" type="text" value="${escapeHtml(settings.defaultCliMethod || "delta-basic")}">
+        </label>
+      ` : `
+        <input name="executablePath" type="hidden" value="${escapeHtml(settings.executablePath || "")}">
+        <input name="defaultCliMethod" type="hidden" value="${escapeHtml(settings.defaultCliMethod || "")}">
+      `}
+
+      <label>
+        Timeout ms
+        <input name="timeoutMs" type="number" min="1" step="1" value="${escapeHtml(settings.timeoutMs ?? 10000)}" required>
+      </label>
+
+      <label>
+        Sort order
+        <input name="sortOrder" type="number" min="0" step="1" value="${escapeHtml(settings.sortOrder ?? 10)}" required>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" ${disabled}>Save ${escapeHtml(settings.engineLabel || engineName)}</button>
+      </div>
+    </form>
   `;
 }
 
