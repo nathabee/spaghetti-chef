@@ -196,9 +196,9 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 null,
-                "RUST_CLI_DELTA");
+                "RUST_IMG_ANALYZER");
 
-        assertEquals("RUST_CLI_DELTA", run.engineName());
+        assertEquals("RUST_IMG_ANALYZER", run.engineName());
         assertEquals("FRAME_DELTA", run.algorithmVariant());
         assertEquals("UNAVAILABLE", run.engineStatus());
         assertEquals(0, run.resultCount());
@@ -236,11 +236,11 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust run",
-                "RUST_CLI_DELTA");
+                "RUST_IMG_ANALYZER");
 
         assertTrue(javaRun.requireId() != rustRun.requireId());
         assertEquals("JAVA_BASIC_DELTA", javaRun.engineName());
-        assertEquals("RUST_CLI_DELTA", rustRun.engineName());
+        assertEquals("RUST_IMG_ANALYZER", rustRun.engineName());
         assertEquals("SUCCESS", rustRun.engineStatus());
         assertEquals("0.5.6", rustRun.engineVersion());
         assertEquals(2, rustRun.resultCount());
@@ -272,9 +272,9 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust invalid",
-                "RUST_CLI_DELTA");
+                "RUST_IMG_ANALYZER");
 
-        assertEquals("RUST_CLI_DELTA", rustRun.engineName());
+        assertEquals("RUST_IMG_ANALYZER", rustRun.engineName());
         assertEquals("INVALID_RESPONSE", rustRun.engineStatus());
         assertEquals(0, rustRun.resultCount());
         assertTrue(rustRun.message().contains("invalid JSON"));
@@ -296,6 +296,7 @@ class CameraDeltaSetServiceTest {
         CameraCalculationEngineSettings javaSettings = settingsStore.findByEngineName("JAVA_BASIC_DELTA").orElseThrow();
         settingsStore.save(new CameraCalculationEngineSettings(
                 javaSettings.engineName(),
+                javaSettings.adapterType(),
                 javaSettings.engineLabel(),
                 javaSettings.enabled(),
                 "settings-method",
@@ -365,7 +366,7 @@ class CameraDeltaSetServiceTest {
                 0.65,
                 null,
                 "rust run",
-                "RUST_CLI_DELTA");
+                "RUST_IMG_ANALYZER");
 
         CameraCalculationRunComparison comparison = new CameraCalculationComparisonService()
                 .compare(javaRun.requireId(), rustRun.requireId(), "printer-1");
@@ -402,9 +403,10 @@ class CameraDeltaSetServiceTest {
 
     private void configureRustExecutable(Path executablePath) {
         CameraCalculationEngineSettingsStore store = new CameraCalculationEngineSettingsStore();
-        CameraCalculationEngineSettings current = store.findByEngineName("RUST_CLI_DELTA").orElseThrow();
+        CameraCalculationEngineSettings current = store.findByEngineName("RUST_IMG_ANALYZER").orElseThrow();
         store.save(new CameraCalculationEngineSettings(
                 current.engineName(),
+                current.adapterType(),
                 current.engineLabel(),
                 current.enabled(),
                 current.defaultMethodName(),

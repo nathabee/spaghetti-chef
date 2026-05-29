@@ -15,6 +15,7 @@ public final class CameraCalculationEngineSettingsDefaults {
         return List.of(
                 new CameraCalculationEngineSettings(
                         "JAVA_BASIC_DELTA",
+                        "JAVA_BASIC_DELTA",
                         "Java basic delta",
                         true,
                         RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_METHOD_NAME,
@@ -27,8 +28,9 @@ public final class CameraCalculationEngineSettingsDefaults {
                         timestamp,
                         timestamp),
                 new CameraCalculationEngineSettings(
-                        "RUST_CLI_DELTA",
-                        "Rust CLI delta",
+                        "RUST_IMG_ANALYZER",
+                        "EXTERNAL_CLI",
+                        "Rust img-analyzer",
                         true,
                         RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_METHOD_NAME,
                         RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_CONFIDENCE_THRESHOLD,

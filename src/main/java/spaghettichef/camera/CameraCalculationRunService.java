@@ -8,9 +8,8 @@ import java.util.List;
 import java.util.Objects;
 
 import spaghettichef.OperationMessages;
-import spaghettichef.config.RuntimeDefaults;
+import spaghettichef.camera.analysis.CalculationEngineAdapterType;
 import spaghettichef.camera.analysis.CalculationEngineConfiguration;
-import spaghettichef.camera.analysis.CalculationEngineName;
 import spaghettichef.camera.analysis.CalculationEngineRegistry;
 import spaghettichef.camera.analysis.CalculationEngineResult;
 import spaghettichef.camera.analysis.CalculationEngineStatus;
@@ -126,7 +125,7 @@ public final class CameraCalculationRunService {
                 settings.engineName(),
                 resolvedCliMethod);
         SpaghettiCalculationEngine engine = engineRegistry.resolve(new CalculationEngineConfiguration(
-                CalculationEngineName.fromWireValue(settings.engineName()),
+                CalculationEngineAdapterType.fromWireValue(settings.adapterType()),
                 normalizeExecutablePath(settings.executablePath()),
                 resolvedCliMethod,
                 Duration.ofMillis(settings.timeoutMs())));
@@ -142,8 +141,8 @@ public final class CameraCalculationRunService {
                     resolvedParameterJson,
                     createdAt,
                     0,
-                    engineUnavailableMessage(message, engine),
-                    engine.engineName().name(),
+                    engineUnavailableMessage(message, settings),
+                    settings.engineName(),
                     engine.algorithmVariant(),
                     engine.engineVersion(),
                     elapsedMillis(startedAtNanos),
@@ -160,7 +159,7 @@ public final class CameraCalculationRunService {
                 createdAt,
                 frames.size(),
                 message,
-                engine.engineName().name(),
+                settings.engineName(),
                 engine.algorithmVariant(),
                 engine.engineVersion(),
                 null,
@@ -205,16 +204,23 @@ public final class CameraCalculationRunService {
     }
 
     private CameraCalculationEngineSettings resolveEngineSettings(String engineName) {
-        String resolvedEngineName = engineName == null || engineName.isBlank()
-                ? RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_ENGINE_NAME
-                : CalculationEngineName.fromWireValue(engineName).name();
-        CameraCalculationEngineSettings settings = engineSettingsService.findByEngineName(resolvedEngineName)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "camera calculation engine settings not found: " + resolvedEngineName));
+        CameraCalculationEngineSettings settings = engineName == null || engineName.isBlank()
+                ? defaultEngineSettings()
+                : engineSettingsService.findByEngineName(engineName.trim())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "camera calculation engine settings not found: " + engineName.trim()));
         if (!settings.enabled()) {
-            throw new IllegalArgumentException("camera calculation engine is disabled: " + resolvedEngineName);
+            throw new IllegalArgumentException("camera calculation engine is disabled: " + settings.engineName());
         }
         return settings;
+    }
+
+    private CameraCalculationEngineSettings defaultEngineSettings() {
+        return engineSettingsService.list().stream()
+                .filter(CameraCalculationEngineSettings::enabled)
+                .findFirst()
+                .or(() -> engineSettingsService.findByEngineName("JAVA_BASIC_DELTA"))
+                .orElseThrow(() -> new IllegalArgumentException("no camera calculation engine is configured"));
     }
 
     private static String normalizeMethodName(String methodName, String defaultMethodName) {
@@ -265,8 +271,8 @@ public final class CameraCalculationRunService {
         return Math.max(0L, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos));
     }
 
-    private static String engineUnavailableMessage(String requestedMessage, SpaghettiCalculationEngine engine) {
-        String defaultMessage = "Calculation engine unavailable: " + engine.engineName().name();
+    private static String engineUnavailableMessage(String requestedMessage, CameraCalculationEngineSettings settings) {
+        String defaultMessage = "Calculation engine unavailable: " + settings.engineName();
         if (requestedMessage == null || requestedMessage.isBlank()) {
             return defaultMessage;
         }

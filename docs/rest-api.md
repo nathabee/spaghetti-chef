@@ -2292,7 +2292,7 @@ Request body:
 }
 ```
 
-`methodName`, `confidenceThreshold`, `parameterJson`, and `cliMethod` are per-run overrides. If omitted, the selected engine's persisted settings are used. Environment/process values such as the Rust executable path and timeout are configured through calculation engine settings, not on individual runs.
+`methodName`, `confidenceThreshold`, `parameterJson`, and `cliMethod` are per-run overrides. If omitted, the selected engine's persisted settings are used. Environment/process values such as external executable paths and timeouts are configured through calculation engine settings, not on individual runs.
 
 Response shape:
 
@@ -2330,6 +2330,7 @@ Response shape:
   "settings": [
     {
       "engineName": "JAVA_BASIC_DELTA",
+      "adapterType": "JAVA_BASIC_DELTA",
       "engineLabel": "Java basic delta",
       "enabled": true,
       "defaultMethodName": "spaghetti-heuristic",
@@ -2356,7 +2357,8 @@ Request body:
 
 ```json
 {
-  "engineLabel": "Rust CLI delta",
+  "adapterType": "EXTERNAL_CLI",
+  "engineLabel": "Rust img-analyzer",
   "enabled": true,
   "defaultMethodName": "spaghetti-heuristic",
   "defaultConfidenceThreshold": 0.85,
@@ -2373,8 +2375,9 @@ Response shape:
 ```json
 {
   "settings": {
-    "engineName": "RUST_CLI_DELTA",
-    "engineLabel": "Rust CLI delta",
+    "engineName": "RUST_IMG_ANALYZER",
+    "adapterType": "EXTERNAL_CLI",
+    "engineLabel": "Rust img-analyzer",
     "enabled": true,
     "defaultMethodName": "spaghetti-heuristic",
     "defaultConfidenceThreshold": 0.85,

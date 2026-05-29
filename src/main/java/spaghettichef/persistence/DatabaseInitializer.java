@@ -140,6 +140,8 @@ public final class DatabaseInitializer {
             ensureColumn(connection, "camera_calculation_runs", "execution_duration_ms", "INTEGER");
             ensureColumn(connection, "camera_calculation_runs", "engine_status",
                     "TEXT NOT NULL DEFAULT 'SUCCESS'");
+            ensureColumn(connection, "camera_calculation_engine_settings", "adapter_type",
+                    "TEXT NOT NULL DEFAULT 'JAVA_BASIC_DELTA'");
 
             ensureBuiltInRoleProfiles(connection);
             ensureBuiltInCameraCalculationEngineSettings(connection);
@@ -428,6 +430,7 @@ public final class DatabaseInitializer {
         String sql = """
                 CREATE TABLE IF NOT EXISTS camera_calculation_engine_settings (
                     engine_name TEXT PRIMARY KEY,
+                    adapter_type TEXT NOT NULL,
                     engine_label TEXT NOT NULL,
                     enabled INTEGER NOT NULL,
                     default_method_name TEXT NOT NULL,

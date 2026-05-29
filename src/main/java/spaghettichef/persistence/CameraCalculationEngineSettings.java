@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record CameraCalculationEngineSettings(
         String engineName,
+        String adapterType,
         String engineLabel,
         boolean enabled,
         String defaultMethodName,
@@ -18,6 +19,7 @@ public record CameraCalculationEngineSettings(
 
     public CameraCalculationEngineSettings {
         engineName = requireText(engineName, "engineName");
+        adapterType = requireText(adapterType, "adapterType");
         engineLabel = requireText(engineLabel, "engineLabel");
         defaultMethodName = requireText(defaultMethodName, "defaultMethodName");
         defaultParameterJson = normalizeJson(defaultParameterJson);
@@ -42,6 +44,7 @@ public record CameraCalculationEngineSettings(
     public CameraCalculationEngineSettings withUpdatedAt(Instant updatedAt) {
         return new CameraCalculationEngineSettings(
                 engineName,
+                adapterType,
                 engineLabel,
                 enabled,
                 defaultMethodName,

@@ -1183,6 +1183,7 @@ public final class RemoteApiServer {
         String body = readBody(exchange);
         CameraCalculationEngineSettings updated = new CameraCalculationEngineSettings(
                 current.engineName(),
+                optionalJsonString(body, "adapterType", current.adapterType()),
                 optionalJsonString(body, "engineLabel", current.engineLabel()),
                 optionalJsonBoolean(body, "enabled", current.enabled()),
                 optionalJsonString(body, "defaultMethodName", current.defaultMethodName()),
@@ -2596,6 +2597,7 @@ public final class RemoteApiServer {
     private String cameraCalculationEngineSettingsJson(CameraCalculationEngineSettings settings) {
         return "{"
                 + "\"engineName\":\"" + escapeJson(settings.engineName()) + "\","
+                + "\"adapterType\":\"" + escapeJson(settings.adapterType()) + "\","
                 + "\"engineLabel\":\"" + escapeJson(settings.engineLabel()) + "\","
                 + "\"enabled\":" + settings.enabled() + ","
                 + "\"defaultMethodName\":\"" + escapeJson(settings.defaultMethodName()) + "\","

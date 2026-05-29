@@ -1893,6 +1893,7 @@ async function handleSaveCameraCalculationEngineSettings(form) {
 
   const engineName = form.dataset.engineSettingsForm;
   const payload = {
+    adapterType: form.querySelector("[name='adapterType']").value,
     enabled: form.querySelector("[name='enabled']").checked,
     engineLabel: form.querySelector("[name='engineLabel']").value.trim(),
     defaultMethodName: form.querySelector("[name='defaultMethodName']").value.trim(),

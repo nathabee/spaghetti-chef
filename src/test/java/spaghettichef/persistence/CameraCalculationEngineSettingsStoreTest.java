@@ -33,6 +33,7 @@ class CameraCalculationEngineSettingsStoreTest {
         CameraCalculationEngineSettings javaSettings = settings.get(0);
         CameraCalculationEngineSettings rustSettings = settings.get(1);
         assertEquals("JAVA_BASIC_DELTA", javaSettings.engineName());
+        assertEquals("JAVA_BASIC_DELTA", javaSettings.adapterType());
         assertEquals("Java basic delta", javaSettings.engineLabel());
         assertTrue(javaSettings.enabled());
         assertEquals(RuntimeDefaults.DEFAULT_CAMERA_CALCULATION_METHOD_NAME, javaSettings.defaultMethodName());
@@ -40,8 +41,9 @@ class CameraCalculationEngineSettingsStoreTest {
                 javaSettings.defaultConfidenceThreshold());
         assertNull(javaSettings.executablePath());
 
-        assertEquals("RUST_CLI_DELTA", rustSettings.engineName());
-        assertEquals("Rust CLI delta", rustSettings.engineLabel());
+        assertEquals("RUST_IMG_ANALYZER", rustSettings.engineName());
+        assertEquals("EXTERNAL_CLI", rustSettings.adapterType());
+        assertEquals("Rust img-analyzer", rustSettings.engineLabel());
         assertTrue(rustSettings.enabled());
         assertEquals(RuntimeDefaults.DEFAULT_CAMERA_RUST_CLI_METHOD, rustSettings.defaultCliMethod());
         assertNull(rustSettings.executablePath());
@@ -51,10 +53,11 @@ class CameraCalculationEngineSettingsStoreTest {
     void savePersistsAdminModifiedSettings() {
         useDatabase("camera-engine-settings-save.db");
         CameraCalculationEngineSettingsStore store = new CameraCalculationEngineSettingsStore();
-        CameraCalculationEngineSettings rustSettings = store.findByEngineName("RUST_CLI_DELTA").orElseThrow();
+        CameraCalculationEngineSettings rustSettings = store.findByEngineName("RUST_IMG_ANALYZER").orElseThrow();
 
         CameraCalculationEngineSettings saved = store.save(new CameraCalculationEngineSettings(
                 rustSettings.engineName(),
+                rustSettings.adapterType(),
                 "Rust tuned",
                 false,
                 "spaghetti-tuned",
@@ -67,7 +70,7 @@ class CameraCalculationEngineSettingsStoreTest {
                 rustSettings.createdAt(),
                 Instant.now()));
 
-        CameraCalculationEngineSettings loaded = store.findByEngineName("RUST_CLI_DELTA").orElseThrow();
+        CameraCalculationEngineSettings loaded = store.findByEngineName("RUST_IMG_ANALYZER").orElseThrow();
         assertEquals(saved.engineName(), loaded.engineName());
         assertEquals("Rust tuned", loaded.engineLabel());
         assertFalse(loaded.enabled());
@@ -87,6 +90,7 @@ class CameraCalculationEngineSettingsStoreTest {
         CameraCalculationEngineSettings javaSettings = store.findByEngineName("JAVA_BASIC_DELTA").orElseThrow();
         store.save(new CameraCalculationEngineSettings(
                 javaSettings.engineName(),
+                javaSettings.adapterType(),
                 "Java custom label",
                 true,
                 javaSettings.defaultMethodName(),
@@ -116,6 +120,7 @@ class CameraCalculationEngineSettingsStoreTest {
         CameraCalculationEngineSettings javaSettings = store.findByEngineName("JAVA_BASIC_DELTA").orElseThrow();
         store.save(new CameraCalculationEngineSettings(
                 javaSettings.engineName(),
+                javaSettings.adapterType(),
                 "Java saved behind cache",
                 javaSettings.enabled(),
                 javaSettings.defaultMethodName(),
