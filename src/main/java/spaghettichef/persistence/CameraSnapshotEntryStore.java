@@ -247,6 +247,93 @@ public final class CameraSnapshotEntryStore {
         }
     }
 
+    public CameraSnapshotEntry reactivateFile(long id) {
+        if (id <= 0L) {
+            throw new IllegalArgumentException("camera snapshot entry id must be greater than zero");
+        }
+
+        String sql = """
+                UPDATE camera_snapshot_entries
+                SET file_deleted = 0,
+                    deleted_at = NULL,
+                    deletion_reason = NULL
+                WHERE id = ?;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, id);
+            int updated = statement.executeUpdate();
+
+            if (updated != 1) {
+                throw new IllegalStateException("Camera snapshot entry not found: " + id);
+            }
+
+            return findById(id)
+                    .orElseThrow(() -> new IllegalStateException("Camera snapshot entry not found: " + id));
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to reactivate camera snapshot entry", exception);
+        }
+    }
+
+    public Optional<CameraSnapshotEntry> findBySnapshotPath(String printerId, long cameraJobId, String snapshotPath) {
+        String normalizedPrinterId = normalizePrinterId(printerId);
+        if (cameraJobId <= 0L) {
+            throw new IllegalArgumentException("cameraJobId must be greater than zero");
+        }
+        if (snapshotPath == null || snapshotPath.isBlank()) {
+            throw new IllegalArgumentException("snapshotPath must not be blank");
+        }
+
+        String sql = selectColumns() + """
+                FROM camera_snapshot_entries
+                WHERE printer_id = ?
+                    AND camera_job_id = ?
+                    AND snapshot_path = ?
+                ORDER BY id DESC
+                LIMIT 1;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, normalizedPrinterId);
+            statement.setLong(2, cameraJobId);
+            statement.setString(3, snapshotPath.trim());
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera snapshot entry", exception);
+        }
+    }
+
+    public int deleteById(long id) {
+        if (id <= 0L) {
+            throw new IllegalArgumentException("camera snapshot entry id must be greater than zero");
+        }
+
+        String sql = "DELETE FROM camera_snapshot_entries WHERE id = ?";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, id);
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera snapshot entry", exception);
+        }
+    }
+
     public List<CameraSnapshotEntry> findByJobId(String jobId) {
         Long cameraJobId = parseCameraJobId(jobId);
 

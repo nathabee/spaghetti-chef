@@ -155,6 +155,52 @@ public final class CameraDeltaFrameStore {
         }
     }
 
+    public Optional<CameraDeltaFrame> findByDeltaPath(long deltaSetId, String deltaPath) {
+        if (deltaPath == null || deltaPath.isBlank()) {
+            throw new IllegalArgumentException("deltaPath must not be blank");
+        }
+
+        String sql = selectColumns() + """
+                FROM camera_delta_frames
+                WHERE delta_set_id = ?
+                    AND delta_path = ?
+                ORDER BY id DESC
+                LIMIT 1;
+                """;
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(deltaSetId, "deltaSetId"));
+            statement.setString(2, deltaPath.trim());
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(mapRow(resultSet));
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to load camera delta frame", exception);
+        }
+    }
+
+    public int deleteById(long id) {
+        String sql = "DELETE FROM camera_delta_frames WHERE id = ?;";
+
+        try (
+                Connection connection = Database.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setLong(1, requirePositive(id, "id"));
+            return statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to delete camera delta frame", exception);
+        }
+    }
+
     public int deleteByCameraJobId(long cameraJobId) {
         String sql = "DELETE FROM camera_delta_frames WHERE camera_job_id = ?;";
 

@@ -2,204 +2,7 @@
 
  
 
-
-## 0.5.x analysis engine architecture + Rust integration
-see TODO-0.5-rust.md
-status : on progress
-
-## 0.6.x — Replay, Compression, And Simulation Review
-
-see TODO-0.6-replay.md
-status : planned
-
-## 0.7.x Upload and Simulation Hardening 
-
-status : planned
-
-### 0.7.1 — Print Asset Transfer and Printer File Handling Hardening
-
-status: planned
-
-Goals:
-
-* harden Mode 2 host-side handling of printable files used by file-backed jobs
-* clarify how SpaghettiChef transfers, selects, or exposes prepared `.gcode` files to the printer
-* improve validation and error reporting around missing, unreadable, or invalid print files
-* make print-file handling more reviewable in dashboard and API
-* avoid ambiguous failures during print activation caused by file-path or transfer problems
-
-Focus:
-
-* host-side printable file registry or controlled file reference handling
-* validation of file existence, readability, and allowed type
-* clearer distinction between:
-
-  * job exists but file missing
-  * file invalid
-  * file cannot be transferred, selected, or exposed
-  * printer-side print activation failed after transfer/selection
-* persist file-related diagnostics in job execution history
-
-Expected result:
-
-* file-backed print jobs become safer and more predictable
-* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
-* the runtime becomes more reliable for repeated real print activation
-
----
-
-### 0.7.2 — Post-Print Review and Operational History Hardening
-
-status: planned
-
-Goals:
-
-* improve reviewability after completed, failed, or cancelled print jobs
-* strengthen operator visibility of final print outcome
-* correlate print job lifecycle, printer events, and execution diagnostics more clearly
-* make local troubleshooting easier after real print runs
-
-Focus:
-
-* better final job summaries
-* clearer per-step execution history in dashboard
-* stronger linkage between printer-side events and job-side state changes
-* clearer operator-facing failure narratives for real print attempts
-
-Expected result:
-
-* local print operations become easier to review after the fact
-* SpaghettiChef becomes more usable for repeated real-printer operations and troubleshooting
-* audit value improves beyond raw event storage
  
-
----
-
-### 0.7.3 — Simulation upload more realistic
-
-status: planned
-
-Goals:
-
-* make simulated SD-card upload behavior correct enough for normal Step E validation
-* ensure default simulated upload always succeeds end-to-end when no error mode is requested
-* improve simulator credibility for checksum, resend, timeout, and SD-card file-list workflows
-* separate deterministic simulation from fault-injection simulation
-* make upload and recovery scenarios testable without real hardware
-
-Scope:
-
-This step strengthens the simulated printer behavior around SD-card upload and related serial protocol flows.
-
-It does not try to emulate full firmware complexity.
-It focuses on the parts needed to validate SpaghettiChef upload, recovery, and dashboard behavior with confidence.
-
-#### Step A — make baseline simulated SD upload correct
-
-Goals:
-
-* support `M28` upload-open behavior in the simulator
-* accept uploaded checksummed payload lines during an active simulated write session
-* support `M29` upload-close behavior
-* make `M20` list the uploaded file after a successful simulated upload
-* keep the baseline `sim` mode deterministic and stable
-
-Expected result:
-
-* uploading to a normal simulated printer works from dashboard and API
-* uploaded file appears in simulated SD listing
-* Step E upload flow can be validated without a real printer
-
-#### Step B — model simulated SD-card state explicitly
-
-Goals:
-
-* introduce an internal simulated SD-card file registry
-* persist uploaded simulated files in memory for the runtime session
-* allow delete/list/read-style workflows to operate on the same simulated state
-* keep simulator behavior consistent across repeated commands in one session
-
-Expected result:
-
-* simulator behaves like a coherent fake firmware target instead of isolated command stubs
-* SD upload, file listing, and deletion share the same internal model
-
-#### Step C — separate success simulation from fault simulation
-
-Goals:
-
-* keep `sim` as the reliable happy-path mode
-* introduce dedicated fault-oriented simulation modes for upload stress testing
-* avoid mixing normal development simulation with random failure behavior
-
-Planned modes:
-
-* `sim` or equivalent baseline success mode
-* `sim-random-good` for mostly recoverable disturbances
-* `sim-random-bad` for heavy disturbance and likely upload failure
-
-Expected result:
-
-* developers can choose between stable validation and protocol stress testing
-* upload regressions are easier to classify
-
-#### Step D — add realistic protocol disturbance profiles
-
-Goals:
-
-* simulate resend requests during upload
-* simulate occasional checksum or line-order errors
-* simulate timeout-style degraded responses where appropriate
-* keep fault probabilities bounded by the selected simulation mode
-
-Expected result:
-
-* Step E recovery logic can be exercised against believable simulated failures
-* upload controller behavior can be validated before real-printer testing
-
-#### Step E — harden tests around simulation-specific upload behavior
-
-Goals:
-
-* add focused tests for simulated `M28` / payload / `M29` / `M20`
-* add tests proving uploaded simulated files appear in SD listing
-* add tests for deterministic success mode
-* add tests for recoverable and non-recoverable simulated upload faults
-* keep simulator changes covered at both unit and integration level
-
-Expected result:
-
-* simulated upload behavior is no longer accidental or under-tested
-* future protocol refactors are less likely to break simulation silently
-
-
-#### Out of scope
-
-Not part of this step:
-
-* full Marlin emulation
-* exact firmware-specific timing reproduction
-* persistent simulated SD storage across application restarts
-* complete simulation of all printer commands
-
-#### Likely impacted areas
-
-Main code:
-
-* `src/main/java/spaghettichef/serial/SimulatedPrinterPort.java`
-* `src/main/java/spaghettichef/runtime/PrinterRuntimeNodeFactory.java`
-
-Tests:
-
-* `src/test/java/spaghettichef/serial/SimulatedPrinterPortTest.java`
-* `src/test/java/spaghettichef/command/SdCardUploadServiceTest.java`
-* `src/test/java/spaghettichef/api/RemoteApiServerTest.java`
-
-
-
-
-
----
 
 
 ## 1.0.x — Central VPS Multi-Farm Management
@@ -359,7 +162,200 @@ Goals:
 
 ---
 
-## 2.0.x - Steamed G-Code
+
+# ungeplanned :
+
+## ???? 0.7.x Upload and Simulation Hardening 
+
+status : planned
+
+### ?.7.1 — Print Asset Transfer and Printer File Handling Hardening
+
+status: planned
+
+Goals:
+
+* harden Mode 2 host-side handling of printable files used by file-backed jobs
+* clarify how SpaghettiChef transfers, selects, or exposes prepared `.gcode` files to the printer
+* improve validation and error reporting around missing, unreadable, or invalid print files
+* make print-file handling more reviewable in dashboard and API
+* avoid ambiguous failures during print activation caused by file-path or transfer problems
+
+Focus:
+
+* host-side printable file registry or controlled file reference handling
+* validation of file existence, readability, and allowed type
+* clearer distinction between:
+
+  * job exists but file missing
+  * file invalid
+  * file cannot be transferred, selected, or exposed
+  * printer-side print activation failed after transfer/selection
+* persist file-related diagnostics in job execution history
+
+Expected result:
+
+* file-backed print jobs become safer and more predictable
+* operators can understand whether a print failure is caused by printer behavior or by file-handling problems
+* the runtime becomes more reliable for repeated real print activation
+
+---
+
+### ?.7.2 — Post-Print Review and Operational History Hardening
+
+status: planned
+
+Goals:
+
+* improve reviewability after completed, failed, or cancelled print jobs
+* strengthen operator visibility of final print outcome
+* correlate print job lifecycle, printer events, and execution diagnostics more clearly
+* make local troubleshooting easier after real print runs
+
+Focus:
+
+* better final job summaries
+* clearer per-step execution history in dashboard
+* stronger linkage between printer-side events and job-side state changes
+* clearer operator-facing failure narratives for real print attempts
+
+Expected result:
+
+* local print operations become easier to review after the fact
+* SpaghettiChef becomes more usable for repeated real-printer operations and troubleshooting
+* audit value improves beyond raw event storage
+ 
+
+---
+
+### ?.7.3 — Simulation upload more realistic
+
+status: planned
+
+Goals:
+
+* make simulated SD-card upload behavior correct enough for normal Step E validation
+* ensure default simulated upload always succeeds end-to-end when no error mode is requested
+* improve simulator credibility for checksum, resend, timeout, and SD-card file-list workflows
+* separate deterministic simulation from fault-injection simulation
+* make upload and recovery scenarios testable without real hardware
+
+Scope:
+
+This step strengthens the simulated printer behavior around SD-card upload and related serial protocol flows.
+
+It does not try to emulate full firmware complexity.
+It focuses on the parts needed to validate SpaghettiChef upload, recovery, and dashboard behavior with confidence.
+
+#### Step A — make baseline simulated SD upload correct
+
+Goals:
+
+* support `M28` upload-open behavior in the simulator
+* accept uploaded checksummed payload lines during an active simulated write session
+* support `M29` upload-close behavior
+* make `M20` list the uploaded file after a successful simulated upload
+* keep the baseline `sim` mode deterministic and stable
+
+Expected result:
+
+* uploading to a normal simulated printer works from dashboard and API
+* uploaded file appears in simulated SD listing
+* Step E upload flow can be validated without a real printer
+
+#### Step B — model simulated SD-card state explicitly
+
+Goals:
+
+* introduce an internal simulated SD-card file registry
+* persist uploaded simulated files in memory for the runtime session
+* allow delete/list/read-style workflows to operate on the same simulated state
+* keep simulator behavior consistent across repeated commands in one session
+
+Expected result:
+
+* simulator behaves like a coherent fake firmware target instead of isolated command stubs
+* SD upload, file listing, and deletion share the same internal model
+
+#### Step C — separate success simulation from fault simulation
+
+Goals:
+
+* keep `sim` as the reliable happy-path mode
+* introduce dedicated fault-oriented simulation modes for upload stress testing
+* avoid mixing normal development simulation with random failure behavior
+
+Planned modes:
+
+* `sim` or equivalent baseline success mode
+* `sim-random-good` for mostly recoverable disturbances
+* `sim-random-bad` for heavy disturbance and likely upload failure
+
+Expected result:
+
+* developers can choose between stable validation and protocol stress testing
+* upload regressions are easier to classify
+
+#### Step D — add realistic protocol disturbance profiles
+
+Goals:
+
+* simulate resend requests during upload
+* simulate occasional checksum or line-order errors
+* simulate timeout-style degraded responses where appropriate
+* keep fault probabilities bounded by the selected simulation mode
+
+Expected result:
+
+* Step E recovery logic can be exercised against believable simulated failures
+* upload controller behavior can be validated before real-printer testing
+
+#### Step E — harden tests around simulation-specific upload behavior
+
+Goals:
+
+* add focused tests for simulated `M28` / payload / `M29` / `M20`
+* add tests proving uploaded simulated files appear in SD listing
+* add tests for deterministic success mode
+* add tests for recoverable and non-recoverable simulated upload faults
+* keep simulator changes covered at both unit and integration level
+
+Expected result:
+
+* simulated upload behavior is no longer accidental or under-tested
+* future protocol refactors are less likely to break simulation silently
+
+
+#### Out of scope
+
+Not part of this step:
+
+* full Marlin emulation
+* exact firmware-specific timing reproduction
+* persistent simulated SD storage across application restarts
+* complete simulation of all printer commands
+
+#### Likely impacted areas
+
+Main code:
+
+* `src/main/java/spaghettichef/serial/SimulatedPrinterPort.java`
+* `src/main/java/spaghettichef/runtime/PrinterRuntimeNodeFactory.java`
+
+Tests:
+
+* `src/test/java/spaghettichef/serial/SimulatedPrinterPortTest.java`
+* `src/test/java/spaghettichef/command/SdCardUploadServiceTest.java`
+* `src/test/java/spaghettichef/api/RemoteApiServerTest.java`
+
+
+
+
+
+---
+
+
+## ???? 2.0.x - Steamed G-Code
 
 
 ? is it necessary ?

@@ -1269,6 +1269,24 @@ class RemoteApiServerTest {
     }
 
     @Test
+    void adminCameraDatasetsSyncEndpointIsNotSupported() throws Exception {
+        TestContext context = createContext("camera-datasets-sync-removed.db");
+
+        try {
+            HttpResponse<String> response = context.request(
+                    "POST",
+                    "/admin/camera/datasets/pex01/sync",
+                    """
+                            {"dryRun":true}
+                            """);
+
+            assertEquals(404, response.statusCode());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void cameraSnapshotAdminEndpointsExposeTimelineAndDeleteJobSnapshot() throws Exception {
         Path cameraStorageDirectory = tempDir.resolve("camera-snapshot-admin-storage");
 

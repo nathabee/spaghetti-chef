@@ -1,0 +1,7 @@
+{
+  "id": "pex01",
+  "displayName": "Printer Example 01",
+  "portName": "dataset://pex01",
+  "mode": "sim",
+  "enabled": true
+}

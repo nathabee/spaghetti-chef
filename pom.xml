@@ -7,7 +7,7 @@
 
     <groupId>spaghettichef</groupId>
     <artifactId>spaghetti-chef</artifactId>
-    <version>0.6.5</version>
+    <version>0.7.0</version>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
